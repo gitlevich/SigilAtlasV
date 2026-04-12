@@ -4,7 +4,7 @@ status: external-ontology
 
 # Attention Language
 
-The mechanics of @attention as experienced from a first-person point of view at a given @scale. Both @DifferentialGeometry@timelike and @DifferentialGeometry@spacelike.
+The mechanics of @attention as experienced from a first-person point of view at a given @timescale. Both @DifferentialGeometry@timelike and @DifferentialGeometry@spacelike.
 
 Here the exact semantics are lexical: @sigils are nested scopes over domain language. Imported @DifferentialGeometry gives names to the shape of those scopes in experience — simultaneous structure, sequential articulation, reachability, and projection.
 

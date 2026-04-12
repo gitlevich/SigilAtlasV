@@ -1,0 +1,1 @@
+changes very gradually, like by aging: !evolves-without-discontinuities

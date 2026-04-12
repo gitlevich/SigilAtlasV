@@ -1,0 +1,1 @@
+the name is @identity of the @sigil that is derived from its essense. if two @sigils have the same @name, they are the same @sigil, just at different times.

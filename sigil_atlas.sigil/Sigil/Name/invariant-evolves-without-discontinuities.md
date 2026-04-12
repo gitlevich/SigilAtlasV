@@ -1,0 +1,1 @@
+its shape in @contrastspace transforms without tears and other discontinuities
