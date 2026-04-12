@@ -8,3 +8,6 @@ A @sigil with the boundary containing either other @ImageNeighborhoodSigils or @
 
 It must be !recognizable by its "overhead" #synthetic-image synthesized in some repeatable way.
 
+
+@ImageNeighborhoodSigils are interesting because of how we build them: we use @NeighborhoodBuildingAlgorithm.
+

@@ -14,4 +14,6 @@ Responsibilities:
 - #embeds the images so we can look at them in @ContrastSpace
 - #reports-progress for each of the @stages so I can see it in UI in real time
 - I can #cancel it gracefully and can #resume it from that point.
+- #wrap-images-in-sigils
+- #build-neighborhoods
 

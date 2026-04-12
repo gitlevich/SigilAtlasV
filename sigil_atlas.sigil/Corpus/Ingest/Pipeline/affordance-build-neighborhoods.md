@@ -1,0 +1,1 @@
+Group @ImageSigils that share @MajorContrasts into an @ImageNeighborhoodSigil by dropping their weakest contrast. Repeat for the resulting @ImageNeighborhoodSigils, dropping one more contrast each time, until a single root @ImageNeighborhoodSigil contains everything.

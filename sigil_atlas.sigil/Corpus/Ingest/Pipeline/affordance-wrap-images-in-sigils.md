@@ -1,0 +1,1 @@
+For each @image with @embeddings, derive its @MajorContrasts from the dimensions where it is most prominent in @ContrastSpace. The result is an @ImageSigil whose boundary is defined by those @MajorContrasts.
