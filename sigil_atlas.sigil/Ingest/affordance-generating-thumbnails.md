@@ -1,1 +1,0 @@
-create thumbnails for embeddings

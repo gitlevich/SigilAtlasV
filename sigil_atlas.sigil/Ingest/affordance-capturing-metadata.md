@@ -1,1 +1,0 @@
-capture all available @image@metadata

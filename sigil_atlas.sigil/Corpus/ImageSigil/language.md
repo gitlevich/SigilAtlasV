@@ -4,7 +4,7 @@ status: idea
 
 # Image Sigil
 
-An @sigil with the boundary defined alond the count of the @image's @MajorContrasts.
+A @sigil with the boundary defined alond the count of the @image's @MajorContrasts.
 
 Its @invariant is to !include-major-image-contrasts. 
 

@@ -1,0 +1,1 @@
+builds previews in enough resolution so we can show it in reasonable quality on the screen, plus embedding thumbnails

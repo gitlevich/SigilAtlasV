@@ -15,3 +15,5 @@ Responds to a @RelevanceFilter with the @Slice that contains all matched @ImageS
 Then we repeat this process for every @ImageNeighborhoodSigil, reducing relevant @contrast by one and repeating. 
 
 In the end, we will have several sigil structures in which each @sigil participates at its scale. 
+
+Physically, the @corpus lives in a @workspace.

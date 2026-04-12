@@ -1,0 +1,1 @@
+what expresses @affordances for this sigil
