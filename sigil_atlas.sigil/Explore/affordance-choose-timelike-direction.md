@@ -1,0 +1,1 @@
+which way is time. can be by capture date or any other contrast / towards or away from any specific @sigil.

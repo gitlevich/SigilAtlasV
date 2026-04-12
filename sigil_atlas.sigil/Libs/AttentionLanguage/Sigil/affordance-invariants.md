@@ -1,0 +1,1 @@
+@invariant define what @contrasts are relevant inside this @sigil and what ranges over these @contrast axes must be true inside, per !invariants-enforced

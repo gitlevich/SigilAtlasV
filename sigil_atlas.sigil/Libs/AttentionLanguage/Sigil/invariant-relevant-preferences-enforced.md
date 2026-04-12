@@ -1,0 +1,1 @@
+Within this @sigil, @preferences hold along all @contrasts it considers relevant. This is the sigil's boundary.

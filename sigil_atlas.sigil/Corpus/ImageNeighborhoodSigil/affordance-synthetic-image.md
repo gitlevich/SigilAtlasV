@@ -1,0 +1,1 @@
+returns the @SyntheticImage for this neighborhood

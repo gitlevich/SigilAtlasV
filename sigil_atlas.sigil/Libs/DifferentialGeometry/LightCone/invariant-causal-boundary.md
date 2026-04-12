@@ -1,0 +1,1 @@
+Nothing crosses the @lightCone from outside to inside. The boundary between @timelike and @spacelike is absolute — it does not depend on the @observer's position or motion, only on the structure of the @manifold.

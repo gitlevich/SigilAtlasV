@@ -1,0 +1,1 @@
+an @affordance is what this @sigil offers, the behaviors/features/etc that its parent/neighbors find relevantly useful. See @EcologicalPsychology@Affordance.

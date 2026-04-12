@@ -1,0 +1,1 @@
+@frame aspect ratio and resolution

@@ -1,0 +1,1 @@
+returns the name of this @sigil given to it by a language-capable @VisionModel.

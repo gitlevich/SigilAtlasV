@@ -1,0 +1,1 @@
+the @frame aspect ratio is immutable after creation

@@ -1,0 +1,1 @@
+what's enforced within the @sigil's boundaries

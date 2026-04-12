@@ -1,0 +1,1 @@
+the @resolution is immutable after creation

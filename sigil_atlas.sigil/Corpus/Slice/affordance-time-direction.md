@@ -1,0 +1,1 @@
+allows me to define the @contrast to treat as direction of time

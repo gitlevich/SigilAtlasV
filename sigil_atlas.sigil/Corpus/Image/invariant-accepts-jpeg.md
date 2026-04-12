@@ -1,0 +1,1 @@
+can deal with JPEG format
