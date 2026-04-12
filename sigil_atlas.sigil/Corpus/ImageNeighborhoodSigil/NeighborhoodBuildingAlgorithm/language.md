@@ -4,18 +4,38 @@ status: idea
 
 # Neighborhood Building Algorithm
 
-This is how we aggregate @ImageSigils and @ImageNeighborhoodSigils into a lattice of intersecting @ImageNeighborhoodSigils:
+This is how we aggregate @ImageSigils and @ImageNeighborhoodSigils into a lattice of intersecting @ImageNeighborhoodSigils, where each image participates in many neighborhoods, and each neighborhood has many parents and many children.
 
-Take one image. It has a 768-dim DINOv2 embedding. Filter out dimensions with low amplitude. Sort remaining by absolute value descending. Keep top 40%. These are its major contrasts. Say it has 50.
+This creates a rich enough structure we can slice to reveal multi-scale @tiling correlated with neighbouhoods visually, so I could keep zooming in to the neighborhoods that looks more interesting and find there images that I love.
 
-Now take this image's 50 major contrasts. Pick one. Drop it. You now have 49 constraints. Find all other images in the corpus whose embeddings match this image on those 49 dimensions within some tolerance. Those images are the neighborhood formed by dropping that one contrast.
+I think of @ImageNeighborhoodSigils as predicates that admit other @ImageNeighborhoodSigils and @ImageSigils.
 
-Do this for each of the 50 contrasts. That gives this image 50 neighborhoods it belongs to.
 
-Do this for every image. 5,000 images times ~50 contrasts = ~250,000 neighborhood candidates. Many will be identical — two images in the same neighborhood will generate the same neighborhood when they drop the same contrast. Deduplicate.
+For each @ImageSigil S defined in terms of @MajorContrast and @SigilProximity @invariants:
 
-Now take each neighborhood. It has a set of shared contrasts. Pick one of those shared contrasts. Drop it. Find all images matching the remaining constraints. That's a coarser neighborhood.
+1. the create an @ImageNeighborhoodSigil N with one less @invariant than S, wrapping it and all other @ImageSigils that only differ from S in that dropped @invariant.
+2. make a new @ImageNeighborhoodSigil from N by dropping another @invariant, wrapping N and other @ImageNeighborhoodSigils that only differ from it in the dropped @invariant.
+3. Recurse until N only have one @invariant left. 
 
-Repeat for each shared contrast in each neighborhood. Deduplicate again. Keep going until you reach a single root that contains everything.
 
-The result is a lattice where each image participates in many neighborhoods, and each neighborhood has many parents and many children.
+Note that in the process, we just create a very large number of potentially duplicated predicates. We should deduplicate them using a set. 
+
+## Algorithm Complexity
+
+Let k = average invariants per image (about 50). Let n = number of images.
+
+**Level 1:** n images, each drops k invariants. n*k hash operations. O(nk).
+
+**Level 2:** The number of unique neighborhoods from level 1 is at most n*k, but with dedup probably much less — call it m1. Each has k-1 invariants to drop. m1*(k-1) hash operations.
+
+**Level 3:** m2 unique neighborhoods, each with k-2 invariants. m2*(k-2) operations.
+
+The question is how fast m shrinks. 
+
+**Best case:** Heavy dedup. Most images share most contrasts, so neighborhoods collide early. m stays small at every level. Total work: O(nk) — dominated by level 1.
+
+**Worst case:** Every image is unique, no dedup at all. Level 1: nk neighborhoods. Level 2: nk(k-1). Level 3: nk(k-1)(k-2). That's n * k! which is catastrophically exponential. But this can't actually happen because you run out of images — a neighborhood can't have more members than n, and you need 2+ members. So the number of valid neighborhoods at any level is bounded by n choose 2 at most. Realistic worst case: O(nk^2) total hash ops.
+
+**Expected case:** Heavy dedup at each level. The set grows fast initially then plateaus as most new predicates collide with existing ones. Total: O(nk * L) where L is the number of levels (at most k, but typically much less because groups hit size 2 and stop splitting). For n=5000, k=50: about 250K * L. If L is 20, that's 5 million hash operations. A few seconds.
+
+For 10 million images: 10M * 50 * 20 = 10 billion hash ops. At 100ns each: ~1000 seconds, 17 minutes. Shardable across cores.

@@ -1,0 +1,1 @@
+the process of describing an image in terms of a predefined @Ontology.

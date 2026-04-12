@@ -1,0 +1,1 @@
+there is no visual discontinuity as we move from @tile to @tile

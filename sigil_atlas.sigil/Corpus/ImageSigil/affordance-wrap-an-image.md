@@ -1,0 +1,1 @@
+wrapping an image using @ImageWrappingAlgorithm
