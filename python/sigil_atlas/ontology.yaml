@@ -1,0 +1,196 @@
+# Ontology — progressive refinement of visual description.
+#
+# Each level adds one constraint that narrows the type.
+# The tree follows the natural structure of language:
+# what distinctions exist at each level of specificity.
+#
+# Structure: each node has a name, prompt, and children (subtypes).
+# At each node, CLIP picks the child whose prompt best matches the image.
+# The path from root to leaf is the image's description at increasing precision.
+
+photograph:
+  prompt: "a photograph"
+  children:
+
+    # Level 1: What dominates — a distinct subject or an environment?
+    subject:
+      prompt: "a photograph of a distinct subject"
+      children:
+
+        # Level 2: What kind of body?
+        organism:
+          prompt: "a photograph of a living organism"
+          children:
+
+            animal:
+              prompt: "a photograph of an animal"
+              children:
+
+                mammal:
+                  prompt: "a photograph of a mammal"
+                  children:
+                    person:
+                      prompt: "a photograph of a person"
+                    domestic_animal:
+                      prompt: "a photograph of a domestic animal like a dog or cat"
+                    wild_mammal:
+                      prompt: "a photograph of a wild mammal"
+
+                bird:
+                  prompt: "a photograph of a bird"
+                  children:
+                    songbird:
+                      prompt: "a photograph of a small songbird"
+                    raptor:
+                      prompt: "a photograph of a bird of prey"
+                    waterfowl:
+                      prompt: "a photograph of a waterfowl like a duck or goose"
+                    large_bird:
+                      prompt: "a photograph of a large bird like a heron or stork"
+
+                reptile_amphibian:
+                  prompt: "a photograph of a reptile or amphibian"
+
+                fish:
+                  prompt: "a photograph of a fish"
+
+                insect:
+                  prompt: "a photograph of an insect or spider"
+                  children:
+                    butterfly_moth:
+                      prompt: "a photograph of a butterfly or moth"
+                    beetle_bug:
+                      prompt: "a photograph of a beetle or bug"
+                    flying_insect:
+                      prompt: "a photograph of a flying insect like a bee or dragonfly"
+
+            plant:
+              prompt: "a photograph of a plant"
+              children:
+
+                tree:
+                  prompt: "a photograph of a tree"
+                  children:
+                    deciduous_tree:
+                      prompt: "a photograph of a deciduous tree"
+                    conifer:
+                      prompt: "a photograph of a conifer or evergreen"
+                    palm:
+                      prompt: "a photograph of a palm tree"
+
+                flower:
+                  prompt: "a photograph of a flower"
+                  children:
+                    wildflower:
+                      prompt: "a photograph of a wildflower"
+                    garden_flower:
+                      prompt: "a photograph of a cultivated garden flower"
+                    blossom:
+                      prompt: "a photograph of tree blossoms"
+
+                foliage:
+                  prompt: "a photograph of leaves, ferns, or ground vegetation"
+
+                fungus:
+                  prompt: "a photograph of a mushroom or fungus"
+
+        artifact:
+          prompt: "a photograph of a man-made object or structure"
+          children:
+
+            building:
+              prompt: "a photograph of a building"
+              children:
+                residential:
+                  prompt: "a photograph of a house or residential building"
+                civic:
+                  prompt: "a photograph of a church, temple, or public building"
+                commercial:
+                  prompt: "a photograph of a commercial or industrial building"
+                ruin:
+                  prompt: "a photograph of a ruin or abandoned structure"
+
+            vehicle:
+              prompt: "a photograph of a vehicle"
+              children:
+                road_vehicle:
+                  prompt: "a photograph of a car, truck, or bus"
+                rail:
+                  prompt: "a photograph of a train"
+                watercraft:
+                  prompt: "a photograph of a boat or ship"
+                aircraft:
+                  prompt: "a photograph of an airplane or helicopter"
+
+            infrastructure:
+              prompt: "a photograph of a road, bridge, or infrastructure"
+
+            object:
+              prompt: "a photograph of a small object or tool"
+              children:
+                food_drink:
+                  prompt: "a photograph of food or drink"
+                tool_instrument:
+                  prompt: "a photograph of a tool or instrument"
+                furniture:
+                  prompt: "a photograph of furniture"
+                personal_item:
+                  prompt: "a photograph of a personal item like a bag, hat, or glasses"
+
+        mineral:
+          prompt: "a photograph of a rock, crystal, or geological formation"
+
+    # Level 1 sibling: no distinct subject — it's a scene, environment, expanse
+    environment:
+      prompt: "a photograph of a landscape or environment"
+      children:
+
+        terrain:
+          prompt: "a photograph of land terrain"
+          children:
+            mountain:
+              prompt: "a photograph of mountains or hills"
+            desert:
+              prompt: "a photograph of a desert or arid landscape"
+            forest_scene:
+              prompt: "a photograph of a forest or woodland scene"
+            field:
+              prompt: "a photograph of a field, meadow, or grassland"
+            coast:
+              prompt: "a photograph of a coastline or beach"
+
+        water_scene:
+          prompt: "a photograph of a body of water"
+          children:
+            ocean_scene:
+              prompt: "a photograph of the ocean or sea"
+            lake_scene:
+              prompt: "a photograph of a lake or pond"
+            river_scene:
+              prompt: "a photograph of a river or stream"
+            waterfall_scene:
+              prompt: "a photograph of a waterfall"
+
+        sky_scene:
+          prompt: "a photograph dominated by sky"
+          children:
+            clear_sky_scene:
+              prompt: "a photograph of a clear sky"
+            cloud_scene:
+              prompt: "a photograph of clouds"
+            sunset_sunrise:
+              prompt: "a photograph of a sunset or sunrise"
+            night_sky_scene:
+              prompt: "a photograph of the night sky or stars"
+            storm_scene:
+              prompt: "a photograph of a storm"
+
+        urban:
+          prompt: "a photograph of an urban scene or cityscape"
+          children:
+            street_scene:
+              prompt: "a photograph of a street scene"
+            skyline:
+              prompt: "a photograph of a city skyline"
+            interior:
+              prompt: "a photograph of an interior space"

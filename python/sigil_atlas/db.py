@@ -41,6 +41,16 @@ CREATE TABLE IF NOT EXISTS embeddings (
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_image_id ON embeddings(image_id);
 CREATE INDEX IF NOT EXISTS idx_images_content_hash ON images(content_hash);
+
+CREATE TABLE IF NOT EXISTS characterizations (
+    image_id TEXT NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+    proximity_name TEXT NOT NULL,
+    value_type TEXT NOT NULL,
+    value_enum TEXT,
+    value_range REAL,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (image_id, proximity_name)
+);
 """
 
 
@@ -225,3 +235,58 @@ class CorpusDB:
         blob = row[0]
         count = len(blob) // 4
         return list(struct.unpack(f"<{count}f", blob))
+
+    # ── Characterizations ──
+
+    def insert_characterizations_batch(
+        self, rows: list[tuple[str, str, str, str | None, float | None]]
+    ) -> None:
+        """Insert batch of (image_id, proximity_name, value_type, value_enum, value_range)."""
+        now = time.time()
+        self._conn.executemany(
+            """INSERT OR REPLACE INTO characterizations
+               (image_id, proximity_name, value_type, value_enum, value_range, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            [(r[0], r[1], r[2], r[3], r[4], now) for r in rows],
+        )
+        self._conn.commit()
+
+    def fetch_characterizations(self, image_id: str) -> dict[str, str | float]:
+        """Return {proximity_name: value} for an image. Enum returns str, range returns float."""
+        rows = self._conn.execute(
+            "SELECT proximity_name, value_type, value_enum, value_range FROM characterizations WHERE image_id = ?",
+            (image_id,),
+        ).fetchall()
+        result = {}
+        for r in rows:
+            if r[1] == "enum":
+                result[r[0]] = r[2]
+            else:
+                result[r[0]] = r[3]
+        return result
+
+    def fetch_all_characterizations(self) -> dict[str, dict[str, str | float]]:
+        """Return {image_id: {proximity_name: value}} for all characterized images."""
+        rows = self._conn.execute(
+            "SELECT image_id, proximity_name, value_type, value_enum, value_range FROM characterizations"
+        ).fetchall()
+        result: dict[str, dict[str, str | float]] = {}
+        for r in rows:
+            if r[0] not in result:
+                result[r[0]] = {}
+            if r[2] == "enum":
+                result[r[0]][r[1]] = r[3]
+            else:
+                result[r[0]][r[1]] = r[4]
+        return result
+
+    def fetch_uncharacterized_image_ids(self) -> list[str]:
+        """Return image IDs that have CLIP embeddings but no characterizations."""
+        rows = self._conn.execute(
+            """SELECT DISTINCT e.image_id FROM embeddings e
+               WHERE e.model_identifier = 'clip-vit-b-32'
+               AND e.image_id NOT IN (
+                   SELECT DISTINCT image_id FROM characterizations
+               )"""
+        ).fetchall()
+        return [r[0] for r in rows]

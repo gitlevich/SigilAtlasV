@@ -33,6 +33,8 @@ class IngestPipeline:
              └─► thumbnail generation
                       ├─► CLIP embedding   (parallel with DINOv2)
                       └─► DINOv2 embedding
+                               └─► wrapping (characterize via ontology)
+                                        └─► neighborhood building
     """
 
     def __init__(
@@ -64,6 +66,16 @@ class IngestPipeline:
                 return
 
             self._run_embedding_stages(db)
+
+            if self.token.is_cancelled:
+                return
+
+            self._run_wrapping(db)
+
+            if self.token.is_cancelled:
+                return
+
+            self._run_neighborhood_building(db)
 
             self.reporter.emit_event("pipeline_completed")
 
@@ -154,3 +166,42 @@ class IngestPipeline:
 
             for f in futures:
                 f.result()
+
+    def _run_wrapping(self, db: CorpusDB) -> None:
+        """Characterize images via CLIP zero-shot against the ontology."""
+        from sigil_atlas.wrapping import run_wrapping_stage
+
+        wrapping_progress = self.reporter.create_stage(
+            "wrapping", len(db.fetch_uncharacterized_image_ids())
+        )
+        self.reporter.emit_event("wrapping_started")
+        run_wrapping_stage(db, wrapping_progress, self.token)
+        self.reporter.emit_event("wrapping_completed")
+
+    def _run_neighborhood_building(self, db: CorpusDB) -> None:
+        """Build the concept lattice from image characterizations."""
+        from sigil_atlas.neighborhood import build_lattice_from_characterizations
+        from sigil_atlas.wrapping import ImageCharacterization
+
+        self.reporter.emit_event("neighborhood_building_started")
+
+        all_chars = db.fetch_all_characterizations()
+        # Convert to invariant label sets
+        from sigil_atlas.wrapping import _range_to_bin
+        char_labels: dict[str, frozenset[str]] = {}
+        for image_id, proximities in all_chars.items():
+            labels = set()
+            for name, value in proximities.items():
+                if isinstance(value, str):
+                    labels.add(f"{name}:{value}")
+                else:
+                    labels.add(f"{name}:{_range_to_bin(value)}")
+            char_labels[image_id] = frozenset(labels)
+
+        lattice = build_lattice_from_characterizations(char_labels)
+
+        self.reporter.emit_event(
+            "neighborhood_building_completed",
+            total_neighborhoods=len(lattice),
+        )
+        logger.info("Lattice built: %d neighborhoods", len(lattice))

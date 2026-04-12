@@ -8,5 +8,4 @@ What a human eye is likely to notice about this image. Is weaved from @contrasts
 
 Like any @contrast, it describes a tension between polar opposite qualities, like smooth vs textured, bright vs dark, small vs large, etc. Colors opposing each other on the Color Wheel is a good example. 
 
-While in @contrastspace the number of primitive @contrasts (dimensions of that space) can be high, some co-vary. Those that co-vary in the same phase amplify each other, others cancel each other. Those that amplify weave together to become significant. In the end, we want all of them to weave to attractive vs unattractive @MajorContrast for a given @attention.
-
+While in @contrastspace the number of primitive @contrasts (dimensions of that space) can be high, some co-vary. Those that co-vary in the same phase amplify each other, others cancel each other. Those that amplify weave together to become significant. 
