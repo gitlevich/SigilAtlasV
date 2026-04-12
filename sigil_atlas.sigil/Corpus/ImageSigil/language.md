@@ -4,8 +4,9 @@ status: idea
 
 # Image Sigil
 
-An @sigil with as many @contrasts as are available in the @image referenced by @image@identity.
+An @sigil with the boundary defined alond the count of the @image's @MajorContrasts.
 
-Its @invariant is to !include-all-image-contrasts. 
+Its @invariant is to !include-major-image-contrasts. 
 
-Its @affordances are to expose #image-identity, #image, #image-metadata and #embeddings.
+Its @affordances are to expose @image@identity, #image, #image-metadata and #embeddings.
+

@@ -14,3 +14,5 @@ Mostly used to name/recognize the @ImageSigils
 
 Mostly used to group @ImageSigils into neighborhoods.
 
+Each @embedding is a shape of the image in the model's embedding space (@contrastspace). 
+

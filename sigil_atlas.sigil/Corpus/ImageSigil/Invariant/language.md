@@ -4,4 +4,4 @@ status: idea
 
 # Invariant
 
-What is enforced within the lexical scope of this @sigil.
+The ranges along every @MajorContrast enforced within the lexical scope of this @sigil.

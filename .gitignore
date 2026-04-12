@@ -1,0 +1,16 @@
+# Ignore IDE files
+.idea/
+
+# Ignore macOS system files
+.DS_Store
+
+# Ignore Sigil specific generated files
+sigil_atlas.sigil/.sigil/memory.db
+sigil_atlas.sigil/.sigil/memory.db-shm
+sigil_atlas.sigil/.sigil/memory.db-wal
+
+# Ignore personal or sensitive data
+sigil_atlas.sigil/.private/
+
+# Ignore Git internal system files (if not needed)
+.git/
