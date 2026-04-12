@@ -9,6 +9,7 @@ Invariants from the spec:
 """
 
 import logging
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path
 
@@ -22,6 +23,57 @@ from sigil_atlas.progress import ProgressReporter
 from sigil_atlas.workspace import Workspace
 
 logger = logging.getLogger(__name__)
+
+
+class CharacterizationStrategy(ABC):
+    """Strategy for wrapping images and building neighborhoods."""
+
+    @abstractmethod
+    def run(
+        self,
+        db: CorpusDB,
+        reporter: ProgressReporter,
+        token: CancellationToken,
+    ) -> None:
+        """Run wrapping + neighborhood building."""
+
+
+class TopDownStrategy(CharacterizationStrategy):
+    """Top-down taxonomy-driven characterization.
+
+    Walks a YAML ontology tree using CLIP zero-shot classification.
+    Each image descends the tree by picking the best-matching child
+    at each level. The path becomes its invariant set.
+    Good when you know what distinctions matter. Misses what you
+    don't name.
+    """
+
+    def run(self, db: CorpusDB, reporter: ProgressReporter, token: CancellationToken) -> None:
+        from sigil_atlas.wrapping import run_wrapping_stage
+        from sigil_atlas.neighborhood import build_lattice_from_characterizations
+
+        wrapping_progress = reporter.create_stage(
+            "wrapping", len(db.fetch_uncharacterized_image_ids())
+        )
+        reporter.emit_event("wrapping_started")
+        run_wrapping_stage(db, wrapping_progress, token)
+        reporter.emit_event("wrapping_completed")
+
+        if token.is_cancelled:
+            return
+
+        reporter.emit_event("neighborhood_building_started")
+        all_chars = db.fetch_all_characterizations()
+        char_labels: dict[str, frozenset[str]] = {}
+        for image_id, proximities in all_chars.items():
+            char_labels[image_id] = frozenset(proximities.keys())
+
+        lattice = build_lattice_from_characterizations(char_labels)
+        reporter.emit_event(
+            "neighborhood_building_completed",
+            total_neighborhoods=len(lattice),
+        )
+        logger.info("Lattice built: %d neighborhoods", len(lattice))
 
 
 class IngestPipeline:
@@ -43,11 +95,13 @@ class IngestPipeline:
         source: FolderSource,
         token: CancellationToken | None = None,
         reporter: ProgressReporter | None = None,
+        strategy: CharacterizationStrategy | None = None,
     ) -> None:
         self.workspace = workspace
         self.source = source
         self.token = token or CancellationToken()
         self.reporter = reporter or ProgressReporter()
+        self.strategy = strategy or TopDownStrategy()
 
     def run(self) -> None:
         """Run the full ingest pipeline."""
@@ -70,12 +124,7 @@ class IngestPipeline:
             if self.token.is_cancelled:
                 return
 
-            self._run_wrapping(db)
-
-            if self.token.is_cancelled:
-                return
-
-            self._run_neighborhood_building(db)
+            self.strategy.run(db, self.reporter, self.token)
 
             self.reporter.emit_event("pipeline_completed")
 
@@ -167,41 +216,3 @@ class IngestPipeline:
             for f in futures:
                 f.result()
 
-    def _run_wrapping(self, db: CorpusDB) -> None:
-        """Characterize images via CLIP zero-shot against the ontology."""
-        from sigil_atlas.wrapping import run_wrapping_stage
-
-        wrapping_progress = self.reporter.create_stage(
-            "wrapping", len(db.fetch_uncharacterized_image_ids())
-        )
-        self.reporter.emit_event("wrapping_started")
-        run_wrapping_stage(db, wrapping_progress, self.token)
-        self.reporter.emit_event("wrapping_completed")
-
-    def _run_neighborhood_building(self, db: CorpusDB) -> None:
-        """Build the concept lattice from image characterizations."""
-        from sigil_atlas.neighborhood import build_lattice_from_characterizations
-        from sigil_atlas.wrapping import ImageCharacterization
-
-        self.reporter.emit_event("neighborhood_building_started")
-
-        all_chars = db.fetch_all_characterizations()
-        # Convert to invariant label sets
-        from sigil_atlas.wrapping import _range_to_bin
-        char_labels: dict[str, frozenset[str]] = {}
-        for image_id, proximities in all_chars.items():
-            labels = set()
-            for name, value in proximities.items():
-                if isinstance(value, str):
-                    labels.add(f"{name}:{value}")
-                else:
-                    labels.add(f"{name}:{_range_to_bin(value)}")
-            char_labels[image_id] = frozenset(labels)
-
-        lattice = build_lattice_from_characterizations(char_labels)
-
-        self.reporter.emit_event(
-            "neighborhood_building_completed",
-            total_neighborhoods=len(lattice),
-        )
-        logger.info("Lattice built: %d neighborhoods", len(lattice))
