@@ -1,1 +1,0 @@
-can disconnect at any time, so we shouldn't count in it being there always

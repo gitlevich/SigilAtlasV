@@ -1,5 +1,0 @@
----
-status: idea
----
-
-# Shape

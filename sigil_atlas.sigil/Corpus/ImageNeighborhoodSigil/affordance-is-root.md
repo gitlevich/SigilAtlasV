@@ -1,1 +1,0 @@
-true if it is the outermost @sigil (contains all others)

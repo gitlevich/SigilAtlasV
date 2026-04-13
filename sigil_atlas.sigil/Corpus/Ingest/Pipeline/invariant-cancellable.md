@@ -1,1 +1,0 @@
-can be cancelled gracefully and then resumed from the state

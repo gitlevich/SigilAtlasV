@@ -1,1 +1,0 @@
-extracts all available @image@metadata

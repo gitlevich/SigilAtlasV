@@ -1,1 +1,0 @@
-returns the @Metadata for the contained @image

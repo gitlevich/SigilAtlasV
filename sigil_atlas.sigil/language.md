@@ -4,7 +4,7 @@ status: idea
 
 # Sigil Atlas
 
-This applicatin transforms a photo corpus into a recursive multiscale structure in 3D I visually @explore in different modes, like @SpaceLike, @TimeLike or @TasteLike.
+I use this application to @explore an image corpus in different modes, like @SpaceLike, @TimeLike or @TasteLike.
 
 @Sigil is our fundamental structure.
 

@@ -1,1 +1,0 @@
-can deal with HEIC format

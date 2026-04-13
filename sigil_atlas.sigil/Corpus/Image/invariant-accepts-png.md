@@ -1,1 +1,0 @@
-can deal with PNG format

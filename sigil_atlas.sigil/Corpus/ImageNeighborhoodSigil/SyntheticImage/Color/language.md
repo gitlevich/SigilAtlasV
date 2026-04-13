@@ -1,6 +1,0 @@
----
-status: idea
----
-
-# Color
-

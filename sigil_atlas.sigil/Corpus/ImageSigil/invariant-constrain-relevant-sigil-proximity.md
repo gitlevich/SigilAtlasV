@@ -1,1 +1,0 @@
-while a @contrast is between polar opposite, @SigilProximity specifies the distance to @sigils relevant inside this one. A @sigil can only be relevant to @attention wearing another if it's a neighbor that offers @affordances.

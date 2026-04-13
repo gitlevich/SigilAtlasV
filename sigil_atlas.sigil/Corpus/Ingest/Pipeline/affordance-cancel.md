@@ -1,1 +1,0 @@
-cancels the @pipeline to respect !cancellable invariant, to be resumed later

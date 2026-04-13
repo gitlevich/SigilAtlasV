@@ -1,1 +1,0 @@
-i care about proximity to @sigils that give me @affordances to that I can entangle with them. I can only entangle with @sigils at my scale, so they must be my neighbors (not parents, not children).

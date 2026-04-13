@@ -1,1 +1,0 @@
-all @Pipeline @stages that can run in parallel do
