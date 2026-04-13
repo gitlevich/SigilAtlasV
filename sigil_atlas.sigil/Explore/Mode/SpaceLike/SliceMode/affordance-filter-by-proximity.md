@@ -1,0 +1,1 @@
+Name things I want to be closer to or farther from. Images are scored by distance — those too far from what I want or too close to what I don't want are excluded from the @slice.

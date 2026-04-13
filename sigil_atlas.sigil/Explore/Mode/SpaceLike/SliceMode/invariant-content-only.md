@@ -1,0 +1,1 @@
+Slice mode controls which @images are present. It never affects how they are arranged on the @torus.
