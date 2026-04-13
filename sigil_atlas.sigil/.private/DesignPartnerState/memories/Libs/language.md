@@ -1,0 +1,1 @@
+The imported ontologies under this concept were left alone during pruning because they look like shared library material rather than the app’s own core.

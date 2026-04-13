@@ -1,0 +1,1 @@
+The user believes it is easier to reproject from scratch than to iterate over the same code base because iteration causes decoherence. The user wants the spec to be projectable into code unambiguously. The user distinguishes deeper functional specification from superficial UI annoyances that should not require changing deeper code.

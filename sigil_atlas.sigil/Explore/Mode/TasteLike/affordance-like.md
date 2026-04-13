@@ -1,0 +1,1 @@
+Toggle. Press once: I like this @image. Press again: cancel. Steers the @attractor toward the image.

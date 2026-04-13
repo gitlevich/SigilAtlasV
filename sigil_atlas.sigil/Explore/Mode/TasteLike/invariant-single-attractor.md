@@ -1,0 +1,1 @@
+One @attractor at a time. The surface has a single center and a clear gradient away from it.

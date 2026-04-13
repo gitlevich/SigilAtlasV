@@ -1,0 +1,1 @@
+This concept is a child sigil under @Explore for traversal semantics. It should capture the core semantic unit that code must implement consistently under @Explore. It should describe in plain product language what state exists, what operations transform it, and what invariants must survive those transformations.

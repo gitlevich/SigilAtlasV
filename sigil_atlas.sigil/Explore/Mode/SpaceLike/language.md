@@ -4,9 +4,9 @@ status: idea
 
 # Space-like
 
-The @torus ordered by visual similarity. Moving along the surface = moving through a continuous visual space. Nearby images look alike. Distant images look different.
+The @torus ordered by @similarity. Moving along the surface = moving through a continuous visual space. Nearby images look alike. Distant images look different.
 
-Each @strip contains visually similar images. Adjacent strips contain gradually different images. The transition across the surface is smooth — no abrupt jumps in visual content.
+@Neighborhoods are local (!local-neighborhoods) — a cluster of nearby images on the surface that share qualities. They don't align with @strips. A neighborhood may span parts of several strips or sit within one. The transition across the surface is smooth — no abrupt jumps.
 
 ## Implementation
 

@@ -1,0 +1,1 @@
+Surface-level UI annoyances are treated as distinct from deeper functional behavior in @Explore. Variations in the UI surface for @Explore should be explicitly declared non-semantic so they do not imply deeper code changes. The desired design for @Explore is a small set of hard invariants and transition semantics beneath a flexible surface.

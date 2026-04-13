@@ -1,0 +1,1 @@
+The user says mode is either looking @Timelike or @Spacelike or something else-like. The user distinguishes this concept from @Slice and does not see them as overlapping in their domain-language definitions.

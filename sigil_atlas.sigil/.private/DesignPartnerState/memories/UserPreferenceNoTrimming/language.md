@@ -1,0 +1,1 @@
+The user explicitly does not want restored ontology content trimmed again. This preference currently applies to the restored @ImageNeighborhoodSigils ontology. The assistant should only prune that restored ontology if the user explicitly asks for it.

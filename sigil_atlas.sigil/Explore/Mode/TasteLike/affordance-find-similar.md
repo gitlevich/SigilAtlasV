@@ -1,0 +1,1 @@
+Set the selected @image as @attractor. Switch @distanceMetric to embedding. The @torus reflows so images similar in the active @contrasts crowd around it.
