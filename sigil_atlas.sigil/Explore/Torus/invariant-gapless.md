@@ -1,0 +1,1 @@
+@strips tile the entire surface. No empty space between @images.

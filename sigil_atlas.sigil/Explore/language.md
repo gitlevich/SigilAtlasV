@@ -1,21 +1,16 @@
+---
+status: idea
+---
+
 # Explore
 
-Let me explore the images in a number of different ways:
+The primary experience. I view my @images on a @torus surface through a @screen.
 
-- @time-like
-- @space-like
-- @taste-like
+I choose a @mode that determines how @images are ordered on the @torus:
+- @timelike: @stories as film strips. @Time flows left-to-right. Stories stack vertically.
+- @spacelike: ordered by visual similarity. Movement in any direction = gradual visual change.
+- @tastelike: ordered by a @RelevanceFilter I define. Forward = more relevant.
 
+The @corpus responds to a @RelevanceFilter with a @slice — the set of matched @images. The @slice is laid out on the @torus as @strips. I navigate by moving my @PointOfView along the surface.
 
-
-When I give the @corpus a @RelevanceFilter, it responds with a @slice containing relevant @images it had. 
-
-I can traverse a @slice by specifying @slice#time-direction and expect to see a @slice!ordered sequence of @images sorted in that direction to appear in my @frame.
-
-
-Explore is a UX powered by these @concepts:
-
-
-...
-
-It has a @Project sceen that can open one @Workspace on file system. 
+Switching @mode recomputes the @strip layout from the same @slice. The @images don't change — their arrangement does.

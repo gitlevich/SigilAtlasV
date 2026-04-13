@@ -1,0 +1,1 @@
+always rendered flat, no 3D curvature, no projection distortion.

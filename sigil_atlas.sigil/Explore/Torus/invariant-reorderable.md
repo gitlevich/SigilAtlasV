@@ -1,0 +1,1 @@
+@images can be rearranged into new @strips by switching @mode or adjusting 

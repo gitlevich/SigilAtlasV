@@ -1,0 +1,1 @@
+resumes the @pipeline from where it was cancelled, to satisfy !resumable invariant

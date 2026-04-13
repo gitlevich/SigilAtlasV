@@ -1,0 +1,1 @@
+every @image preserves its original aspect ratio. Scaled uniformly, never cropped.

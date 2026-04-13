@@ -1,0 +1,1 @@
+both axes wrap, traversal never hits an edge.
