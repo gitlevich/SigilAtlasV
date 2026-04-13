@@ -1,0 +1,1 @@
+images outside the @bandPass are excluded from the @slice.

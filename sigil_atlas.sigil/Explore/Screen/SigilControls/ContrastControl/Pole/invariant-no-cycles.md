@@ -1,1 +1,0 @@
-a pole cannot reference a @contrastControl that references it, directly or indirectly.
