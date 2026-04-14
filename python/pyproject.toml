@@ -9,6 +9,8 @@ dependencies = [
     "open-clip-torch>=2.24",
     "Pillow>=10.0",
     "exifread>=3.0",
+    "umap-learn>=0.5",
+    "numpy>=1.24",
 ]
 
 [project.optional-dependencies]

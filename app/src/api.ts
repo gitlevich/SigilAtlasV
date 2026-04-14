@@ -1,0 +1,65 @@
+/**
+ * API client for the Python sidecar.
+ *
+ * In Tauri mode, calls go through invoke(). In standalone web mode,
+ * calls go directly to the sidecar HTTP server.
+ */
+
+import type {
+  SliceRequest,
+  SliceResponse,
+  LayoutRequest,
+  StripLayout,
+  Dimension,
+} from "./types";
+
+let sidecarPort: number | null = null;
+
+export function setSidecarPort(port: number): void {
+  sidecarPort = port;
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  if (!sidecarPort) throw new Error("Sidecar port not set");
+  const res = await fetch(`http://127.0.0.1:${sidecarPort}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
+  return res.json();
+}
+
+async function get<T>(path: string): Promise<T> {
+  if (!sidecarPort) throw new Error("Sidecar port not set");
+  const res = await fetch(`http://127.0.0.1:${sidecarPort}${path}`);
+  if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
+  return res.json();
+}
+
+export async function health(): Promise<boolean> {
+  try {
+    await get("/health");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getDimensions(): Promise<Dimension[]> {
+  const data = await get<{ dimensions: Dimension[] }>("/dimensions");
+  return data.dimensions;
+}
+
+export async function getModels(): Promise<string[]> {
+  const data = await get<{ models: string[] }>("/models");
+  return data.models;
+}
+
+export async function computeSlice(req: SliceRequest): Promise<SliceResponse> {
+  return post("/slice", req);
+}
+
+export async function computeLayout(req: LayoutRequest): Promise<StripLayout> {
+  return post("/layout", req);
+}

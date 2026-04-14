@@ -1,0 +1,155 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0d0d12;
+  color: #c8c8d0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 13px;
+}
+
+#app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+#viewport {
+  flex: 1;
+  display: block;
+  cursor: grab;
+}
+
+#viewport:active {
+  cursor: grabbing;
+}
+
+.panel {
+  width: 220px;
+  padding: 12px;
+  overflow-y: auto;
+  background: #14141c;
+  border-color: #2a2a3a;
+  transition: width 0.2s, padding 0.2s;
+}
+
+.panel.folded {
+  width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.panel.left {
+  border-right: 1px solid #2a2a3a;
+}
+
+.panel.right {
+  border-left: 1px solid #2a2a3a;
+}
+
+.panel h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #888;
+  margin-bottom: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.panel h3:hover {
+  color: #bbb;
+}
+
+.fold-btn {
+  position: fixed;
+  top: 8px;
+  z-index: 10;
+  background: #14141c;
+  border: 1px solid #2a2a3a;
+  color: #888;
+  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+}
+
+.fold-btn:hover {
+  color: #ccc;
+}
+
+.fold-btn.left { left: 8px; }
+.fold-btn.right { right: 8px; }
+
+.panel.folded + .fold-btn,
+.fold-btn.visible {
+  display: flex;
+}
+
+.control-group {
+  margin-bottom: 14px;
+}
+
+.control-group > label {
+  display: block;
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 4px;
+}
+
+.control-group input[type="range"] {
+  width: 100%;
+  accent-color: #6a6aff;
+}
+
+.control-group input[type="text"] {
+  width: 100%;
+  padding: 5px 8px;
+  background: #1e1e2a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #c8c8d0;
+  font-size: 12px;
+}
+
+.control-group input[type="text"]::placeholder {
+  color: #555;
+}
+
+.control-group select {
+  width: 100%;
+  padding: 5px 8px;
+  background: #1e1e2a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #c8c8d0;
+  font-size: 12px;
+}
+
+.control-group input[type="checkbox"] {
+  margin-right: 6px;
+  accent-color: #6a6aff;
+}
+
+.control-group div {
+  display: flex;
+  align-items: center;
+  padding: 2px 0;
+}
+
+#image-count {
+  margin-top: 16px;
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+}

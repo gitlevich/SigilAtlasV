@@ -2,7 +2,7 @@
 
 ## Structure
 
-This spec is a tree of directories. Each directory is a **sigil** — a named concept with boundaries.
+This spec is a tree of directories. Each directory is a **sigil** — a named concept with boundaries and affordances.
 
 Every sigil has:
 - `language.md` — what this sigil is, written in the vocabulary of its children
