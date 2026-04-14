@@ -19,6 +19,28 @@ from sigil_atlas.embedding_provider import EmbeddingProvider
 logger = logging.getLogger(__name__)
 
 
+def _xy_to_hilbert(x: int, y: int, order: int) -> int:
+    """Convert (x, y) grid coordinates to a Hilbert curve index.
+
+    Maps a 2D position on a 2^order x 2^order grid to its position along
+    the Hilbert curve. Nearby points in 2D map to nearby indices on the curve.
+    """
+    d = 0
+    s = 2 ** (order - 1)
+    while s > 0:
+        rx = 1 if (x & s) > 0 else 0
+        ry = 1 if (y & s) > 0 else 0
+        d += s * s * ((3 * rx) ^ ry)
+        # Rotate quadrant
+        if ry == 0:
+            if rx == 1:
+                x = s - 1 - x
+                y = s - 1 - y
+            x, y = y, x
+        s //= 2
+    return d
+
+
 @dataclass
 class ImagePosition:
     """Position of a single image within a strip."""
@@ -105,6 +127,27 @@ def _build_distance_matrix(
     return matrix
 
 
+def _pack_strip(
+    items: list[tuple[str, float]],
+    strip_idx: int,
+    strip_height: float,
+    torus_width: float,
+    dims: dict[str, tuple[int, int, str | None]],
+) -> Strip:
+    """Pack images into a strip, scaling widths to fill torus_width exactly."""
+    natural_total = sum(w for _, w in items)
+    scale = torus_width / natural_total if natural_total > 0 else 1.0
+
+    images = []
+    cx = 0.0
+    for iid, w in items:
+        scaled_w = w * scale
+        thumb = dims.get(iid, (512, 512, None))[2]
+        images.append(ImagePosition(id=iid, x=cx, width=scaled_w, thumbnail_path=thumb))
+        cx += scaled_w
+    return Strip(y=strip_idx * strip_height, images=images)
+
+
 def compute_layout(
     provider: EmbeddingProvider,
     db: CorpusDB,
@@ -170,73 +213,60 @@ def compute_layout(
     )
     points_2d = reducer.fit_transform(matrix)
 
-    # 4. Map UMAP 2D positions directly onto the torus surface.
-    #    Both axes of the UMAP output map to torus coordinates, preserving
-    #    2D neighborhood structure (!local-neighborhoods: patches, not strips).
+    # 4. Hilbert curve ordering: convert 2D UMAP positions into a single
+    #    continuous path that preserves 2D locality. Then fill strips
+    #    sequentially from this path — the strips are just where the
+    #    path wraps around the torus.
     #
-    #    Normalize UMAP x -> [0, torus_width], UMAP y -> strip index.
-    #    Each image's torus x comes from its UMAP x position proportionally.
-    #    This keeps horizontal neighbors in UMAP space as horizontal neighbors
-    #    on the torus, not just sorted-then-packed.
+    #    This is the correct way to linearize a 2D surface while preserving
+    #    neighborhood structure (!local-neighborhoods: patches, not strips).
 
-    # Normalize UMAP coordinates to [0, 1]
+    # Normalize UMAP to [0, 1]
     x_vals = points_2d[:, 0]
     y_vals = points_2d[:, 1]
     x_min, x_max = x_vals.min(), x_vals.max()
     y_min, y_max = y_vals.min(), y_vals.max()
     x_range = max(x_max - x_min, 1e-8)
     y_range = max(y_max - y_min, 1e-8)
+    norm_x = (x_vals - x_min) / x_range
+    norm_y = (y_vals - y_min) / y_range
 
-    norm_x = (x_vals - x_min) / x_range  # 0..1
-    norm_y = (y_vals - y_min) / y_range  # 0..1
+    # Map to Hilbert curve grid and compute indices
+    hilbert_order = 8  # 256x256 grid — sufficient resolution for 5K+ images
+    grid_size = 2 ** hilbert_order
+    gx = np.clip((norm_x * (grid_size - 1)).astype(int), 0, grid_size - 1)
+    gy = np.clip((norm_y * (grid_size - 1)).astype(int), 0, grid_size - 1)
+    hilbert_indices = np.array([_xy_to_hilbert(int(gx[i]), int(gy[i]), hilbert_order) for i in range(n)])
 
-    # Assign to strips by UMAP y, filling greedily to balance widths
-    order = np.argsort(norm_y)
+    # Sort by Hilbert index — this is the continuous path through 2D space
+    order = np.argsort(hilbert_indices)
 
-    strip_bins: list[list[tuple[float, str, float]]] = []  # [(norm_x, id, width)]
-    current_bin: list[tuple[float, str, float]] = []
+    # 5. Fill strips sequentially from the Hilbert path (!gapless).
+    #    Each strip is scaled so it fills exactly torus_width.
+    strips: list[Strip] = []
+    current_items: list[tuple[str, float]] = []  # (id, width)
     current_width = 0.0
 
     for idx in order:
         iid = image_ids[idx]
         w = img_widths[iid]
-        current_bin.append((float(norm_x[idx]), iid, w))
+        current_items.append((iid, w))
         current_width += w
 
         if current_width >= torus_width:
-            strip_bins.append(current_bin)
-            current_bin = []
+            strips.append(_pack_strip(current_items, len(strips), strip_height, torus_width, dims))
+            current_items = []
             current_width = 0.0
 
-    # Last bin
-    if current_bin:
-        if strip_bins and current_width < torus_width * 0.5:
-            strip_bins[-1].extend(current_bin)
+    # Last strip
+    if current_items:
+        if strips and current_width < torus_width * 0.5:
+            # Merge into previous
+            prev_items = [(img.id, img.width) for img in strips[-1].images]
+            prev_items.extend(current_items)
+            strips[-1] = _pack_strip(prev_items, len(strips) - 1, strip_height, torus_width, dims)
         else:
-            strip_bins.append(current_bin)
-
-    # 5. Within each strip, place images at their UMAP x position on the torus.
-    #    Sort by UMAP x, then position proportionally across torus_width.
-    #    Each image is placed at its proportional x, and widths are scaled
-    #    so images collectively fill the strip exactly (!gapless).
-    strips: list[Strip] = []
-    for s_idx, bin_items in enumerate(strip_bins):
-        bin_items.sort(key=lambda t: t[0])  # sort by UMAP x
-
-        # Total natural width of images in this strip
-        natural_total = sum(w for _, _, w in bin_items)
-        # Scale factor so strip fills exactly torus_width
-        scale = torus_width / natural_total if natural_total > 0 else 1.0
-
-        images = []
-        cx = 0.0
-        for _, iid, w in bin_items:
-            scaled_w = w * scale
-            thumb = dims.get(iid, (512, 512, None))[2]
-            images.append(ImagePosition(id=iid, x=cx, width=scaled_w, thumbnail_path=thumb))
-            cx += scaled_w
-
-        strips.append(Strip(y=s_idx * strip_height, images=images))
+            strips.append(_pack_strip(current_items, len(strips), strip_height, torus_width, dims))
 
     torus_height = len(strips) * strip_height
 

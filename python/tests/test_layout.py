@@ -88,6 +88,34 @@ class TestComputeLayout:
         assert result.torus_width > 0
         assert result.torus_height > 0
 
+    def test_invariant_gapless(self, db):
+        """Verify !gapless: every strip fills exactly torus_width, no gaps between images."""
+        n = 50
+        _seed_images(db, n)
+        embeddings = {f"img_{i}": np.random.randn(16).astype(np.float32) for i in range(n)}
+        provider = FakeEmbeddingProvider(embeddings)
+        result = compute_layout(provider, db, list(embeddings.keys()), strip_height=100.0)
+
+        assert result.torus_width > 0
+        assert result.torus_height > 0
+
+        for i, strip in enumerate(result.strips):
+            # Strip width must equal torus_width
+            strip_width = sum(img.width for img in strip.images)
+            assert abs(strip_width - result.torus_width) < 1.0, (
+                f"Strip {i}: width {strip_width:.1f} != torus_width {result.torus_width:.1f}"
+            )
+
+            # No gaps between adjacent images
+            for j in range(len(strip.images) - 1):
+                end = strip.images[j].x + strip.images[j].width
+                start = strip.images[j + 1].x
+                gap = abs(start - end)
+                assert gap < 0.01, f"Strip {i}, images {j}-{j+1}: gap={gap:.4f}"
+
+        # Strips tile vertically with no gaps
+        assert result.torus_height == len(result.strips) * result.strip_height
+
     def test_invariant_arrangement_never_changes_slice(self, db):
         """Verify !arrangement-only: layout doesn't change which images are present."""
         n = 20
