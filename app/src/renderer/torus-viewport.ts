@@ -164,27 +164,36 @@ export class TorusViewport {
 
     for (const strip of strips) {
       const sy = strip.y;
-      // Emit at y offsets for vertical wrapping
-      for (let dy = -torus_height; dy <= torus_height; dy += torus_height) {
-        const wy = sy + dy;
-        const relY = wy - pov.y;
-        if (relY + strip_height < -visH * 0.5 - margin || relY > visH * 0.5 + margin) continue;
 
-        for (const img of strip.images) {
-          // Emit at x offsets for horizontal wrapping
-          for (let dx = -torus_width; dx <= torus_width; dx += torus_width) {
-            const wx = img.x + dx;
-            const relX = wx - pov.x;
-            if (relX + img.width < -visW * 0.5 - margin || relX > visW * 0.5 + margin) continue;
+      // Find the best y-offset (closest to camera)
+      let bestDy = 0;
+      let bestDistY = Math.abs(sy - pov.y);
+      for (const dy of [-torus_height, torus_height]) {
+        const d = Math.abs(sy + dy - pov.y);
+        if (d < bestDistY) { bestDistY = d; bestDy = dy; }
+      }
+      const wy = sy + bestDy;
+      const relY = wy - pov.y;
+      if (relY + strip_height < -visH * 0.5 - margin || relY > visH * 0.5 + margin) continue;
 
-            const { uv } = this.atlas.getUV(img.id);
+      for (const img of strip.images) {
+        // Find the best x-offset (closest to camera)
+        let bestDx = 0;
+        let bestDistX = Math.abs(img.x - pov.x);
+        for (const dx of [-torus_width, torus_width]) {
+          const d = Math.abs(img.x + dx - pov.x);
+          if (d < bestDistX) { bestDistX = d; bestDx = dx; }
+        }
+        const wx = img.x + bestDx;
+        const relX = wx - pov.x;
+        if (relX + img.width < -visW * 0.5 - margin || relX > visW * 0.5 + margin) continue;
 
-            for (let v = 0; v < 6; v++) {
-              offsets.push(wx, wy);
-              sizes.push(img.width, strip_height);
-              uvs.push(uv.u0, uv.v0, uv.u1, uv.v1);
-            }
-          }
+        const { uv } = this.atlas.getUV(img.id);
+
+        for (let v = 0; v < 6; v++) {
+          offsets.push(wx, wy);
+          sizes.push(img.width, strip_height);
+          uvs.push(uv.u0, uv.v0, uv.u1, uv.v1);
         }
       }
     }

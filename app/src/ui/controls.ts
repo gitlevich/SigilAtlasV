@@ -162,11 +162,17 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   tightnessSlider.max = "1";
   tightnessSlider.step = "0.05";
   tightnessSlider.value = String(state.tightness);
+
+  const tightnessLabels = document.createElement("div");
+  tightnessLabels.className = "slider-labels";
+  tightnessLabels.innerHTML = "<span>tight</span><span>loose</span>";
+
   tightnessSlider.addEventListener("change", () => {
     state.tightness = parseFloat(tightnessSlider.value);
     recomputeLayout();
   });
   tightnessGroup.appendChild(tightnessSlider);
+  tightnessGroup.appendChild(tightnessLabels);
   nbPanel.appendChild(tightnessGroup);
 
   // Model dropdown

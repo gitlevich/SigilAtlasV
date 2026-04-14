@@ -1,0 +1,1 @@
+No @image overlaps another within a @strip. Each image occupies a unique, non-overlapping region.

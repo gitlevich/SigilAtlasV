@@ -10,4 +10,6 @@ Each @image scales uniformly to height h — display width = h * original_width 
 
 How images get assigned to strips is defined by @stripAssignment. The position of each image within and across strips is determined by the active @mode.
 
-!fixed-height, !no-crop, !no-gaps.
+!fixed-height, !no-crop, !no-gaps, !no-overlaps, !respect-image-aspect-ratio.
+
+A @strip #places-images-on-itself to ensure its @invariants.

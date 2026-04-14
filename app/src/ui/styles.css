@@ -147,6 +147,14 @@ html, body {
   padding: 2px 0;
 }
 
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #666;
+  margin-top: 2px;
+}
+
 #image-count {
   margin-top: 16px;
   font-size: 11px;
