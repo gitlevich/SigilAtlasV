@@ -151,11 +151,11 @@ export class TorusViewport {
   private _buildInstances(pov: PointOfView): InstanceData {
     if (!this.layout) return { offsets: new Float32Array(0), sizes: new Float32Array(0), uvs: new Float32Array(0), count: 0 };
 
-    const { strips, torus_width, torus_height, strip_height } = this.layout;
+    const { strips, torus_width, torus_height } = this.layout;
     const aspect = this.canvas.width / this.canvas.height;
     const visW = pov.z;
     const visH = pov.z / aspect;
-    const margin = Math.max(visW, visH) * 0.1;
+    const margin = Math.max(visW, visH) * 0.5;
 
     // Collect visible images
     const offsets: number[] = [];
@@ -164,24 +164,27 @@ export class TorusViewport {
 
     for (const strip of strips) {
       const sy = strip.y;
+      const sh = strip.height;
 
-      // Find the best y-offset (closest to camera)
+      // Find the best y-offset (closest to camera by strip center)
+      const cy = sy + sh * 0.5;
       let bestDy = 0;
-      let bestDistY = Math.abs(sy - pov.y);
+      let bestDistY = Math.abs(cy - pov.y);
       for (const dy of [-torus_height, torus_height]) {
-        const d = Math.abs(sy + dy - pov.y);
+        const d = Math.abs(cy + dy - pov.y);
         if (d < bestDistY) { bestDistY = d; bestDy = dy; }
       }
       const wy = sy + bestDy;
       const relY = wy - pov.y;
-      if (relY + strip_height < -visH * 0.5 - margin || relY > visH * 0.5 + margin) continue;
+      if (relY + sh < -visH * 0.5 - margin || relY > visH * 0.5 + margin) continue;
 
       for (const img of strip.images) {
-        // Find the best x-offset (closest to camera)
+        // Find the best x-offset (closest to camera by image center)
+        const cx = img.x + img.width * 0.5;
         let bestDx = 0;
-        let bestDistX = Math.abs(img.x - pov.x);
+        let bestDistX = Math.abs(cx - pov.x);
         for (const dx of [-torus_width, torus_width]) {
-          const d = Math.abs(img.x + dx - pov.x);
+          const d = Math.abs(cx + dx - pov.x);
           if (d < bestDistX) { bestDistX = d; bestDx = dx; }
         }
         const wx = img.x + bestDx;
@@ -192,7 +195,7 @@ export class TorusViewport {
 
         for (let v = 0; v < 6; v++) {
           offsets.push(wx, wy);
-          sizes.push(img.width, strip_height);
+          sizes.push(img.width, sh);
           uvs.push(uv.u0, uv.v0, uv.u1, uv.v1);
         }
       }

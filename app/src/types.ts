@@ -9,6 +9,7 @@ export interface ImagePosition {
 
 export interface Strip {
   y: number;
+  height: number;
   images: ImagePosition[];
 }
 

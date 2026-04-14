@@ -164,7 +164,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 {"id": img.id, "x": img.x, "width": img.width, "thumbnail_path": img.thumbnail_path}
                 for img in strip.images
             ]
-            strips_json.append({"y": strip.y, "images": images_json})
+            strips_json.append({"y": strip.y, "height": strip.height, "images": images_json})
 
         self._send_json({
             "strips": strips_json,

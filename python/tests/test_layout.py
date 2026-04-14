@@ -114,7 +114,17 @@ class TestComputeLayout:
                 assert gap < 0.01, f"Strip {i}, images {j}-{j+1}: gap={gap:.4f}"
 
         # Strips tile vertically with no gaps
-        assert result.torus_height == len(result.strips) * result.strip_height
+        expected_height = sum(s.height for s in result.strips)
+        assert abs(result.torus_height - expected_height) < 0.01, (
+            f"torus_height {result.torus_height:.1f} != sum of strip heights {expected_height:.1f}"
+        )
+        # Strips stack without vertical gaps
+        for i in range(len(result.strips) - 1):
+            strip_end = result.strips[i].y + result.strips[i].height
+            next_start = result.strips[i + 1].y
+            assert abs(strip_end - next_start) < 0.01, (
+                f"Vertical gap between strips {i} and {i+1}: {abs(strip_end - next_start):.4f}"
+            )
 
     def test_invariant_arrangement_never_changes_slice(self, db):
         """Verify !arrangement-only: layout doesn't change which images are present."""
@@ -183,6 +193,20 @@ class TestComputeLayout:
         assert exclusive > 0 or total <= 2, (
             f"No strip separation between clusters: A={cluster_a_strips}, B={cluster_b_strips}"
         )
+
+    def test_invariant_bounded_height_variation(self, db):
+        """Per-strip height should stay within a few percent of nominal strip_height."""
+        n = 200
+        _seed_images(db, n)
+        embeddings = {f"img_{i}": np.random.randn(16).astype(np.float32) for i in range(n)}
+        provider = FakeEmbeddingProvider(embeddings)
+        result = compute_layout(provider, db, list(embeddings.keys()), strip_height=100.0)
+
+        for i, strip in enumerate(result.strips):
+            ratio = strip.height / result.strip_height
+            assert 0.90 < ratio < 1.10, (
+                f"Strip {i}: height {strip.height:.1f} deviates >10% from nominal {result.strip_height:.1f}"
+            )
 
     def test_tightness_affects_clustering(self, db):
         """Tighter layout should produce more compact clusters."""
