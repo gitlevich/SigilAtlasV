@@ -209,21 +209,19 @@ def compute_slice(
         return SliceResult([], {}, None, {})
 
     # Step 4: proximity filters select images — union of per-term top matches
-    # Each named thing defines a neighborhood. Images not matching any are excluded.
-    # Use raw cosine similarity and select images above mean + 2*std per term.
+    # Each named thing defines a neighborhood. Only the strongest matches survive.
+    # Use raw cosine similarity, select top 100 per term (or fewer if corpus is small).
     if proximity_filters:
         selected = set()
+        top_k = min(100, max(10, len(candidates) // 50))
         for pf in proximity_filters:
             vec = _encode_cached(provider, pf.text, model)
             matrix = provider.fetch_matrix(candidates, model)
             raw = matrix @ vec
-            threshold = float(raw.mean() + 1.5 * raw.std())
-            count = 0
-            for i in range(len(candidates)):
-                if raw[i] >= threshold:
-                    selected.add(candidates[i])
-                    count += 1
-            logger.info("Attract '%s': %d images above threshold", pf.text, count)
+            indices = np.argsort(-raw)[:top_k]
+            for idx in indices:
+                selected.add(candidates[idx])
+            logger.info("Attract '%s': top %d images", pf.text, top_k)
         candidates = [c for c in candidates if c in selected]
         logger.info("Attract total: %d images", len(candidates))
 
