@@ -246,15 +246,9 @@ def compute_slice(
     proximity_filters = proximity_filters or []
     contrast_controls = contrast_controls or []
 
-    # Step 1+2: range filtering
-    if range_filters:
-        candidates = list(filter_by_range(db, range_filters))
-    else:
-        candidates = db.fetch_image_ids()
-    if range_filters:
-        logger.info("Range filters narrowed to %d images", len(candidates))
+    candidates = db.fetch_image_ids()
 
-    # Step 3: attract selects matching images per term (union)
+    # Step 1: attract selects matching images per term (union) from full corpus
     if proximity_filters:
         selected = set()
         for pf in proximity_filters:
@@ -269,7 +263,7 @@ def compute_slice(
     if not candidates:
         return SliceResult([], {}, None, {})
 
-    # Step 4: contrast bandpass further constrains the selection
+    # Step 2: contrast bandpass constrains within attract selection
     filter_controls = [c for c in contrast_controls if c.role == "filter"]
     for cc in filter_controls:
         if not candidates:
@@ -278,6 +272,12 @@ def compute_slice(
         mask = (normalized >= cc.band_min) & (normalized <= cc.band_max)
         candidates = [candidates[i] for i in range(len(candidates)) if mask[i]]
         logger.info("Bandpass %s vs %s: %d remain", cc.pole_a, cc.pole_b, len(candidates))
+
+    # Step 3: range filters (color/tone) constrain further
+    if range_filters:
+        range_pass = filter_by_range(db, range_filters)
+        candidates = [c for c in candidates if c in range_pass]
+        logger.info("Range filters: %d remain", len(candidates))
 
     # Score remaining images — composite of all attract signals
     attract_controls = [c for c in contrast_controls if c.role == "attract"]
