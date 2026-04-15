@@ -151,7 +151,7 @@ def _select_above_knee(
     scores: np.ndarray,
     candidates: list[str],
     selected: set[str],
-    max_candidates: int = 500,
+    max_candidates: int = 200,
 ) -> int:
     """Select images above the knee of the descending score curve.
 
