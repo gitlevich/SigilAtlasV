@@ -11,7 +11,7 @@
 
 import { state, notify } from "../state";
 import * as api from "../api";
-import type { Dimension, ContrastControl, VocabTerm } from "../types";
+import type { Dimension, ContrastControl } from "../types";
 import type { TorusViewport } from "../renderer/torus-viewport";
 import { createBandpassWidget } from "./bandpass-widget";
 
@@ -24,7 +24,6 @@ function debouncedRecompute(): void {
 }
 
 let viewport: TorusViewport | null = null;
-let allVocab: VocabTerm[] = [];
 
 export function setViewport(vp: TorusViewport): void {
   viewport = vp;
@@ -101,117 +100,9 @@ function makeFoldable(panel: HTMLElement): void {
 }
 
 
-// ── Autocomplete ──
-
-interface AutocompleteResult {
-  name: string;
-  path: string;
-  prompt: string;
-}
-
-function createAutocomplete(
-  container: HTMLElement,
-  candidates: () => AutocompleteResult[],
-  onSelect: (term: AutocompleteResult) => void,
-  placeholder = "name a thing...",
-): HTMLInputElement {
-  const wrapper = document.createElement("div");
-  wrapper.className = "autocomplete-wrapper";
-
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "pill-input";
-  input.placeholder = placeholder;
-
-  const dropdown = document.createElement("div");
-  dropdown.className = "autocomplete-dropdown";
-  dropdown.style.display = "none";
-
-  let matches: AutocompleteResult[] = [];
-  let activeIdx = -1;
-
-  const highlightItem = (idx: number) => {
-    const items = dropdown.querySelectorAll(".autocomplete-item");
-    items.forEach((el, i) => {
-      (el as HTMLElement).classList.toggle("active", i === idx);
-    });
-    activeIdx = idx;
-  };
-
-  const selectMatch = (term: AutocompleteResult) => {
-    input.value = "";
-    dropdown.style.display = "none";
-    activeIdx = -1;
-    onSelect(term);
-  };
-
-  const updateDropdown = () => {
-    const query = input.value.trim().toLowerCase();
-    if (!query) {
-      dropdown.style.display = "none";
-      matches = [];
-      activeIdx = -1;
-      return;
-    }
-    const all = candidates().filter((t) => t.name.toLowerCase().includes(query) || t.path.toLowerCase().includes(query));
-    const startsWith = all.filter((t) => t.name.toLowerCase().startsWith(query));
-    const rest = all.filter((t) => !t.name.toLowerCase().startsWith(query));
-    matches = [...startsWith, ...rest].slice(0, 12);
-    if (matches.length === 0) {
-      dropdown.style.display = "none";
-      activeIdx = -1;
-      return;
-    }
-    dropdown.innerHTML = "";
-    for (const m of matches) {
-      const item = document.createElement("div");
-      item.className = "autocomplete-item";
-      // Show path so user can distinguish homonyms
-      const pathDisplay = m.path.replace(/_/g, " ");
-      item.innerHTML = `<span class="ac-path">${pathDisplay}</span>`;
-      item.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        selectMatch(m);
-      });
-      dropdown.appendChild(item);
-    }
-    activeIdx = 0;
-    highlightItem(0);
-    dropdown.style.display = "block";
-  };
-
-  input.addEventListener("input", updateDropdown);
-  input.addEventListener("focus", updateDropdown);
-  input.addEventListener("blur", () => {
-    setTimeout(() => { dropdown.style.display = "none"; }, 150);
-  });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      dropdown.style.display = "none";
-      input.blur();
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (matches.length > 0) highlightItem(Math.min(activeIdx + 1, matches.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      if (matches.length > 0) highlightItem(Math.max(activeIdx - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (activeIdx >= 0 && activeIdx < matches.length) selectMatch(matches[activeIdx]);
-    }
-  });
-
-  wrapper.appendChild(input);
-  wrapper.appendChild(dropdown);
-  container.appendChild(wrapper);
-  return input;
-}
-
-
 // ── Things (proximity filters) ──
 
-// Track which paths are in the proximity filters for pill display
-const proximityPaths: Array<{ name: string; path: string }> = [];
+const thingNames: string[] = [];
 
 function createThingsHolder(
   container: HTMLElement,
@@ -222,19 +113,18 @@ function createThingsHolder(
 
   const renderPills = () => {
     holder.querySelectorAll(".pill").forEach((el) => el.remove());
-    for (let i = 0; i < proximityPaths.length; i++) {
-      const pp = proximityPaths[i];
+    for (let i = 0; i < thingNames.length; i++) {
+      const name = thingNames[i];
       const pill = document.createElement("span");
       pill.className = "pill";
-      pill.textContent = pp.name.replace(/_/g, " ");
-      pill.title = pp.path.replace(/_/g, " ");  // hover reveals full path
+      pill.textContent = name;
       const remove = document.createElement("span");
       remove.className = "pill-remove";
       remove.textContent = "\u00d7";
       const idx = i;
       remove.addEventListener("click", () => {
         state.proximityFilters.splice(idx, 1);
-        proximityPaths.splice(idx, 1);
+        thingNames.splice(idx, 1);
         renderPills();
         onChange();
       });
@@ -243,15 +133,24 @@ function createThingsHolder(
     }
   };
 
-  createAutocomplete(holder, () => allVocab, (term) => {
-    if (!proximityPaths.some((p) => p.path === term.path)) {
-      state.proximityFilters.push({ text: term.prompt, weight: 1.0 });
-      proximityPaths.push({ name: term.name, path: term.path });
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "pill-input";
+  input.placeholder = "type a thing, press enter...";
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      state.proximityFilters.push({ text: `a photograph of ${text}`, weight: 1.0 });
+      thingNames.push(text);
+      input.value = "";
       renderPills();
       onChange();
     }
   });
 
+  holder.appendChild(input);
   container.appendChild(holder);
 }
 
@@ -273,58 +172,48 @@ function createContrastBuilder(
     }
   };
 
-  // Add contrast button
+  // Add contrast: two text inputs with "vs" between them
   const addBtn = document.createElement("div");
   addBtn.className = "add-contrast";
 
-  const leftSlot = document.createElement("div");
-  leftSlot.className = "contrast-slot";
+  const leftInput = document.createElement("input");
+  leftInput.type = "text";
+  leftInput.className = "pill-input";
+  leftInput.placeholder = "pole A...";
+
   const vs = document.createElement("span");
   vs.className = "contrast-vs";
   vs.textContent = "vs";
-  const rightSlot = document.createElement("div");
-  rightSlot.className = "contrast-slot";
 
-  let pendingPoleA: AutocompleteResult | null = null;
-  let siblingTerms: AutocompleteResult[] = [];
+  const rightInput = document.createElement("input");
+  rightInput.type = "text";
+  rightInput.className = "pill-input";
+  rightInput.placeholder = "pole B...";
 
-  const resetBuilder = () => {
-    pendingPoleA = null;
-    siblingTerms = [];
-    leftSlot.innerHTML = "";
-    rightSlot.innerHTML = "";
-    createAutocomplete(leftSlot, () => allVocab, async (term) => {
-      pendingPoleA = term;
-      leftSlot.innerHTML = "";
-      const pill = document.createElement("span");
-      pill.className = "pill";
-      pill.textContent = term.name.replace(/_/g, " ");
-      pill.title = term.path.replace(/_/g, " ");
-      leftSlot.appendChild(pill);
-      // Fetch siblings for constrained right pole
-      const sibs = await api.getSiblings(term.name);
-      siblingTerms = sibs.map((s) => ({ name: s.name, path: term.path.replace(/\/[^/]+$/, "/" + s.name), prompt: s.prompt }));
-      rightSlot.innerHTML = "";
-      createAutocomplete(rightSlot, () => siblingTerms, (term2) => {
-        state.contrastControls.push({
-          pole_a: pendingPoleA!.prompt,
-          pole_b: term2.prompt,
-          role: "filter",
-          band_min: -1.0,
-          band_max: 1.0,
-        });
-        resetBuilder();
-        renderContrasts();
-        onChange();
-      }, "opposite...");
+  const addContrast = () => {
+    const a = leftInput.value.trim();
+    const b = rightInput.value.trim();
+    if (!a || !b) return;
+    state.contrastControls.push({
+      pole_a: `a photograph that is ${a}`,
+      pole_b: `a photograph that is ${b}`,
+      role: "filter",
+      band_min: -1.0,
+      band_max: 1.0,
     });
+    leftInput.value = "";
+    rightInput.value = "";
+    renderContrasts();
+    onChange();
   };
 
-  resetBuilder();
+  rightInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); addContrast(); }
+  });
 
-  addBtn.appendChild(leftSlot);
+  addBtn.appendChild(leftInput);
   addBtn.appendChild(vs);
-  addBtn.appendChild(rightSlot);
+  addBtn.appendChild(rightInput);
 
   container.appendChild(list);
   container.appendChild(addBtn);
@@ -341,9 +230,10 @@ function createContrastWidget(
   widget.className = "contrast-widget";
 
   // Header: pole_a vs pole_b [x]
+  const stripPromptPrefix = (s: string) => s.replace(/^a photograph (?:of |that is )/, "");
   const header = document.createElement("div");
   header.className = "contrast-header";
-  header.innerHTML = `<span>${cc.pole_a.replace(/_/g, " ")}</span><span class="contrast-vs">vs</span><span>${cc.pole_b.replace(/_/g, " ")}</span>`;
+  header.innerHTML = `<span>${stripPromptPrefix(cc.pole_a)}</span><span class="contrast-vs">vs</span><span>${stripPromptPrefix(cc.pole_b)}</span>`;
   const removeBtn = document.createElement("span");
   removeBtn.className = "pill-remove";
   removeBtn.textContent = "\u00d7";
@@ -369,7 +259,7 @@ function createContrastWidget(
 
   const labels = document.createElement("div");
   labels.className = "slider-labels";
-  labels.innerHTML = `<span>${cc.pole_a.replace(/_/g, " ")}</span><span>${cc.pole_b.replace(/_/g, " ")}</span>`;
+  labels.innerHTML = `<span>${stripPromptPrefix(cc.pole_a)}</span><span>${stripPromptPrefix(cc.pole_b)}</span>`;
 
   widget.appendChild(bandWidget);
   widget.appendChild(labels);
@@ -381,9 +271,6 @@ function createContrastWidget(
 // ── Main init ──
 
 export async function initControls(dimensions: Dimension[], models: string[]): Promise<void> {
-  // Fetch vocabulary for autocomplete
-  allVocab = await api.getVocabularyFlat();
-  allVocab.sort((a, b) => a.name.localeCompare(b.name));
 
   // --- Slice panel (left) ---
   const slicePanel = document.getElementById("slice-panel")!;
