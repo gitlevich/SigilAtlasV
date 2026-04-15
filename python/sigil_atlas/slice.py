@@ -213,7 +213,7 @@ def compute_slice(
     # Use raw cosine similarity, select top 100 per term (or fewer if corpus is small).
     if proximity_filters:
         selected = set()
-        top_k = min(100, max(10, len(candidates) // 50))
+        top_k = min(30, max(5, len(candidates) // 200))
         for pf in proximity_filters:
             vec = _encode_cached(provider, pf.text, model)
             matrix = provider.fetch_matrix(candidates, model)
