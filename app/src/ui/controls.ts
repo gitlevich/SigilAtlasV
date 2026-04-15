@@ -453,6 +453,7 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   let resizing = false;
   resizeHandle.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    resizeHandle.setPointerCapture(e.pointerId);
     resizing = true;
     resizeHandle.classList.add("dragging");
     const startX = e.clientX;
@@ -468,12 +469,14 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
     const onUp = () => {
       resizing = false;
       resizeHandle.classList.remove("dragging");
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
+      resizeHandle.removeEventListener("pointermove", onMove);
+      resizeHandle.removeEventListener("pointerup", onUp);
+      resizeHandle.removeEventListener("lostpointercapture", onUp);
     };
 
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    resizeHandle.addEventListener("pointermove", onMove);
+    resizeHandle.addEventListener("pointerup", onUp);
+    resizeHandle.addEventListener("lostpointercapture", onUp);
   });
 
   // Mode tabs (not in a section — always visible at top)
