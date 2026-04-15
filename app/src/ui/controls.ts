@@ -445,9 +445,13 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   const panel = document.getElementById("neighborhood-panel")!;
   panel.innerHTML = "";
 
-  // Resize handle
+  // Resize handle (double-click to collapse/expand)
   const resizeHandle = document.createElement("div");
   resizeHandle.className = "panel-resize-handle";
+  resizeHandle.addEventListener("dblclick", (e) => {
+    e.preventDefault();
+    panel.classList.toggle("folded");
+  });
   panel.appendChild(resizeHandle);
 
   let resizing = false;

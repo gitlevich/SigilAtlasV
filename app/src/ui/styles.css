@@ -48,6 +48,12 @@ html, body {
   overflow: hidden;
 }
 
+.panel.folded .panel-resize-handle {
+  left: -8px;
+  width: 8px;
+  overflow: visible;
+}
+
 .panel.left {
   border-right: 1px solid #2a2a3a;
 }
