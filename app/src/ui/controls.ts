@@ -48,12 +48,11 @@ async function recomputeSliceAndLayout(): Promise<void> {
     // Timelike: order by capture date or contrast projection
     const hasOV = Object.keys(state.orderValues).length > 0;
     orderValues = hasOV ? state.orderValues : undefined;
-  } else if (state.mode === "tastelike") {
-    // Tastelike: preserve score-based order from slice
-    preserveOrder = state.proximityFilters.length > 0 ||
-      state.contrastControls.some((c) => c.role === "attract");
+  } else if (state.mode === "tastelike" || state.proximityFilters.length > 0) {
+    // Tastelike or attract active: preserve score-based order from slice
+    preserveOrder = true;
   }
-  // Spacelike: no order_values, no preserve_order — UMAP + Hilbert
+  // Spacelike with no attract: UMAP + Hilbert
 
   const layout = await api.computeLayout({
     image_ids: state.imageIds,

@@ -38,7 +38,7 @@ _state: SidecarState | None = None
 
 class RequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        pass  # suppress per-request HTTP noise
+        logger.debug(format, *args)
 
     def _send_json(self, data, status=200):
         body = json.dumps(data).encode("utf-8")
@@ -155,6 +155,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             for c in data.get("contrast_controls", [])
         ]
         model = data.get("model", "clip-vit-l-14")
+        logger.info("Slice request: model=%s, proximity=%s", model, [f["text"] for f in data.get("proximity_filters", [])])
 
         result = compute_slice(
             _state.db, _state.provider,
