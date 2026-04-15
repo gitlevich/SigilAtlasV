@@ -38,7 +38,7 @@ html, body {
   overflow-y: auto;
   background: #14141c;
   border-color: #2a2a3a;
-  transition: width 0.2s, min-width 0.2s, padding 0.2s;
+  transition: padding 0.2s;
 }
 
 .panel.folded {
