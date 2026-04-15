@@ -1,0 +1,364 @@
+# Semantic sigil — plants.
+# What grows and roots. Green life.
+
+plant:
+  prompt: plant vegetation
+  children:
+
+    tree:
+      prompt: tree
+      children:
+        deciduous:
+          prompt: deciduous tree
+          children:
+            oak:
+              prompt: oak
+              children:
+                red_oak:
+                  prompt: red oak
+                white_oak:
+                  prompt: white oak
+                live_oak:
+                  prompt: live oak
+            birch:
+              prompt: birch
+              children:
+                silver_birch:
+                  prompt: silver birch
+                paper_birch:
+                  prompt: paper birch
+                river_birch:
+                  prompt: river birch
+            maple:
+              prompt: maple
+              children:
+                sugar_maple:
+                  prompt: sugar maple
+                japanese_maple:
+                  prompt: japanese maple
+                red_maple:
+                  prompt: red maple
+            willow:
+              prompt: willow
+              children:
+                weeping:
+                  prompt: weeping willow
+                pussy_willow:
+                  prompt: pussy willow
+            beech:
+              prompt: beech
+        evergreen:
+          prompt: evergreen conifer
+          children:
+            pine:
+              prompt: pine
+              children:
+                scots_pine:
+                  prompt: scots pine
+                bristlecone:
+                  prompt: bristlecone pine
+                umbrella_pine:
+                  prompt: umbrella pine
+            spruce:
+              prompt: spruce
+            fir:
+              prompt: fir
+            cedar:
+              prompt: cedar
+            juniper:
+              prompt: juniper
+        tropical:
+          prompt: tropical tree
+          children:
+            palm:
+              prompt: palm tree
+              children:
+                coconut:
+                  prompt: coconut palm
+                date:
+                  prompt: date palm
+                fan_palm:
+                  prompt: fan palm
+            banyan:
+              prompt: banyan fig tree
+            baobab:
+              prompt: baobab
+            eucalyptus:
+              prompt: eucalyptus
+            acacia:
+              prompt: acacia
+        fruit_tree:
+          prompt: fruit tree
+          children:
+            apple_tree:
+              prompt: apple tree
+            cherry:
+              prompt: cherry tree
+            citrus:
+              prompt: citrus lemon orange
+            olive:
+              prompt: olive tree
+            peach:
+              prompt: peach plum tree
+        dead:
+          prompt: dead tree
+          children:
+            snag:
+              prompt: standing dead snag
+            stump:
+              prompt: stump
+            fallen:
+              prompt: fallen log
+            driftwood:
+              prompt: driftwood
+            bleached:
+              prompt: bleached dead wood
+
+    flower:
+      prompt: flower bloom
+      children:
+        wildflower:
+          prompt: wildflower
+          children:
+            daisy:
+              prompt: daisy
+            poppy:
+              prompt: poppy
+            bluebell:
+              prompt: bluebell
+            thistle:
+              prompt: thistle
+            clover:
+              prompt: clover
+        garden:
+          prompt: garden flower cultivated
+          children:
+            rose:
+              prompt: rose
+              children:
+                climbing_rose:
+                  prompt: climbing rose
+                wild_rose:
+                  prompt: wild rose hip
+                tea_rose:
+                  prompt: tea rose
+            lily:
+              prompt: lily
+              children:
+                water_lily:
+                  prompt: water lily lotus
+                tiger_lily:
+                  prompt: tiger lily
+                calla:
+                  prompt: calla lily
+            tulip:
+              prompt: tulip
+            iris:
+              prompt: iris
+            peony:
+              prompt: peony
+        tropical_flower:
+          prompt: tropical flower
+          children:
+            orchid:
+              prompt: orchid
+              children:
+                phalaenopsis:
+                  prompt: moth orchid phalaenopsis
+                cattleya:
+                  prompt: cattleya orchid
+                wild_orchid:
+                  prompt: wild orchid
+            hibiscus:
+              prompt: hibiscus
+            plumeria:
+              prompt: plumeria frangipani
+            bird_of_paradise:
+              prompt: bird of paradise flower
+            bougainvillea:
+              prompt: bougainvillea
+        blossom:
+          prompt: blossom flowering branch
+          children:
+            cherry_blossom:
+              prompt: cherry blossom sakura
+            apple_blossom:
+              prompt: apple blossom
+            magnolia:
+              prompt: magnolia
+            wisteria:
+              prompt: wisteria
+            dogwood:
+              prompt: dogwood
+        tiny:
+          prompt: tiny small flower
+          children:
+            forget_me_not:
+              prompt: forget-me-not
+            violet:
+              prompt: violet
+            primrose:
+              prompt: primrose
+            buttercup:
+              prompt: buttercup
+            snowdrop:
+              prompt: snowdrop
+
+    foliage:
+      prompt: foliage leaf
+      children:
+        fern:
+          prompt: fern
+          children:
+            bracken:
+              prompt: bracken
+            maidenhair:
+              prompt: maidenhair fern
+            tree_fern:
+              prompt: tree fern
+            fiddlehead:
+              prompt: fiddlehead unfurling
+        moss:
+          prompt: moss
+          children:
+            carpet_moss:
+              prompt: carpet moss ground cover
+            sphagnum:
+              prompt: sphagnum peat moss
+            hanging_moss:
+              prompt: hanging moss spanish moss
+        lichen:
+          prompt: lichen
+          children:
+            crustose:
+              prompt: crustose lichen flat
+            foliose:
+              prompt: foliose lichen leafy
+            fruticose:
+              prompt: fruticose lichen branching
+        grass:
+          prompt: grass
+          children:
+            lawn:
+              prompt: lawn mowed grass
+            tall_grass:
+              prompt: tall grass prairie
+            reed:
+              prompt: reed sedge rushes
+            bamboo:
+              prompt: bamboo
+            grain:
+              prompt: grain wheat barley
+        vine:
+          prompt: vine climbing
+          children:
+            ivy:
+              prompt: ivy
+            grape:
+              prompt: grapevine
+            morning_glory:
+              prompt: morning glory
+            honeysuckle:
+              prompt: honeysuckle
+            creeper:
+              prompt: creeper tendril
+
+    fungus:
+      prompt: mushroom fungus
+      children:
+        cap:
+          prompt: cap mushroom
+          children:
+            amanita:
+              prompt: amanita fly agaric
+            boletus:
+              prompt: boletus porcini
+            chanterelle:
+              prompt: chanterelle
+            parasol:
+              prompt: parasol mushroom
+            ink_cap:
+              prompt: ink cap shaggy
+        bracket:
+          prompt: bracket shelf fungus
+          children:
+            turkey_tail:
+              prompt: turkey tail
+            reishi:
+              prompt: reishi
+            conk:
+              prompt: conk woody bracket
+        puffball:
+          prompt: puffball
+          children:
+            giant:
+              prompt: giant puffball
+            earthstar:
+              prompt: earthstar
+            birds_nest:
+              prompt: bird's nest fungus
+        morel:
+          prompt: morel
+        coral_fungus:
+          prompt: coral fungus branching
+
+    fruit:
+      prompt: fruit seed berry
+      children:
+        berry:
+          prompt: berry
+          children:
+            strawberry:
+              prompt: strawberry
+            blueberry:
+              prompt: blueberry
+            blackberry:
+              prompt: blackberry bramble
+            raspberry:
+              prompt: raspberry
+            elderberry:
+              prompt: elderberry
+        stone_fruit:
+          prompt: stone fruit
+          children:
+            cherry_fruit:
+              prompt: cherry fruit
+            plum:
+              prompt: plum
+            apricot:
+              prompt: apricot
+            peach_fruit:
+              prompt: peach
+        nut:
+          prompt: nut seed
+          children:
+            acorn:
+              prompt: acorn
+            chestnut:
+              prompt: chestnut
+            walnut:
+              prompt: walnut
+            hazelnut:
+              prompt: hazelnut
+            pinecone:
+              prompt: pinecone pine seed
+        pod:
+          prompt: pod capsule
+          children:
+            bean:
+              prompt: bean pod
+            milkweed:
+              prompt: milkweed pod
+            poppy_pod:
+              prompt: poppy seed pod
+            catalpa:
+              prompt: catalpa long pod
+        pome:
+          prompt: pome fruit
+          children:
+            apple_fruit:
+              prompt: apple
+            pear:
+              prompt: pear
+            quince:
+              prompt: quince

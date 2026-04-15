@@ -1,0 +1,232 @@
+# Semantic sigil — clothes and dress.
+# What people wear. Fabric on bodies.
+
+clothes:
+  prompt: clothing garment dress
+  children:
+
+    head:
+      prompt: headwear
+      children:
+        hat:
+          prompt: hat
+          children:
+            brimmed:
+              prompt: brimmed hat sun hat
+            cap:
+              prompt: cap baseball cap
+            beanie:
+              prompt: beanie knit cap
+            straw:
+              prompt: straw hat
+            top_hat:
+              prompt: top hat formal
+        veil:
+          prompt: veil headscarf
+          children:
+            sheer:
+              prompt: sheer veil
+            headscarf:
+              prompt: headscarf hijab
+            bridal:
+              prompt: bridal veil
+        hood:
+          prompt: hood
+        turban:
+          prompt: turban wrap
+        crown:
+          prompt: crown headdress wreath
+
+    upper:
+      prompt: upper body clothing
+      children:
+        shirt:
+          prompt: shirt blouse
+          children:
+            button_up:
+              prompt: button-up shirt
+            t_shirt:
+              prompt: t-shirt
+            polo:
+              prompt: polo shirt
+            flannel:
+              prompt: flannel checked shirt
+            linen:
+              prompt: linen shirt
+        sweater:
+          prompt: sweater pullover
+          children:
+            knit:
+              prompt: knit sweater
+            cardigan:
+              prompt: cardigan
+            turtleneck:
+              prompt: turtleneck
+            hoodie:
+              prompt: hoodie sweatshirt
+        jacket:
+          prompt: jacket
+          children:
+            leather:
+              prompt: leather jacket
+            denim:
+              prompt: denim jacket
+            blazer:
+              prompt: blazer sport coat
+            parka:
+              prompt: parka winter coat
+            windbreaker:
+              prompt: windbreaker rain jacket
+        coat:
+          prompt: coat overcoat
+          children:
+            trench:
+              prompt: trench coat
+            wool:
+              prompt: wool coat
+            fur:
+              prompt: fur coat
+            cape:
+              prompt: cape cloak poncho
+        vest:
+          prompt: vest waistcoat
+          children:
+            suit_vest:
+              prompt: suit vest formal
+            down:
+              prompt: down vest puffy
+            knit_vest:
+              prompt: knit vest
+
+    lower:
+      prompt: lower body clothing
+      children:
+        pants:
+          prompt: pants trousers
+          children:
+            jeans:
+              prompt: jeans denim pants
+            chinos:
+              prompt: chinos khaki
+            dress_pants:
+              prompt: dress pants formal
+            cargo:
+              prompt: cargo pants
+            linen_pants:
+              prompt: linen loose pants
+        skirt:
+          prompt: skirt
+          children:
+            long_skirt:
+              prompt: long skirt maxi
+            short_skirt:
+              prompt: short skirt mini
+            pleated:
+              prompt: pleated skirt
+            wrap_skirt:
+              prompt: wrap skirt
+        shorts:
+          prompt: shorts
+          children:
+            denim_shorts:
+              prompt: denim shorts
+            athletic:
+              prompt: athletic shorts
+            bermuda:
+              prompt: bermuda knee length
+        leggings:
+          prompt: leggings tights
+
+    full:
+      prompt: full body garment
+      children:
+        dress:
+          prompt: dress
+          children:
+            sundress:
+              prompt: sundress summer
+            evening:
+              prompt: evening gown formal
+            wrap_dress:
+              prompt: wrap dress
+            shift:
+              prompt: shift dress simple
+            folk:
+              prompt: folk traditional dress
+        suit:
+          prompt: suit
+          children:
+            business:
+              prompt: business suit
+            tuxedo:
+              prompt: tuxedo formal
+            linen_suit:
+              prompt: linen summer suit
+        jumpsuit:
+          prompt: jumpsuit overall
+          children:
+            coverall:
+              prompt: coverall work suit
+            romper:
+              prompt: romper playsuit
+        robe:
+          prompt: robe gown
+          children:
+            bathrobe:
+              prompt: bathrobe
+            kimono:
+              prompt: kimono
+            cassock:
+              prompt: cassock religious robe
+            hospital:
+              prompt: hospital gown
+        uniform:
+          prompt: uniform
+          children:
+            military:
+              prompt: military uniform
+            school:
+              prompt: school uniform
+            medical:
+              prompt: medical scrubs white coat
+            service:
+              prompt: service uniform waiter chef
+
+    feet:
+      prompt: footwear
+      children:
+        shoe:
+          prompt: shoe
+          children:
+            sneaker:
+              prompt: sneaker athletic shoe
+            loafer:
+              prompt: loafer flat shoe
+            oxford:
+              prompt: oxford lace-up shoe
+            heel:
+              prompt: high heel pump
+        boot:
+          prompt: boot
+          children:
+            ankle:
+              prompt: ankle boot
+            knee:
+              prompt: knee-high boot
+            work_boot:
+              prompt: work boot heavy
+            rubber:
+              prompt: rubber rain boot
+            cowboy:
+              prompt: cowboy boot
+        sandal:
+          prompt: sandal
+          children:
+            flip_flop:
+              prompt: flip flop
+            gladiator:
+              prompt: gladiator sandal
+            espadrille:
+              prompt: espadrille
+        barefoot:
+          prompt: barefoot bare feet

@@ -1,0 +1,398 @@
+# Visual artists sigil — individual artistic voices.
+# "This looks like a ___." No breadth limit.
+
+visual_artist:
+  prompt: artist style
+  children:
+
+    painter:
+      prompt: painter
+      children:
+        renaissance_painter:
+          prompt: renaissance painter
+          children:
+            leonardo:
+              prompt: leonardo da vinci sfumato mysterious
+            michelangelo:
+              prompt: michelangelo muscular monumental
+            raphael:
+              prompt: raphael balanced harmonious
+            botticelli:
+              prompt: botticelli graceful flowing line
+            titian:
+              prompt: titian warm color flesh
+            caravaggio:
+              prompt: caravaggio dramatic darkness
+            vermeer:
+              prompt: vermeer quiet light domestic
+            rembrandt:
+              prompt: rembrandt shadow golden portrait
+            velazquez:
+              prompt: velazquez mirror reality
+            el_greco:
+              prompt: el greco elongated mystical
+            bosch:
+              prompt: bosch fantastical grotesque
+            bruegel:
+              prompt: bruegel peasant landscape panoramic
+            durer:
+              prompt: durer precise engraved detail
+
+        impressionist_painter:
+          prompt: impressionist painter
+          children:
+            monet:
+              prompt: monet water lilies light dissolving
+            renoir:
+              prompt: renoir warm skin dappled light
+            degas:
+              prompt: degas dancers asymmetric cropped
+            pissarro:
+              prompt: pissarro rural pointillist
+            morisot:
+              prompt: morisot intimate domestic brushwork
+            cassatt:
+              prompt: cassatt mother child tender
+            caillebotte:
+              prompt: caillebotte perspective urban rain
+            sisley:
+              prompt: sisley gentle landscape sky
+
+        post_impressionist_painter:
+          prompt: post-impressionist painter
+          children:
+            cezanne:
+              prompt: cezanne structure planes mountain
+            van_gogh:
+              prompt: van gogh swirl thick paint stars
+            gauguin:
+              prompt: gauguin flat exotic color
+            seurat:
+              prompt: seurat dots scientific color
+            toulouse_lautrec:
+              prompt: toulouse-lautrec cabaret poster
+            bonnard:
+              prompt: bonnard intimate color domestic
+
+        expressionist_painter:
+          prompt: expressionist painter
+          children:
+            munch:
+              prompt: munch scream anxiety vibrating
+            kirchner:
+              prompt: kirchner angular urban jarring
+            nolde:
+              prompt: nolde fierce color religious
+            schiele:
+              prompt: schiele contorted line bare
+            kokoschka:
+              prompt: kokoschka turbulent portrait
+            beckmann:
+              prompt: beckmann thick outline harsh
+            kandinsky:
+              prompt: kandinsky abstract spiritual musical
+            klee:
+              prompt: klee whimsical childlike symbolic
+            marc:
+              prompt: marc blue horse animal
+            jawlensky:
+              prompt: jawlensky face mask color
+
+        modern_painter:
+          prompt: modern painter
+          children:
+            matisse:
+              prompt: matisse flat color joy cut-out
+            picasso:
+              prompt: picasso cubist fractured face
+            braque:
+              prompt: braque cubist brown collage
+            leger:
+              prompt: leger tubular mechanical figure
+            mondrian:
+              prompt: mondrian grid primary color
+            malevich:
+              prompt: malevich suprematist geometric
+            modigliani:
+              prompt: modigliani elongated neck portrait
+            chagall:
+              prompt: chagall floating dreamlike village
+            frida_kahlo:
+              prompt: frida kahlo self-portrait symbolic pain
+            diego_rivera:
+              prompt: diego rivera mural social
+            tamara_lempicka:
+              prompt: lempicka art deco glossy
+            georgia_okeeffe:
+              prompt: okeeffe flower bone close-up desert
+            hopper:
+              prompt: hopper lonely urban light
+            wyeth:
+              prompt: wyeth tempera rural melancholy
+            balthus:
+              prompt: balthus interior girl unsettling
+            bacon:
+              prompt: francis bacon screaming distorted cage
+            freud:
+              prompt: lucian freud flesh thick paint naked
+            rothko:
+              prompt: rothko color field floating rectangle
+            pollock:
+              prompt: pollock drip all-over web
+            de_kooning:
+              prompt: de kooning violent woman abstract
+            agnes_martin:
+              prompt: agnes martin pale grid subtle line
+            cy_twombly:
+              prompt: twombly scrawl graffiti scribble
+            diebenkorn:
+              prompt: diebenkorn ocean park geometric light
+            hockney_painter:
+              prompt: hockney pool flat color california
+            richter:
+              prompt: gerhard richter blurred photo painting
+            anselm_kiefer_painter:
+              prompt: kiefer ash straw lead heavy history
+            basquiat_painter:
+              prompt: basquiat crown text raw street
+            yoshitomo_nara:
+              prompt: nara big-eyed child defiant
+            peter_doig:
+              prompt: doig landscape layered mysterious
+            marlene_dumas:
+              prompt: dumas wet face figure washed
+            neo_rauch:
+              prompt: neo rauch surreal industrial german
+
+    photographer:
+      prompt: photographer
+      children:
+        early:
+          prompt: early photographer pioneer
+          children:
+            atget:
+              prompt: atget paris empty documentary
+            cameron:
+              prompt: julia margaret cameron soft portrait
+            nadar:
+              prompt: nadar portrait bohemian
+            muybridge:
+              prompt: muybridge motion sequence
+            steichen_artist:
+              prompt: steichen painterly atmospheric
+
+        documentary_photographer:
+          prompt: documentary photographer
+          children:
+            dorothea_lange:
+              prompt: dorothea lange depression migrant
+            walker_evans:
+              prompt: walker evans vernacular direct
+            weegee:
+              prompt: weegee flash crime night
+            sebastiao_salgado:
+              prompt: salgado epic black white humanity
+            james_nachtwey:
+              prompt: nachtwey war suffering witness
+            mary_ellen_mark:
+              prompt: mary ellen mark marginal lives
+            gordon_parks:
+              prompt: gordon parks dignity struggle color
+            josef_koudelka:
+              prompt: koudelka gypsies exile panoramic
+            eugene_smith:
+              prompt: w eugene smith compassionate essay
+            lewis_hine:
+              prompt: lewis hine child labor social
+            jacob_riis:
+              prompt: riis tenement flash poverty
+
+        street_photographer:
+          prompt: street photographer
+          children:
+            cartier_bresson:
+              prompt: cartier-bresson decisive moment geometry
+            robert_frank:
+              prompt: robert frank americans raw grain
+            garry_winogrand:
+              prompt: winogrand tilt energy american
+            lee_friedlander:
+              prompt: friedlander layered reflection self
+            diane_arbus:
+              prompt: arbus confrontational outsider direct
+            vivian_maier:
+              prompt: vivian maier self-portrait shadow street
+            saul_leiter:
+              prompt: saul leiter color abstract rain
+            joel_meyerowitz:
+              prompt: meyerowitz color street cape light
+            william_klein:
+              prompt: william klein blur grain aggressive
+            daido_moriyama:
+              prompt: moriyama are bure boke dark grain
+            martin_parr:
+              prompt: martin parr flash saturated social
+            alex_webb:
+              prompt: alex webb color layers tropical complex
+            trent_parke:
+              prompt: trent parke light shadow australian
+            helen_levitt:
+              prompt: helen levitt children play new york
+
+        landscape_photographer:
+          prompt: landscape photographer
+          children:
+            ansel_adams:
+              prompt: ansel adams zone system western sharp
+            edward_weston:
+              prompt: weston form pepper dune shell
+            minor_white:
+              prompt: minor white equivalent spiritual
+            eliot_porter:
+              prompt: eliot porter intimate color nature
+            robert_adams:
+              prompt: robert adams new west suburban
+            stephen_shore:
+              prompt: stephen shore uncommon places color
+            william_eggleston:
+              prompt: eggleston democratic color mundane
+            joel_sternfeld:
+              prompt: sternfeld american prospect ironic
+            richard_misrach:
+              prompt: misrach desert cantos color
+            michael_kenna:
+              prompt: kenna minimal long exposure landscape
+            hiroshi_sugimoto_artist:
+              prompt: sugimoto sea theater time exposure
+            nadav_kander:
+              prompt: nadav kander yangtze industrial
+
+        portrait_photographer:
+          prompt: portrait photographer
+          children:
+            richard_avedon:
+              prompt: avedon white background stark
+            irving_penn:
+              prompt: penn corner elegant precise
+            annie_leibovitz:
+              prompt: leibovitz celebrity staged elaborate
+            yousuf_karsh:
+              prompt: karsh dramatic light powerful
+            arnold_newman:
+              prompt: newman environmental portrait iconic
+            helmut_newton:
+              prompt: newton provocative fashion powerful
+            peter_lindbergh:
+              prompt: lindbergh natural black white supermodel
+            august_sander:
+              prompt: sander typology german people
+            judith_joy_ross:
+              prompt: ross large format tender american
+            rineke_dijkstra:
+              prompt: dijkstra adolescent vulnerable beach
+
+        art_photographer:
+          prompt: art photographer
+          children:
+            cindy_sherman:
+              prompt: sherman untitled film stills disguise
+            jeff_wall:
+              prompt: jeff wall lightbox staged cinema
+            gregory_crewdson:
+              prompt: crewdson suburban cinematic staged
+            andreas_gursky:
+              prompt: gursky vast pattern global
+            thomas_struth:
+              prompt: struth museum family street
+            thomas_ruff:
+              prompt: ruff passport large manipulated
+            bernd_hilla_becher:
+              prompt: becher typology water tower industrial
+            nan_goldin:
+              prompt: goldin ballad sexual dependency intimate
+            sally_mann:
+              prompt: sally mann children south wet plate
+            francesca_woodman:
+              prompt: woodman ghost blur self young
+            robert_mapplethorpe:
+              prompt: mapplethorpe flower body classical
+            wolfgang_tillmans:
+              prompt: tillmans casual intimate installation
+            alec_soth:
+              prompt: alec soth mississippi portrait tender
+            taryn_simon:
+              prompt: taryn simon systematic hidden evidence
+            thomas_demand:
+              prompt: demand paper reconstruction uncanny
+
+        japanese_photographer:
+          prompt: japanese photographer
+          children:
+            nobuyoshi_araki:
+              prompt: araki diary bondage flower intimate
+            shomei_tomatsu:
+              prompt: tomatsu postwar skin texture
+            eikoh_hosoe:
+              prompt: hosoe ordeal roses kamaitachi dark
+            masahisa_fukase:
+              prompt: fukase ravens solitude dark
+            rinko_kawauchi:
+              prompt: kawauchi illuminance quiet light small
+            naoya_hatakeyama:
+              prompt: hatakeyama blast limestone underground
+            lieko_shiga:
+              prompt: lieko shiga rasen ritual village
+
+    sculptor:
+      prompt: sculptor
+      children:
+        rodin:
+          prompt: rodin bronze surface emotion
+        brancusi:
+          prompt: brancusi smooth abstract pure form
+        giacometti:
+          prompt: giacometti thin elongated walking figure
+        henry_moore:
+          prompt: henry moore reclining organic hole
+        louise_bourgeois:
+          prompt: bourgeois spider cell trauma
+        richard_serra:
+          prompt: serra steel curve weight massive
+        anish_kapoor:
+          prompt: kapoor void mirror concave
+        antony_gormley:
+          prompt: gormley iron figure body landscape
+        ai_weiwei:
+          prompt: ai weiwei political repetition craft
+        isamu_noguchi:
+          prompt: noguchi stone garden abstract
+        barbara_hepworth:
+          prompt: hepworth pierced smooth landscape
+        david_smith:
+          prompt: david smith welded steel geometric
+        calder:
+          prompt: calder mobile kinetic color wire
+        oldenburg:
+          prompt: oldenburg soft sculpture giant everyday
+
+    printmaker:
+      prompt: printmaker graphic artist
+      children:
+        hokusai:
+          prompt: hokusai great wave ukiyo-e woodblock
+        hiroshige:
+          prompt: hiroshige rain bridge tokaido
+        utamaro:
+          prompt: utamaro beauty portrait bijin
+        kathe_kollwitz:
+          prompt: kollwitz dark woodcut suffering mother
+        escher:
+          prompt: escher impossible tessellation paradox
+        warhol_print:
+          prompt: warhol silkscreen repeated flat
+        goya:
+          prompt: goya aquatint dark grotesque
+        piranesi:
+          prompt: piranesi prison architecture etching vast
+        albrecht_durer_print:
+          prompt: durer engraving precise rhinoceros

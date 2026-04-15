@@ -1,0 +1,277 @@
+# Composition sigil — how the image is arranged.
+# Geometry, balance, flow, weight, tension.
+
+composition:
+  prompt: composition arrangement
+  children:
+
+    balance:
+      prompt: visual balance weight
+      children:
+        symmetric:
+          prompt: symmetrical balanced
+          children:
+            bilateral:
+              prompt: bilateral left-right mirror
+            radial:
+              prompt: radial symmetry from center
+            approximate:
+              prompt: near symmetry slight imbalance
+        asymmetric:
+          prompt: asymmetric dynamic balance
+          children:
+            weighted_left:
+              prompt: weight on left side
+            weighted_right:
+              prompt: weight on right side
+            weighted_top:
+              prompt: weight at top heavy above
+            weighted_bottom:
+              prompt: weight at bottom grounded
+            diagonal_balance:
+              prompt: diagonal counterbalance
+
+    placement:
+      prompt: subject placement
+      children:
+        centered:
+          prompt: centered subject middle
+          children:
+            bullseye:
+              prompt: dead center bullseye
+            floating_center:
+              prompt: floating near center
+        rule_of_thirds:
+          prompt: rule of thirds intersection
+          children:
+            upper_left:
+              prompt: upper left third
+            upper_right:
+              prompt: upper right third
+            lower_left:
+              prompt: lower left third
+            lower_right:
+              prompt: lower right third
+        golden:
+          prompt: golden ratio spiral placement
+          children:
+            golden_spiral:
+              prompt: golden spiral fibonacci
+            golden_triangle:
+              prompt: golden triangle diagonal
+        edge:
+          prompt: subject at edge margin
+          children:
+            left_edge:
+              prompt: subject at left edge
+            right_edge:
+              prompt: subject at right edge
+            top_edge:
+              prompt: subject at top edge cropped
+            bottom_edge:
+              prompt: subject at bottom edge
+        corner:
+          prompt: subject in corner
+
+    division:
+      prompt: frame division
+      children:
+        horizontal:
+          prompt: horizontal division
+          children:
+            half:
+              prompt: split in half horizontally
+            thirds_h:
+              prompt: three horizontal bands
+            horizon_low:
+              prompt: low horizon line big sky
+            horizon_high:
+              prompt: high horizon line big ground
+            horizon_center:
+              prompt: centered horizon line
+        vertical:
+          prompt: vertical division
+          children:
+            half_v:
+              prompt: split in half vertically
+            thirds_v:
+              prompt: three vertical panels
+            left_heavy:
+              prompt: left panel dominant
+            right_heavy:
+              prompt: right panel dominant
+        diagonal:
+          prompt: diagonal division
+          children:
+            rising:
+              prompt: rising diagonal lower-left to upper-right
+            falling:
+              prompt: falling diagonal upper-left to lower-right
+            x_cross:
+              prompt: X crossing diagonals
+        grid:
+          prompt: grid division multiple sections
+          children:
+            triptych:
+              prompt: triptych three panels
+            diptych:
+              prompt: diptych two panels
+            mosaic:
+              prompt: mosaic multiple frames
+        undivided:
+          prompt: undivided single field
+
+    flow:
+      prompt: visual flow eye movement
+      children:
+        linear:
+          prompt: linear path eye follows
+          children:
+            left_to_right:
+              prompt: left to right reading flow
+            right_to_left:
+              prompt: right to left counter flow
+            top_down:
+              prompt: top to bottom descending
+            bottom_up:
+              prompt: bottom to top ascending
+        circular:
+          prompt: circular flow rotating eye
+          children:
+            clockwise:
+              prompt: clockwise rotation
+            counter_clockwise:
+              prompt: counter-clockwise rotation
+            inward_spiral:
+              prompt: spiraling inward to center
+            outward_spiral:
+              prompt: spiraling outward from center
+        converging:
+          prompt: converging toward point
+          children:
+            vanishing:
+              prompt: vanishing point perspective
+            tunnel:
+              prompt: tunnel corridor converging
+            radiating_out:
+              prompt: radiating outward from center
+        scattered:
+          prompt: scattered non-linear exploration
+          children:
+            random_scatter:
+              prompt: random scattered elements
+            constellation:
+              prompt: constellation points in space
+        static:
+          prompt: static no flow arrested
+          children:
+            locked:
+              prompt: locked frozen composition
+            confrontational:
+              prompt: confrontational direct facing
+
+    figure_ground:
+      prompt: figure ground relationship
+      children:
+        clear:
+          prompt: clear separation figure ground
+          children:
+            isolated:
+              prompt: isolated figure clean background
+            contrasted:
+              prompt: figure contrasts with ground
+            spotlit:
+              prompt: spotlit figure dark ground
+        ambiguous:
+          prompt: ambiguous figure ground
+          children:
+            reversible:
+              prompt: reversible figure ground flip
+            camouflage:
+              prompt: figure merges with ground
+            pattern_figure:
+              prompt: figure emerges from pattern
+        no_figure:
+          prompt: no distinct figure all ground
+          children:
+            all_over:
+              prompt: all-over no hierarchy
+            field:
+              prompt: uniform field texture
+        multiple:
+          prompt: multiple figures
+          children:
+            hierarchy:
+              prompt: hierarchical primary secondary figures
+            equal:
+              prompt: equal weight multiple figures
+            overlap:
+              prompt: overlapping figures layered
+
+    frame:
+      prompt: framing device edge
+      children:
+        contained:
+          prompt: contained within frame
+          children:
+            vignette:
+              prompt: vignette dark edges
+            frame_within:
+              prompt: frame within frame nested
+            arch:
+              prompt: arch doorway framing
+            window_frame:
+              prompt: window as frame
+            foliage_frame:
+              prompt: foliage branches framing
+        breaking:
+          prompt: breaking the frame
+          children:
+            cropped:
+              prompt: tightly cropped cut off
+            bleeding:
+              prompt: subject bleeds off edge
+            extending:
+              prompt: implies space beyond frame
+        open:
+          prompt: open frame spacious
+          children:
+            breathing_room:
+              prompt: space around subject
+            vast_frame:
+              prompt: vast open minimal subject
+        tight:
+          prompt: tight frame claustrophobic
+          children:
+            compressed:
+              prompt: compressed cramped
+            filled:
+              prompt: filled edge to edge
+
+    rhythm:
+      prompt: visual rhythm repetition
+      children:
+        regular:
+          prompt: regular even rhythm
+          children:
+            uniform:
+              prompt: uniform identical spacing
+            alternating:
+              prompt: alternating ABAB pattern
+            progressive:
+              prompt: progressive increasing decreasing
+        irregular:
+          prompt: irregular organic rhythm
+          children:
+            syncopated:
+              prompt: syncopated unexpected break
+            clustered:
+              prompt: clustered grouped pause
+            chaotic:
+              prompt: chaotic no pattern
+        single:
+          prompt: single element no repetition
+        pair:
+          prompt: pair two elements dialogue
+        trio:
+          prompt: three elements triangle

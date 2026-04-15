@@ -1,0 +1,361 @@
+# Semantic sigil — insects and arthropods.
+# Small creatures. What crawls, flies, spins.
+
+insect:
+  prompt: insect arthropod
+  children:
+
+    butterfly:
+      prompt: butterfly
+      children:
+        swallowtail:
+          prompt: swallowtail butterfly
+          children:
+            tiger_swallowtail:
+              prompt: tiger swallowtail
+            black_swallowtail:
+              prompt: black swallowtail
+            pipevine:
+              prompt: pipevine swallowtail
+        nymphalid:
+          prompt: nymphalid brush-footed
+          children:
+            monarch:
+              prompt: monarch butterfly
+            painted_lady:
+              prompt: painted lady
+            fritillary:
+              prompt: fritillary
+            admiral:
+              prompt: admiral red white
+            tortoiseshell:
+              prompt: tortoiseshell butterfly
+        blue:
+          prompt: blue butterfly lycaenid
+          children:
+            common_blue:
+              prompt: common blue
+            holly_blue:
+              prompt: holly blue
+            copper:
+              prompt: copper butterfly
+            hairstreak:
+              prompt: hairstreak
+        white:
+          prompt: white butterfly pierid
+          children:
+            cabbage_white:
+              prompt: cabbage white
+            orange_tip:
+              prompt: orange tip
+            brimstone:
+              prompt: brimstone yellow
+            clouded_yellow:
+              prompt: clouded yellow
+        skipper:
+          prompt: skipper butterfly
+        morpho:
+          prompt: morpho iridescent blue
+
+    moth:
+      prompt: moth
+      children:
+        silk_moth:
+          prompt: silk moth large
+          children:
+            luna:
+              prompt: luna moth
+            atlas:
+              prompt: atlas moth
+            cecropia:
+              prompt: cecropia moth
+            polyphemus:
+              prompt: polyphemus moth
+        hawk_moth:
+          prompt: hawk moth sphinx
+          children:
+            hummingbird_moth:
+              prompt: hummingbird hawk moth
+            death_head:
+              prompt: deaths-head hawk moth
+            privet:
+              prompt: privet hawk moth
+            elephant:
+              prompt: elephant hawk moth
+        tiger_moth:
+          prompt: tiger moth
+          children:
+            garden_tiger:
+              prompt: garden tiger moth
+            cinnabar:
+              prompt: cinnabar moth
+            ermine:
+              prompt: ermine moth
+        geometrid:
+          prompt: geometrid inchworm moth
+        noctuid:
+          prompt: noctuid owlet moth
+        clothes_moth:
+          prompt: small brown moth
+
+    beetle:
+      prompt: beetle coleoptera
+      children:
+        ladybug:
+          prompt: ladybug ladybird
+          children:
+            seven_spot:
+              prompt: seven-spot ladybird
+            two_spot:
+              prompt: two-spot ladybird
+            harlequin:
+              prompt: harlequin ladybird
+        stag:
+          prompt: stag beetle
+          children:
+            european_stag:
+              prompt: european stag beetle
+            rhinoceros:
+              prompt: rhinoceros beetle
+            hercules:
+              prompt: hercules beetle
+        ground:
+          prompt: ground beetle carabid
+          children:
+            tiger_beetle:
+              prompt: tiger beetle
+            bombardier:
+              prompt: bombardier beetle
+            violet_ground:
+              prompt: violet ground beetle
+        longhorn:
+          prompt: longhorn beetle cerambycid
+          children:
+            wasp_beetle:
+              prompt: wasp beetle
+            capricorn:
+              prompt: capricorn beetle
+            asian_longhorn:
+              prompt: asian longhorn
+        weevil:
+          prompt: weevil snout beetle
+        scarab:
+          prompt: scarab dung beetle
+        firefly:
+          prompt: firefly lightning bug glowing
+        jewel:
+          prompt: jewel beetle iridescent
+
+    bee_wasp:
+      prompt: bee wasp ant
+      children:
+        bee:
+          prompt: bee
+          children:
+            honeybee:
+              prompt: honeybee worker
+              children:
+                on_flower:
+                  prompt: honeybee on flower
+                hive:
+                  prompt: honeybee at hive
+                swarm:
+                  prompt: bee swarm
+            bumblebee:
+              prompt: bumblebee
+              children:
+                buff_tailed:
+                  prompt: buff-tailed bumblebee
+                red_tailed:
+                  prompt: red-tailed bumblebee
+                garden_bumble:
+                  prompt: garden bumblebee
+            solitary:
+              prompt: solitary bee
+              children:
+                mason:
+                  prompt: mason bee
+                leafcutter:
+                  prompt: leafcutter bee
+                mining:
+                  prompt: mining bee
+                carpenter:
+                  prompt: carpenter bee
+        wasp:
+          prompt: wasp
+          children:
+            paper:
+              prompt: paper wasp
+            yellow_jacket:
+              prompt: yellow jacket
+            hornet:
+              prompt: hornet
+            mud_dauber:
+              prompt: mud dauber
+            ichneumon:
+              prompt: ichneumon wasp parasitic
+        ant:
+          prompt: ant
+          children:
+            red_ant:
+              prompt: red ant fire ant
+            black_ant:
+              prompt: black garden ant
+            leaf_cutter_ant:
+              prompt: leaf-cutter ant
+            carpenter_ant:
+              prompt: carpenter ant
+            army_ant:
+              prompt: army ant column
+
+    dragonfly:
+      prompt: dragonfly damselfly odonata
+      children:
+        hawker:
+          prompt: hawker dragonfly large
+          children:
+            emperor:
+              prompt: emperor dragonfly blue
+            migrant:
+              prompt: migrant hawker
+            southern:
+              prompt: southern hawker
+        skimmer:
+          prompt: skimmer dragonfly
+          children:
+            broad_bodied:
+              prompt: broad-bodied chaser
+            four_spotted:
+              prompt: four-spotted chaser
+            scarlet:
+              prompt: scarlet darter
+        damselfly:
+          prompt: damselfly
+          children:
+            azure:
+              prompt: azure damselfly
+            banded:
+              prompt: banded demoiselle
+            emerald:
+              prompt: emerald damselfly
+            red:
+              prompt: large red damselfly
+
+    fly:
+      prompt: fly diptera
+      children:
+        hoverfly:
+          prompt: hoverfly
+          children:
+            marmalade:
+              prompt: marmalade hoverfly
+            drone_fly:
+              prompt: drone fly
+            sun_fly:
+              prompt: sun fly
+        crane_fly:
+          prompt: crane fly daddy longlegs
+        robber:
+          prompt: robber fly
+        midge:
+          prompt: midge gnat
+        mosquito:
+          prompt: mosquito
+        blowfly:
+          prompt: blowfly bluebottle greenbottle
+
+    spider:
+      prompt: spider arachnid
+      children:
+        orb_weaver:
+          prompt: orb weaver web
+          children:
+            garden_spider:
+              prompt: garden cross spider
+            golden_silk:
+              prompt: golden silk spider
+            argiope:
+              prompt: argiope wasp spider
+        jumping:
+          prompt: jumping spider
+          children:
+            zebra:
+              prompt: zebra jumping spider
+            peacock:
+              prompt: peacock spider
+            bold:
+              prompt: bold jumping spider
+        crab:
+          prompt: crab spider
+          children:
+            flower_crab:
+              prompt: flower crab spider
+            goldenrod:
+              prompt: goldenrod crab spider
+        wolf:
+          prompt: wolf spider
+        tarantula:
+          prompt: tarantula
+        web:
+          prompt: spider web
+          children:
+            orb_web:
+              prompt: orb web circular
+            cobweb:
+              prompt: cobweb tangle
+            funnel:
+              prompt: funnel web
+            dew_web:
+              prompt: dew-covered web
+            silk_thread:
+              prompt: silk thread strand
+
+    other:
+      prompt: other arthropod
+      children:
+        caterpillar:
+          prompt: caterpillar larva
+          children:
+            hairy:
+              prompt: hairy caterpillar woolly bear
+            smooth:
+              prompt: smooth caterpillar
+            hornworm:
+              prompt: hornworm
+            inchworm:
+              prompt: inchworm looper
+            chrysalis:
+              prompt: chrysalis cocoon pupa
+        grasshopper:
+          prompt: grasshopper cricket
+          children:
+            grasshopper_green:
+              prompt: green grasshopper
+            cricket:
+              prompt: cricket
+            katydid:
+              prompt: katydid bush cricket
+            locust:
+              prompt: locust
+        mantis:
+          prompt: praying mantis
+          children:
+            green_mantis:
+              prompt: green praying mantis
+            brown_mantis:
+              prompt: brown mantis
+            orchid_mantis:
+              prompt: orchid mantis
+        stick:
+          prompt: stick insect leaf insect
+        centipede:
+          prompt: centipede millipede
+        snail:
+          prompt: snail slug
+          children:
+            garden_snail:
+              prompt: garden snail
+            slug:
+              prompt: slug
+            sea_snail:
+              prompt: sea snail shell

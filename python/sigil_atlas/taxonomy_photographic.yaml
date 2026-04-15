@@ -1,0 +1,248 @@
+# Photographic sigil — the craft of photography.
+# Technique, genre, process.
+
+photographic:
+  prompt: photography technique
+  children:
+
+    genre:
+      prompt: photographic genre
+      children:
+        portrait:
+          prompt: portrait photography
+          children:
+            environmental:
+              prompt: environmental portrait in context
+            studio:
+              prompt: studio portrait controlled
+            candid:
+              prompt: candid unposed portrait
+            self_portrait:
+              prompt: self portrait
+            headshot:
+              prompt: headshot tight crop
+        landscape:
+          prompt: landscape photography
+          children:
+            grand:
+              prompt: grand landscape vista
+            intimate:
+              prompt: intimate landscape detail
+            urban_landscape:
+              prompt: urban landscape cityscape
+            seascape:
+              prompt: seascape ocean
+            aerial:
+              prompt: aerial landscape above
+        street:
+          prompt: street photography
+          children:
+            decisive_moment:
+              prompt: decisive moment captured
+            flaneur:
+              prompt: wandering observing street
+            night_street:
+              prompt: night street photography
+            market_street:
+              prompt: market street commerce
+        documentary:
+          prompt: documentary photography
+          children:
+            reportage:
+              prompt: reportage news event
+            essay:
+              prompt: photo essay narrative
+            social:
+              prompt: social documentary people
+            war:
+              prompt: war conflict photography
+        still_life:
+          prompt: still life arrangement
+          children:
+            classical:
+              prompt: classical still life
+            found:
+              prompt: found still life unposed
+            food_photo:
+              prompt: food photography
+            product:
+              prompt: product photography
+        macro:
+          prompt: macro close-up photography
+          children:
+            insect_macro:
+              prompt: insect macro
+            flower_macro:
+              prompt: flower macro
+            texture_macro:
+              prompt: texture detail macro
+            water_macro:
+              prompt: water droplet macro
+        wildlife:
+          prompt: wildlife photography
+          children:
+            bird_photo:
+              prompt: bird photography
+            mammal_photo:
+              prompt: mammal wildlife
+            underwater:
+              prompt: underwater photography
+            camouflage:
+              prompt: camouflage hidden animal
+        architecture:
+          prompt: architecture photography
+          children:
+            exterior:
+              prompt: building exterior
+            interior_arch:
+              prompt: interior architecture
+            detail_arch:
+              prompt: architectural detail
+            abstract_arch:
+              prompt: abstract architecture
+
+    exposure:
+      prompt: exposure technique
+      children:
+        long:
+          prompt: long exposure
+          children:
+            water_smooth:
+              prompt: smooth water long exposure
+            light_trail:
+              prompt: light trail car headlights
+            star_trail:
+              prompt: star trail
+            cloud_motion:
+              prompt: cloud motion blur
+            ghost:
+              prompt: ghosting figure motion
+        fast:
+          prompt: fast shutter frozen
+          children:
+            splash:
+              prompt: frozen splash droplet
+            peak_action:
+              prompt: peak action frozen
+            bird_flight:
+              prompt: bird in flight frozen
+            shatter:
+              prompt: shatter break frozen
+        motion_blur:
+          prompt: intentional motion blur
+          children:
+            pan:
+              prompt: panning sharp subject blurred background
+            zoom_burst:
+              prompt: zoom burst radial blur
+            camera_shake:
+              prompt: intentional camera movement ICM
+        multiple:
+          prompt: multiple exposure
+          children:
+            double:
+              prompt: double exposure overlay
+            composite:
+              prompt: composite layered
+            hdr:
+              prompt: HDR high dynamic range
+
+    process:
+      prompt: photographic process
+      children:
+        digital:
+          prompt: digital photography
+          children:
+            raw:
+              prompt: raw unprocessed
+            processed:
+              prompt: digitally processed edited
+            manipulated:
+              prompt: heavily manipulated
+        film:
+          prompt: film photography
+          children:
+            color_negative:
+              prompt: color negative film
+            slide:
+              prompt: slide transparency film
+              children:
+                velvia:
+                  prompt: velvia saturated
+                provia:
+                  prompt: provia neutral
+                kodachrome:
+                  prompt: kodachrome warm
+            black_white_film:
+              prompt: black and white film
+              children:
+                high_contrast_film:
+                  prompt: high contrast film
+                fine_grain_film:
+                  prompt: fine grain film
+                pushed:
+                  prompt: pushed film high iso grain
+                pulled:
+                  prompt: pulled film low contrast
+            instant:
+              prompt: instant polaroid
+              children:
+                polaroid:
+                  prompt: polaroid square
+                instax:
+                  prompt: instax format
+                peel_apart:
+                  prompt: peel-apart transfer
+        alternative:
+          prompt: alternative process
+          children:
+            cyanotype:
+              prompt: cyanotype blue print
+            platinum:
+              prompt: platinum palladium print
+            tintype:
+              prompt: tintype wet plate
+            daguerreotype:
+              prompt: daguerreotype silver mirror
+            pinhole:
+              prompt: pinhole photography
+
+    format:
+      prompt: format aspect ratio
+      children:
+        square:
+          prompt: square format 1:1
+        panoramic:
+          prompt: panoramic wide format
+          children:
+            horizontal_pano:
+              prompt: horizontal panoramic
+            vertical_pano:
+              prompt: vertical panoramic
+        standard:
+          prompt: 3:2 standard 35mm
+        medium_format:
+          prompt: medium format 6x6 6x7
+        large_format:
+          prompt: large format 4x5 8x10
+
+    print:
+      prompt: print presentation
+      children:
+        matte:
+          prompt: matte print flat
+        glossy:
+          prompt: glossy print reflective
+        fiber:
+          prompt: fiber based print
+        contact:
+          prompt: contact sheet proof
+        toned:
+          prompt: toned print selenium gold
+          children:
+            selenium:
+              prompt: selenium toned cool
+            gold:
+              prompt: gold toned warm
+            split_tone:
+              prompt: split toned warm shadows cool highlights

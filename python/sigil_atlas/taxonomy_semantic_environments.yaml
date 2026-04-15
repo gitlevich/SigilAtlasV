@@ -1,0 +1,422 @@
+# Semantic sigil — environments.
+# Places and settings. Where things happen.
+
+environment:
+  prompt: environment setting
+  children:
+
+    natural:
+      prompt: natural environment
+      children:
+        mountain:
+          prompt: mountain highland
+          children:
+            peak:
+              prompt: mountain peak summit
+              children:
+                snow_peak:
+                  prompt: snow-covered peak
+                rocky_peak:
+                  prompt: rocky barren peak
+                volcanic:
+                  prompt: volcanic peak crater
+            ridge:
+              prompt: mountain ridge
+              children:
+                knife_edge:
+                  prompt: knife edge narrow ridge
+                rolling_ridge:
+                  prompt: rolling gentle ridge
+                treeline:
+                  prompt: ridge at treeline
+            valley:
+              prompt: valley gorge
+              children:
+                river_valley:
+                  prompt: river valley
+                canyon:
+                  prompt: canyon ravine
+                glen:
+                  prompt: glen hollow
+                rift:
+                  prompt: rift deep valley
+            pass:
+              prompt: mountain pass col
+            alpine_meadow:
+              prompt: alpine meadow high pasture
+        forest:
+          prompt: forest woodland
+          children:
+            temperate:
+              prompt: temperate forest
+              children:
+                deciduous_forest:
+                  prompt: deciduous broadleaf forest
+                mixed_forest:
+                  prompt: mixed forest
+                old_growth:
+                  prompt: old growth ancient forest
+                coppice:
+                  prompt: coppice managed woodland
+            boreal:
+              prompt: boreal taiga
+              children:
+                spruce_forest:
+                  prompt: spruce forest
+                birch_forest:
+                  prompt: birch forest
+                tundra_edge:
+                  prompt: forest tundra edge
+            tropical:
+              prompt: tropical forest
+              children:
+                rainforest:
+                  prompt: rainforest dense canopy
+                cloud_forest:
+                  prompt: cloud forest mossy
+                mangrove:
+                  prompt: mangrove swamp
+                bamboo:
+                  prompt: bamboo grove
+            clearing:
+              prompt: forest clearing glade
+            understory:
+              prompt: forest floor understory
+        water:
+          prompt: water environment
+          children:
+            ocean:
+              prompt: ocean sea
+              children:
+                open_ocean:
+                  prompt: open ocean horizon
+                surf:
+                  prompt: surf breaking waves
+                calm_sea:
+                  prompt: calm flat sea
+                reef:
+                  prompt: coral reef shallows
+                deep_blue:
+                  prompt: deep blue water
+            river:
+              prompt: river stream
+              children:
+                rapids:
+                  prompt: rapids white water
+                meander:
+                  prompt: meandering river
+                brook:
+                  prompt: brook small stream
+                delta:
+                  prompt: river delta
+                confluence:
+                  prompt: confluence rivers meeting
+            lake:
+              prompt: lake pond
+              children:
+                alpine_lake:
+                  prompt: alpine mountain lake
+                forest_lake:
+                  prompt: forest lake
+                reservoir:
+                  prompt: reservoir dam
+                pond:
+                  prompt: small pond
+            wetland:
+              prompt: wetland marsh
+              children:
+                swamp:
+                  prompt: swamp
+                bog:
+                  prompt: bog peatland
+                fen:
+                  prompt: fen marsh
+                rice_paddy:
+                  prompt: rice paddy flooded field
+            waterfall:
+              prompt: waterfall cascade
+              children:
+                plunge:
+                  prompt: plunge waterfall
+                cascade:
+                  prompt: tiered cascade
+                trickle:
+                  prompt: thin trickle
+        coast:
+          prompt: coast shore
+          children:
+            beach:
+              prompt: beach
+              children:
+                sand_beach:
+                  prompt: sandy beach
+                pebble_beach:
+                  prompt: pebble shingle beach
+                black_sand:
+                  prompt: black volcanic sand
+                dune:
+                  prompt: sand dune
+            rocky_coast:
+              prompt: rocky coast
+              children:
+                sea_cliff:
+                  prompt: sea cliff
+                sea_stack:
+                  prompt: sea stack arch
+                tidepool:
+                  prompt: tidepool rock pool
+                jetty:
+                  prompt: rocky jetty
+            estuary:
+              prompt: estuary inlet
+            fjord:
+              prompt: fjord inlet steep
+            harbor:
+              prompt: harbor cove bay
+        arid:
+          prompt: arid dry
+          children:
+            desert:
+              prompt: desert
+              children:
+                sand_desert:
+                  prompt: sand desert dunes
+                rock_desert:
+                  prompt: rock desert stony
+                salt_flat:
+                  prompt: salt flat playa
+                badlands:
+                  prompt: badlands eroded
+            steppe:
+              prompt: steppe dry grassland
+            savanna:
+              prompt: savanna scattered trees
+            scrubland:
+              prompt: scrubland chaparral
+
+    cultivated:
+      prompt: cultivated agricultural
+      children:
+        farmland:
+          prompt: farmland
+          children:
+            plowed:
+              prompt: plowed field furrows
+            crop:
+              prompt: crop field growing
+              children:
+                wheat_field:
+                  prompt: wheat field
+                corn_field:
+                  prompt: corn field
+                vineyard:
+                  prompt: vineyard
+                orchard:
+                  prompt: orchard fruit trees
+            fallow:
+              prompt: fallow resting field
+            harvest:
+              prompt: harvest stubble
+        pasture:
+          prompt: pasture grazing
+          children:
+            meadow:
+              prompt: meadow grassland
+            paddock:
+              prompt: paddock fenced
+            hillside_pasture:
+              prompt: hillside pasture
+        garden:
+          prompt: garden cultivated
+          children:
+            flower_garden:
+              prompt: flower garden beds
+            vegetable_garden:
+              prompt: vegetable garden
+            formal_garden:
+              prompt: formal garden geometric
+            wild_garden:
+              prompt: wild garden naturalistic
+            courtyard:
+              prompt: courtyard garden enclosed
+        plantation:
+          prompt: plantation
+          children:
+            tea:
+              prompt: tea plantation
+            coffee:
+              prompt: coffee plantation
+            rubber:
+              prompt: rubber palm plantation
+
+    urban:
+      prompt: urban city
+      children:
+        street:
+          prompt: street road
+          children:
+            boulevard:
+              prompt: boulevard wide avenue
+            alley:
+              prompt: alley narrow lane
+            sidewalk:
+              prompt: sidewalk pavement
+            intersection:
+              prompt: intersection crossroads
+            pedestrian:
+              prompt: pedestrian zone
+        square:
+          prompt: square plaza
+          children:
+            town_square:
+              prompt: town square piazza
+            park_square:
+              prompt: small park square
+            fountain_square:
+              prompt: fountain square
+        skyline:
+          prompt: city skyline
+          children:
+            skyscrapers:
+              prompt: skyscrapers tall buildings
+            rooftops:
+              prompt: rooftops viewed from above
+            waterfront:
+              prompt: city waterfront
+        district:
+          prompt: urban district quarter
+          children:
+            old_town:
+              prompt: old town historic
+            industrial:
+              prompt: industrial district
+            residential:
+              prompt: residential neighborhood
+            commercial_district:
+              prompt: commercial shopping district
+            waterfront_district:
+              prompt: waterfront docks
+        park:
+          prompt: urban park
+          children:
+            lawn:
+              prompt: park lawn
+            playground:
+              prompt: playground
+            botanical:
+              prompt: botanical garden
+            cemetery_park:
+              prompt: cemetery park graves
+
+    interior:
+      prompt: interior space
+      children:
+        domestic:
+          prompt: domestic interior
+          children:
+            kitchen:
+              prompt: kitchen
+            bedroom:
+              prompt: bedroom
+            living_room:
+              prompt: living room
+            bathroom:
+              prompt: bathroom
+            attic:
+              prompt: attic loft
+        public:
+          prompt: public interior
+          children:
+            station:
+              prompt: station terminal
+            museum:
+              prompt: museum gallery
+            library:
+              prompt: library
+            market_interior:
+              prompt: indoor market bazaar
+            theater:
+              prompt: theater auditorium
+        sacred_interior:
+          prompt: sacred interior
+          children:
+            nave:
+              prompt: church nave
+            cloister:
+              prompt: cloister arcade
+            shrine_interior:
+              prompt: shrine altar
+        work:
+          prompt: workspace interior
+          children:
+            workshop:
+              prompt: workshop studio
+            office:
+              prompt: office
+            laboratory:
+              prompt: laboratory
+            barn:
+              prompt: barn stable
+        passage:
+          prompt: passage corridor
+          children:
+            hallway:
+              prompt: hallway corridor
+            staircase:
+              prompt: staircase steps
+            tunnel:
+              prompt: tunnel underpass
+            arcade:
+              prompt: arcade covered passage
+            doorway:
+              prompt: doorway threshold
+
+    sky:
+      prompt: sky atmosphere
+      children:
+        clear:
+          prompt: clear sky
+          children:
+            blue_sky:
+              prompt: deep blue sky
+            pale_sky:
+              prompt: pale hazy sky
+            zenith:
+              prompt: looking straight up
+        cloud:
+          prompt: clouds
+          children:
+            cumulus:
+              prompt: cumulus fluffy clouds
+            stratus:
+              prompt: stratus overcast layer
+            cirrus:
+              prompt: cirrus wispy high clouds
+            storm_cloud:
+              prompt: storm clouds dark
+            lenticular:
+              prompt: lenticular unusual cloud
+        celestial:
+          prompt: celestial sky
+          children:
+            stars:
+              prompt: starry sky
+            moon:
+              prompt: moon
+            milky_way:
+              prompt: milky way galaxy
+            aurora:
+              prompt: aurora northern lights
+        weather:
+          prompt: weather phenomenon
+          children:
+            rain:
+              prompt: rain falling
+            snow:
+              prompt: snow falling
+            fog_weather:
+              prompt: fog low visibility
+            rainbow:
+              prompt: rainbow
+            lightning:
+              prompt: lightning

@@ -1,0 +1,422 @@
+# Semantic sigil — animals.
+# Creatures. What lives and moves.
+
+animal:
+  prompt: animal creature
+  children:
+
+    mammal:
+      prompt: mammal
+      children:
+        canine:
+          prompt: canine dog wolf fox
+          children:
+            dog:
+              prompt: dog
+              children:
+                puppy:
+                  prompt: puppy young dog
+                small_dog:
+                  prompt: small dog terrier chihuahua
+                large_dog:
+                  prompt: large dog retriever shepherd
+                hound:
+                  prompt: hound beagle
+                herding:
+                  prompt: herding dog collie
+            wolf:
+              prompt: wolf
+            fox:
+              prompt: fox
+              children:
+                red_fox:
+                  prompt: red fox
+                arctic_fox:
+                  prompt: arctic fox white
+            coyote:
+              prompt: coyote jackal
+        feline:
+          prompt: feline cat
+          children:
+            domestic_cat:
+              prompt: domestic cat
+              children:
+                kitten:
+                  prompt: kitten
+                tabby:
+                  prompt: tabby striped cat
+                black_cat:
+                  prompt: black cat
+                white_cat:
+                  prompt: white cat
+                calico:
+                  prompt: calico tortoiseshell
+            lion:
+              prompt: lion
+            tiger:
+              prompt: tiger
+            leopard:
+              prompt: leopard cheetah
+            lynx:
+              prompt: lynx bobcat
+        ungulate:
+          prompt: ungulate hoofed
+          children:
+            horse:
+              prompt: horse
+              children:
+                foal:
+                  prompt: foal young horse
+                stallion:
+                  prompt: stallion
+                pony:
+                  prompt: pony
+                draft:
+                  prompt: draft horse heavy
+                wild_horse:
+                  prompt: wild horse mustang
+            cattle:
+              prompt: cattle cow bull
+              children:
+                dairy:
+                  prompt: dairy cow
+                beef:
+                  prompt: beef cattle
+                calf:
+                  prompt: calf young cow
+                highland:
+                  prompt: highland cattle shaggy
+            deer:
+              prompt: deer
+              children:
+                stag:
+                  prompt: stag antlers
+                doe:
+                  prompt: doe female deer
+                fawn:
+                  prompt: fawn spotted young
+                elk:
+                  prompt: elk moose
+                reindeer:
+                  prompt: reindeer caribou
+            sheep:
+              prompt: sheep
+              children:
+                lamb:
+                  prompt: lamb
+                ram:
+                  prompt: ram horns
+                flock:
+                  prompt: flock of sheep
+            goat:
+              prompt: goat
+              children:
+                kid:
+                  prompt: kid young goat
+                mountain_goat:
+                  prompt: mountain goat ibex
+        bear:
+          prompt: bear
+          children:
+            brown_bear:
+              prompt: brown bear grizzly
+            black_bear:
+              prompt: black bear
+            polar_bear:
+              prompt: polar bear
+            panda:
+              prompt: panda
+        primate:
+          prompt: primate
+          children:
+            monkey:
+              prompt: monkey
+              children:
+                macaque:
+                  prompt: macaque
+                baboon:
+                  prompt: baboon
+                capuchin:
+                  prompt: capuchin
+            ape:
+              prompt: ape
+              children:
+                gorilla:
+                  prompt: gorilla
+                chimpanzee:
+                  prompt: chimpanzee
+                orangutan:
+                  prompt: orangutan
+            lemur:
+              prompt: lemur
+
+    bird:
+      prompt: bird
+      children:
+        songbird:
+          prompt: songbird passerine
+          children:
+            sparrow:
+              prompt: sparrow
+            robin:
+              prompt: robin
+            finch:
+              prompt: finch goldfinch
+            wren:
+              prompt: wren
+            thrush:
+              prompt: thrush blackbird
+        raptor:
+          prompt: raptor bird of prey
+          children:
+            eagle:
+              prompt: eagle
+              children:
+                bald_eagle:
+                  prompt: bald eagle
+                golden_eagle:
+                  prompt: golden eagle
+            hawk:
+              prompt: hawk buzzard
+            owl:
+              prompt: owl
+              children:
+                barn_owl:
+                  prompt: barn owl
+                snowy_owl:
+                  prompt: snowy owl
+                great_horned:
+                  prompt: great horned owl
+            falcon:
+              prompt: falcon kestrel
+            vulture:
+              prompt: vulture condor
+        waterfowl:
+          prompt: waterfowl
+          children:
+            duck:
+              prompt: duck
+              children:
+                mallard:
+                  prompt: mallard
+                teal:
+                  prompt: teal
+                merganser:
+                  prompt: merganser
+            goose:
+              prompt: goose
+            swan:
+              prompt: swan
+            pelican:
+              prompt: pelican
+        wading:
+          prompt: wading bird
+          children:
+            heron:
+              prompt: heron
+              children:
+                great_blue:
+                  prompt: great blue heron
+                egret:
+                  prompt: egret white heron
+            stork:
+              prompt: stork
+            crane:
+              prompt: crane
+            flamingo:
+              prompt: flamingo
+            sandpiper:
+              prompt: sandpiper plover
+        corvid:
+          prompt: corvid
+          children:
+            crow:
+              prompt: crow
+            raven:
+              prompt: raven
+            magpie:
+              prompt: magpie
+            jay:
+              prompt: jay
+            jackdaw:
+              prompt: jackdaw
+
+    reptile:
+      prompt: reptile
+      children:
+        snake:
+          prompt: snake serpent
+          children:
+            viper:
+              prompt: viper adder
+            cobra:
+              prompt: cobra
+            python_boa:
+              prompt: python boa constrictor
+            grass_snake:
+              prompt: grass snake harmless
+        lizard:
+          prompt: lizard
+          children:
+            gecko:
+              prompt: gecko
+            iguana:
+              prompt: iguana
+            chameleon:
+              prompt: chameleon
+            monitor:
+              prompt: monitor lizard
+            skink:
+              prompt: skink
+        turtle:
+          prompt: turtle tortoise
+          children:
+            sea_turtle:
+              prompt: sea turtle
+            tortoise:
+              prompt: land tortoise
+            pond_turtle:
+              prompt: pond turtle
+        crocodilian:
+          prompt: crocodilian
+          children:
+            crocodile:
+              prompt: crocodile
+            alligator:
+              prompt: alligator
+            caiman:
+              prompt: caiman
+
+    amphibian:
+      prompt: amphibian
+      children:
+        frog:
+          prompt: frog
+          children:
+            tree_frog:
+              prompt: tree frog
+            bullfrog:
+              prompt: bullfrog
+            poison_dart:
+              prompt: poison dart frog colorful
+            tadpole:
+              prompt: tadpole
+        toad:
+          prompt: toad
+        salamander:
+          prompt: salamander newt
+          children:
+            fire_salamander:
+              prompt: fire salamander
+            axolotl:
+              prompt: axolotl
+
+    insect:
+      prompt: insect arthropod
+      children:
+        butterfly:
+          prompt: butterfly
+          children:
+            monarch:
+              prompt: monarch butterfly
+            swallowtail:
+              prompt: swallowtail
+            blue:
+              prompt: blue butterfly
+            white:
+              prompt: white butterfly cabbage
+            fritillary:
+              prompt: fritillary
+        moth:
+          prompt: moth
+          children:
+            luna:
+              prompt: luna moth large
+            hawk_moth:
+              prompt: hawk moth sphinx
+            silk:
+              prompt: silk moth
+        beetle:
+          prompt: beetle
+          children:
+            ladybug:
+              prompt: ladybug ladybird
+            stag_beetle:
+              prompt: stag beetle
+            scarab:
+              prompt: scarab dung beetle
+            firefly:
+              prompt: firefly lightning bug
+            weevil:
+              prompt: weevil
+        bee_wasp:
+          prompt: bee wasp
+          children:
+            honeybee:
+              prompt: honeybee
+            bumblebee:
+              prompt: bumblebee
+            wasp:
+              prompt: wasp hornet
+            carpenter:
+              prompt: carpenter bee
+        dragonfly:
+          prompt: dragonfly damselfly
+          children:
+            dragonfly_large:
+              prompt: large dragonfly
+            damselfly:
+              prompt: damselfly slender
+
+    marine:
+      prompt: marine aquatic
+      children:
+        fish:
+          prompt: fish
+          children:
+            tropical:
+              prompt: tropical fish colorful
+            trout:
+              prompt: trout salmon
+            shark:
+              prompt: shark
+            ray:
+              prompt: ray manta stingray
+            eel:
+              prompt: eel
+        cetacean:
+          prompt: cetacean whale dolphin
+          children:
+            whale:
+              prompt: whale
+              children:
+                humpback:
+                  prompt: humpback whale
+                orca:
+                  prompt: orca killer whale
+                blue_whale:
+                  prompt: blue whale
+            dolphin:
+              prompt: dolphin porpoise
+        invertebrate:
+          prompt: marine invertebrate
+          children:
+            jellyfish:
+              prompt: jellyfish
+            octopus:
+              prompt: octopus squid
+            crab:
+              prompt: crab lobster
+            starfish:
+              prompt: starfish sea urchin
+            coral:
+              prompt: coral anemone
+        seal:
+          prompt: seal sea lion walrus
+          children:
+            harbor:
+              prompt: harbor seal
+            sea_lion:
+              prompt: sea lion
+            walrus:
+              prompt: walrus

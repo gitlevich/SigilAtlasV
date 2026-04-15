@@ -1,0 +1,377 @@
+# Visual arts sigil — movements, periods, styles, aesthetics.
+# The language of art history applied to any image.
+
+visual_arts:
+  prompt: visual art style movement
+  children:
+
+    classical:
+      prompt: classical art
+      children:
+        ancient:
+          prompt: ancient art
+          children:
+            egyptian:
+              prompt: egyptian art flat profile gold
+            greek:
+              prompt: greek art ideal proportion marble
+            roman:
+              prompt: roman art mosaic fresco bust
+            byzantine:
+              prompt: byzantine art gold icon flat
+            persian:
+              prompt: persian miniature ornamental
+            celtic:
+              prompt: celtic interlace knot spiral
+        medieval:
+          prompt: medieval art
+          children:
+            romanesque:
+              prompt: romanesque rounded arch heavy
+            gothic:
+              prompt: gothic pointed arch stained glass
+            illuminated:
+              prompt: illuminated manuscript decorated text
+            icon:
+              prompt: religious icon gold flat sacred
+            fresco:
+              prompt: fresco wall painting plaster
+        renaissance:
+          prompt: renaissance art
+          children:
+            early:
+              prompt: early renaissance perspective emerging
+            high:
+              prompt: high renaissance ideal balanced
+            northern:
+              prompt: northern renaissance oil detail domestic
+            venetian:
+              prompt: venetian color richness
+            mannerist:
+              prompt: mannerist elongated artificial strange
+        baroque:
+          prompt: baroque art
+          children:
+            italian_baroque:
+              prompt: italian baroque dramatic chiaroscuro
+            flemish:
+              prompt: flemish baroque rich abundant
+            dutch_golden_age:
+              prompt: dutch golden age interior light
+            spanish_baroque:
+              prompt: spanish baroque dark intense
+            rococo:
+              prompt: rococo ornate pastel frivolous
+
+    modern:
+      prompt: modern art 1800-1950
+      children:
+        realism:
+          prompt: realism observed truthful
+          children:
+            social_realism:
+              prompt: social realism working class
+            naturalism:
+              prompt: naturalism faithful rendering
+            academic:
+              prompt: academic polished classical
+        impressionism:
+          prompt: impressionism light color moment
+          children:
+            plein_air:
+              prompt: plein air outdoor painting
+            water_light:
+              prompt: water light reflection shimmer
+            figure_impression:
+              prompt: impressionist figure casual
+            urban_impression:
+              prompt: urban impressionism cafe boulevard
+        post_impressionism:
+          prompt: post-impressionism beyond impression
+          children:
+            pointillism:
+              prompt: pointillism dots optical mixing
+            cloisonnism:
+              prompt: cloisonnism bold outline flat color
+            synthetism:
+              prompt: synthetism simplified symbolic
+            nabis:
+              prompt: nabis decorative intimate flat
+        symbolism:
+          prompt: symbolism dream myth inner
+          children:
+            visionary:
+              prompt: visionary mystical spiritual
+            decadent:
+              prompt: decadent morbid beautiful
+            art_nouveau_sym:
+              prompt: art nouveau organic flowing line
+        expressionism:
+          prompt: expressionism emotion distortion
+          children:
+            die_brucke:
+              prompt: die brucke raw angular harsh
+            der_blaue_reiter:
+              prompt: der blaue reiter spiritual abstract
+            austrian:
+              prompt: austrian expressionism schiele kokoschka
+            abstract_expressionism:
+              prompt: abstract expressionism gestural spontaneous
+        cubism:
+          prompt: cubism multiple viewpoint fractured
+          children:
+            analytic_cubism:
+              prompt: analytic cubism monochrome shattered
+            synthetic_cubism:
+              prompt: synthetic cubism collage flat
+            orphism:
+              prompt: orphism color circular abstract
+        fauvism:
+          prompt: fauvism wild unnatural color
+        futurism:
+          prompt: futurism speed machine dynamism
+        constructivism:
+          prompt: constructivism geometric industrial
+          children:
+            russian_constructivism:
+              prompt: russian constructivism red propaganda
+            de_stijl:
+              prompt: de stijl grid primary pure
+            bauhaus:
+              prompt: bauhaus functional total design
+        dada:
+          prompt: dada anti-art absurd readymade
+        surrealism:
+          prompt: surrealism dream unconscious irrational
+          children:
+            automatism:
+              prompt: automatism spontaneous mark
+            veristic:
+              prompt: veristic surrealism precise dream
+            biomorphic:
+              prompt: biomorphic organic flowing abstract
+
+    contemporary:
+      prompt: contemporary art 1950-now
+      children:
+        pop:
+          prompt: pop art mass media consumer
+          children:
+            american_pop:
+              prompt: american pop bold commercial
+            british_pop:
+              prompt: british pop collage ironic
+            neo_pop:
+              prompt: neo-pop kitsch commodity
+        minimal:
+          prompt: minimalism reduced essential
+          children:
+            hard_edge:
+              prompt: hard edge sharp geometric
+            color_field:
+              prompt: color field large chromatic
+            primary_structures:
+              prompt: primary structures simple volume
+            post_minimal:
+              prompt: post-minimalism process material
+        conceptual:
+          prompt: conceptual art idea over object
+          children:
+            text_art:
+              prompt: text-based art language
+            documentation:
+              prompt: documentation process evidence
+            appropriation:
+              prompt: appropriation borrowed recontextualized
+            institutional_critique:
+              prompt: institutional critique museum system
+        neo_expressionism:
+          prompt: neo-expressionism raw figurative return
+        photorealism:
+          prompt: photorealism hyperreal painted photograph
+        land_art:
+          prompt: land art earthwork site
+          children:
+            spiral_jetty:
+              prompt: spiral jetty monumental earth
+            wrapped:
+              prompt: christo wrapped draped
+            lightning_field:
+              prompt: walter de maria grid desert
+        installation:
+          prompt: installation immersive spatial
+          children:
+            light_installation:
+              prompt: light installation projected
+            immersive:
+              prompt: immersive environment room
+            kinetic:
+              prompt: kinetic moving mechanical
+            sound:
+              prompt: sound installation acoustic
+        digital:
+          prompt: digital art new media
+          children:
+            generative:
+              prompt: generative algorithmic code
+            glitch:
+              prompt: glitch error corrupted
+            pixel:
+              prompt: pixel art retro digital
+            ai_art:
+              prompt: ai generated neural
+        street:
+          prompt: street art urban
+          children:
+            graffiti:
+              prompt: graffiti spray lettering
+            stencil:
+              prompt: stencil political graphic
+            mural:
+              prompt: mural large scale wall
+            paste_up:
+              prompt: paste-up wheat paste poster
+            yarn:
+              prompt: yarn bombing textile guerrilla
+        identity:
+          prompt: identity politics body
+          children:
+            feminist:
+              prompt: feminist art body gaze
+            queer:
+              prompt: queer art identity performance
+            postcolonial:
+              prompt: postcolonial art diaspora hybrid
+            indigenous:
+              prompt: indigenous contemporary traditional
+
+    aesthetic:
+      prompt: aesthetic quality
+      children:
+        wabi_sabi:
+          prompt: wabi-sabi imperfect aged transient
+          children:
+            kintsugi:
+              prompt: kintsugi gold repair broken
+            worn:
+              prompt: worn used patina history
+            irregular:
+              prompt: irregular asymmetric handmade
+            fleeting:
+              prompt: fleeting ephemeral vanishing
+        sublime:
+          prompt: sublime vast overwhelming
+          children:
+            terrifying:
+              prompt: terrifying beauty awe
+            infinite:
+              prompt: infinite boundless endless
+            elemental:
+              prompt: elemental force raw power
+        grotesque:
+          prompt: grotesque distorted uncanny
+          children:
+            body_horror:
+              prompt: body horror transformed flesh
+            carnival:
+              prompt: carnival mask excess
+            hybrid:
+              prompt: hybrid chimera merged
+        kitsch:
+          prompt: kitsch sentimental mass-produced
+          children:
+            camp:
+              prompt: camp exaggerated theatrical
+            twee:
+              prompt: twee cute precious
+            nostalgic:
+              prompt: nostalgic retro sentimental
+        austere:
+          prompt: austere stripped bare
+          children:
+            monastic:
+              prompt: monastic sparse devotional
+            brutalist:
+              prompt: brutalist raw concrete imposing
+            void:
+              prompt: void emptiness nothing
+        ornamental:
+          prompt: ornamental decorated elaborate
+          children:
+            islamic:
+              prompt: islamic arabesque geometric infinite
+            baroque_ornament:
+              prompt: baroque ornament excessive gilded
+            folk:
+              prompt: folk art ornamental naive
+            psychedelic:
+              prompt: psychedelic swirling colorful hallucinatory
+            maximalist:
+              prompt: maximalist excess pattern layer
+
+    medium:
+      prompt: art medium material
+      children:
+        oil:
+          prompt: oil painting
+          children:
+            impasto:
+              prompt: impasto thick texture
+            glaze:
+              prompt: glazed translucent layers
+            alla_prima:
+              prompt: alla prima wet on wet
+        watercolor:
+          prompt: watercolor
+          children:
+            wet_on_wet:
+              prompt: wet on wet bleeding
+            dry_brush:
+              prompt: dry brush ragged
+            wash:
+              prompt: wash transparent layer
+        pastel:
+          prompt: pastel chalk
+        charcoal:
+          prompt: charcoal drawing
+          children:
+            vine:
+              prompt: vine charcoal soft
+            compressed:
+              prompt: compressed charcoal dark
+        ink:
+          prompt: ink drawing
+          children:
+            sumi:
+              prompt: sumi-e japanese ink
+            pen:
+              prompt: pen and ink crosshatch
+            brush_ink:
+              prompt: brush ink calligraphic
+        collage:
+          prompt: collage assembled mixed
+          children:
+            paper:
+              prompt: paper collage cut torn
+            photomontage:
+              prompt: photomontage combined photograph
+            assemblage:
+              prompt: assemblage found object 3D
+        textile:
+          prompt: textile fiber
+          children:
+            tapestry:
+              prompt: tapestry woven
+            embroidery:
+              prompt: embroidery stitched
+            quilt:
+              prompt: quilt patchwork
+        ceramic:
+          prompt: ceramic pottery
+          children:
+            vessel:
+              prompt: ceramic vessel bowl vase
+            glaze_ceramic:
+              prompt: glazed ceramic surface
+            raku:
+              prompt: raku fired crackle

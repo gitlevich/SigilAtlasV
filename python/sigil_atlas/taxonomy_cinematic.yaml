@@ -1,0 +1,259 @@
+# Cinematic sigil — the language of cinema applied to still images.
+# How the image would feel as a frame in a film.
+
+cinematic:
+  prompt: cinematic film
+  children:
+
+    framing:
+      prompt: camera framing shot type
+      children:
+        close:
+          prompt: close-up
+          children:
+            extreme_close:
+              prompt: extreme close-up detail
+            face_close:
+              prompt: face close-up
+            object_close:
+              prompt: object close-up
+            hands_close:
+              prompt: hands close-up
+        medium:
+          prompt: medium shot
+          children:
+            medium_close:
+              prompt: medium close-up chest up
+            cowboy:
+              prompt: cowboy shot waist up
+            medium_full:
+              prompt: medium full knees up
+        wide:
+          prompt: wide shot
+          children:
+            full:
+              prompt: full shot entire figure
+            long:
+              prompt: long shot figure in environment
+            extreme_wide:
+              prompt: extreme wide shot landscape
+            establishing:
+              prompt: establishing shot location
+        over_shoulder:
+          prompt: over the shoulder
+        point_of_view:
+          prompt: point of view first person
+          children:
+            looking_down:
+              prompt: looking down at feet ground
+            looking_up:
+              prompt: looking up at sky ceiling
+            through_window:
+              prompt: looking through window
+            through_door:
+              prompt: looking through doorway
+
+    angle:
+      prompt: camera angle
+      children:
+        eye_level:
+          prompt: eye level straight on
+        low:
+          prompt: low angle looking up
+          children:
+            worm:
+              prompt: worms eye extreme low
+            hero:
+              prompt: hero angle slight low
+            under:
+              prompt: underneath looking up through
+        high:
+          prompt: high angle looking down
+          children:
+            birds_eye:
+              prompt: birds eye directly above
+            god:
+              prompt: god shot far above
+            balcony:
+              prompt: balcony angle moderate high
+        dutch:
+          prompt: dutch angle tilted
+        profile:
+          prompt: profile side view
+        three_quarter:
+          prompt: three-quarter angle
+
+    movement:
+      prompt: implied camera movement
+      children:
+        static:
+          prompt: static locked tripod still
+          children:
+            planted:
+              prompt: firmly planted composed
+            tableau:
+              prompt: tableau staged arrangement
+        tracking:
+          prompt: tracking following movement
+          children:
+            dolly:
+              prompt: dolly forward backward
+            lateral:
+              prompt: lateral tracking side
+            arc:
+              prompt: arc tracking circular
+        crane:
+          prompt: crane rising falling
+          children:
+            ascending:
+              prompt: ascending rising up
+            descending:
+              prompt: descending lowering
+            sweep:
+              prompt: sweeping crane move
+        handheld:
+          prompt: handheld shaky immediate
+          children:
+            steady:
+              prompt: steady handheld controlled
+            urgent:
+              prompt: urgent shaky raw
+            intimate:
+              prompt: intimate close handheld
+        zoom:
+          prompt: zoom compression
+          children:
+            telephoto_compression:
+              prompt: telephoto compressed flat
+            wide_distortion:
+              prompt: wide angle distortion expansive
+
+    focus:
+      prompt: focus depth
+      children:
+        rack:
+          prompt: rack focus shift
+          children:
+            foreground_sharp:
+              prompt: foreground sharp background soft
+            background_sharp:
+              prompt: background sharp foreground soft
+            mid_sharp:
+              prompt: middle plane sharp
+        deep_focus:
+          prompt: deep focus everything sharp
+          children:
+            near_far:
+              prompt: sharp near to far
+            landscape_sharp:
+              prompt: landscape deep focus
+        shallow:
+          prompt: shallow depth of field
+          children:
+            bokeh_circles:
+              prompt: bokeh circles of confusion
+            subject_pop:
+              prompt: subject isolated sharp
+            dreamy_soft:
+              prompt: dreamy soft focus
+        split_diopter:
+          prompt: split focus two planes sharp
+        soft_focus:
+          prompt: overall soft focus diffusion
+
+    lighting_style:
+      prompt: cinematic lighting style
+      children:
+        noir:
+          prompt: film noir hard shadows venetian
+          children:
+            venetian:
+              prompt: venetian blind shadows stripes
+            single_source:
+              prompt: single hard source
+            pooled:
+              prompt: pooled light darkness
+            neon_noir:
+              prompt: neon noir colored night
+        naturalistic:
+          prompt: naturalistic available light
+          children:
+            window:
+              prompt: window light natural
+            practical:
+              prompt: practical lights in frame
+            ambient:
+              prompt: ambient fill no direction
+        stylized:
+          prompt: stylized dramatic lighting
+          children:
+            rembrandt:
+              prompt: rembrandt lighting triangle
+            butterfly:
+              prompt: butterfly paramount lighting
+            split_light:
+              prompt: split lighting half shadow
+            kicker:
+              prompt: kicker back edge light
+        color_gel:
+          prompt: colored light gel
+          children:
+            warm_cool:
+              prompt: warm cool opposing colors
+            monochrome_light:
+              prompt: monochrome single color wash
+            neon:
+              prompt: neon fluorescent colored
+        silhouette_light:
+          prompt: silhouette rim backlit
+
+    narrative:
+      prompt: narrative emotional register
+      children:
+        tension:
+          prompt: tension suspense
+          children:
+            dread:
+              prompt: dread foreboding
+            confrontation:
+              prompt: confrontation standoff
+            anticipation:
+              prompt: anticipation waiting
+            claustrophobia:
+              prompt: claustrophobic confined
+        calm:
+          prompt: calm contemplative
+          children:
+            meditation:
+              prompt: meditative quiet
+            reverie:
+              prompt: reverie daydream
+            solitude:
+              prompt: solitude alone peaceful
+        action:
+          prompt: action energy dynamic
+          children:
+            chase:
+              prompt: chase pursuit speed
+            impact:
+              prompt: impact collision force
+            flight:
+              prompt: flight escape
+        intimacy:
+          prompt: intimacy closeness
+          children:
+            tenderness:
+              prompt: tenderness gentle touch
+            gaze:
+              prompt: returned gaze eye contact
+            whisper:
+              prompt: whisper secret close
+        alienation:
+          prompt: alienation distance estrangement
+          children:
+            isolation:
+              prompt: isolation alone in space
+            disorientation:
+              prompt: disorientation confusion
+            uncanny:
+              prompt: uncanny unsettling familiar

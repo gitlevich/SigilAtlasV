@@ -1,0 +1,579 @@
+# Semantic sigil — what is depicted.
+# The time-like beam. Distinctions of meaning.
+
+semantic:
+  prompt: photograph
+  children:
+
+    person:
+      prompt: person
+      children:
+        face:
+          prompt: face
+          children:
+            child:
+              prompt: child face
+              children:
+                infant:
+                  prompt: infant
+                toddler:
+                  prompt: toddler
+                youth:
+                  prompt: young child
+            elder:
+              prompt: elderly face
+            man:
+              prompt: man face
+            woman:
+              prompt: woman face
+            group_portrait:
+              prompt: group of faces
+        body:
+          prompt: human body
+          children:
+            hands:
+              prompt: hands
+              children:
+                holding:
+                  prompt: hands holding something
+                gesture:
+                  prompt: hand gesture
+                craft:
+                  prompt: hands making something
+                touch:
+                  prompt: hands touching
+            posture:
+              prompt: body posture
+              children:
+                standing:
+                  prompt: standing figure
+                sitting:
+                  prompt: sitting figure
+                lying:
+                  prompt: lying down
+                crouching:
+                  prompt: crouching
+                moving:
+                  prompt: figure in motion
+            silhouette:
+              prompt: human silhouette
+        activity:
+          prompt: human activity
+          children:
+            work:
+              prompt: working
+              children:
+                manual_labor:
+                  prompt: manual labor
+                office:
+                  prompt: office work
+                farming:
+                  prompt: farming
+                cooking:
+                  prompt: cooking
+                fishing:
+                  prompt: fishing
+            play:
+              prompt: playing
+              children:
+                sport:
+                  prompt: sport
+                dance:
+                  prompt: dancing
+                music:
+                  prompt: playing music
+                game:
+                  prompt: playing a game
+            rest:
+              prompt: resting
+              children:
+                sleeping:
+                  prompt: sleeping
+                contemplating:
+                  prompt: contemplating
+                reading:
+                  prompt: reading
+            ritual:
+              prompt: ritual or ceremony
+              children:
+                worship:
+                  prompt: worship
+                celebration:
+                  prompt: celebration
+                mourning:
+                  prompt: mourning
+                procession:
+                  prompt: procession
+        crowd:
+          prompt: crowd
+          children:
+            gathering:
+              prompt: gathering
+            march:
+              prompt: march or protest
+            audience:
+              prompt: audience
+            market:
+              prompt: market crowd
+            queue:
+              prompt: queue or line
+
+    creature:
+      prompt: animal
+      children:
+        mammal:
+          prompt: mammal
+          children:
+            dog:
+              prompt: dog
+              children:
+                puppy:
+                  prompt: puppy
+                hound:
+                  prompt: hound
+                terrier:
+                  prompt: terrier
+                shepherd:
+                  prompt: shepherd dog
+                retriever:
+                  prompt: retriever
+            cat:
+              prompt: cat
+              children:
+                kitten:
+                  prompt: kitten
+                tabby:
+                  prompt: tabby cat
+                black_cat:
+                  prompt: black cat
+                white_cat:
+                  prompt: white cat
+            horse:
+              prompt: horse
+              children:
+                foal:
+                  prompt: foal
+                stallion:
+                  prompt: stallion
+                mare:
+                  prompt: mare
+            wild_predator:
+              prompt: wild predator
+              children:
+                wolf:
+                  prompt: wolf
+                bear:
+                  prompt: bear
+                fox:
+                  prompt: fox
+                big_cat:
+                  prompt: lion tiger leopard
+            wild_herbivore:
+              prompt: wild herbivore
+              children:
+                deer:
+                  prompt: deer
+                elk:
+                  prompt: elk moose
+                rabbit:
+                  prompt: rabbit
+                squirrel:
+                  prompt: squirrel
+                primate:
+                  prompt: primate monkey ape
+        bird:
+          prompt: bird
+          children:
+            songbird:
+              prompt: songbird
+              children:
+                sparrow:
+                  prompt: sparrow
+                robin:
+                  prompt: robin
+                finch:
+                  prompt: finch
+                warbler:
+                  prompt: warbler
+            raptor:
+              prompt: raptor
+              children:
+                eagle:
+                  prompt: eagle
+                hawk:
+                  prompt: hawk
+                owl:
+                  prompt: owl
+                falcon:
+                  prompt: falcon
+            waterfowl:
+              prompt: waterfowl
+              children:
+                duck:
+                  prompt: duck
+                goose:
+                  prompt: goose
+                swan:
+                  prompt: swan
+                heron:
+                  prompt: heron
+            corvid:
+              prompt: corvid
+              children:
+                crow:
+                  prompt: crow
+                raven:
+                  prompt: raven
+                magpie:
+                  prompt: magpie
+            seabird:
+              prompt: seabird
+              children:
+                gull:
+                  prompt: gull
+                pelican:
+                  prompt: pelican
+                tern:
+                  prompt: tern
+        insect:
+          prompt: insect
+          children:
+            butterfly:
+              prompt: butterfly
+            moth:
+              prompt: moth
+            beetle:
+              prompt: beetle
+            bee:
+              prompt: bee wasp
+            dragonfly:
+              prompt: dragonfly
+        marine:
+          prompt: marine creature
+          children:
+            fish:
+              prompt: fish
+            jellyfish:
+              prompt: jellyfish
+            crab:
+              prompt: crab
+            starfish:
+              prompt: starfish
+            coral:
+              prompt: coral
+        reptile:
+          prompt: reptile amphibian
+          children:
+            snake:
+              prompt: snake
+            lizard:
+              prompt: lizard
+            turtle:
+              prompt: turtle
+            frog:
+              prompt: frog
+            crocodile:
+              prompt: crocodile alligator
+
+    plant:
+      prompt: plant vegetation
+      children:
+        flower:
+          prompt: flower
+          children:
+            wildflower:
+              prompt: wildflower
+              children:
+                daisy:
+                  prompt: daisy
+                poppy:
+                  prompt: poppy
+                thistle:
+                  prompt: thistle
+                clover:
+                  prompt: clover
+                bluebell:
+                  prompt: bluebell
+            rose:
+              prompt: rose
+            lily:
+              prompt: lily
+            sunflower:
+              prompt: sunflower
+            orchid:
+              prompt: orchid
+        tree:
+          prompt: tree
+          children:
+            deciduous:
+              prompt: deciduous tree
+              children:
+                oak:
+                  prompt: oak
+                birch:
+                  prompt: birch
+                maple:
+                  prompt: maple
+                willow:
+                  prompt: willow
+                beech:
+                  prompt: beech
+            evergreen:
+              prompt: evergreen conifer
+              children:
+                pine:
+                  prompt: pine
+                spruce:
+                  prompt: spruce
+                fir:
+                  prompt: fir
+                cedar:
+                  prompt: cedar
+            palm:
+              prompt: palm tree
+            bare_tree:
+              prompt: bare leafless tree
+            blossom_tree:
+              prompt: blossoming tree
+        foliage:
+          prompt: foliage leaves
+          children:
+            fern:
+              prompt: fern
+            moss:
+              prompt: moss
+            ivy:
+              prompt: ivy vine
+            grass:
+              prompt: grass
+            lichen:
+              prompt: lichen
+        fungus:
+          prompt: mushroom fungus
+          children:
+            cap_mushroom:
+              prompt: cap mushroom
+            bracket:
+              prompt: bracket fungus
+            puffball:
+              prompt: puffball
+            morel:
+              prompt: morel
+        fruit:
+          prompt: fruit berry seed
+          children:
+            berry:
+              prompt: berry
+            apple:
+              prompt: apple
+            nut:
+              prompt: nut acorn
+            seedpod:
+              prompt: seed pod
+            pinecone:
+              prompt: pinecone
+
+    built:
+      prompt: built structure
+      children:
+        building:
+          prompt: building
+          children:
+            dwelling:
+              prompt: house dwelling
+              children:
+                cottage:
+                  prompt: cottage
+                apartment:
+                  prompt: apartment building
+                farmhouse:
+                  prompt: farmhouse
+                cabin:
+                  prompt: cabin
+                villa:
+                  prompt: villa
+            sacred:
+              prompt: sacred building
+              children:
+                church:
+                  prompt: church
+                mosque:
+                  prompt: mosque
+                temple:
+                  prompt: temple
+                shrine:
+                  prompt: shrine
+                cemetery:
+                  prompt: cemetery graveyard
+            commercial:
+              prompt: commercial building
+              children:
+                shop:
+                  prompt: shop storefront
+                factory:
+                  prompt: factory warehouse
+                office_building:
+                  prompt: office building
+                market_hall:
+                  prompt: market hall
+            ruin:
+              prompt: ruin
+              children:
+                ancient:
+                  prompt: ancient ruin
+                abandoned:
+                  prompt: abandoned building
+                overgrown:
+                  prompt: overgrown ruin
+            tower:
+              prompt: tower
+              children:
+                clock_tower:
+                  prompt: clock tower
+                lighthouse:
+                  prompt: lighthouse
+                chimney:
+                  prompt: chimney smokestack
+                spire:
+                  prompt: spire steeple
+        vehicle:
+          prompt: vehicle
+          children:
+            car:
+              prompt: car automobile
+            truck:
+              prompt: truck
+            bicycle:
+              prompt: bicycle
+            boat:
+              prompt: boat ship
+            train:
+              prompt: train
+        infrastructure:
+          prompt: infrastructure
+          children:
+            road:
+              prompt: road highway
+            bridge:
+              prompt: bridge
+            fence:
+              prompt: fence wall barrier
+            power_line:
+              prompt: power line utility pole
+            pier:
+              prompt: pier dock wharf
+        object:
+          prompt: object artifact
+          children:
+            food:
+              prompt: food meal
+              children:
+                bread:
+                  prompt: bread
+                fruit_food:
+                  prompt: fruit on plate
+                meat:
+                  prompt: meat
+                drink:
+                  prompt: drink glass cup
+                sweets:
+                  prompt: sweets pastry cake
+            tool:
+              prompt: tool instrument
+            furniture:
+              prompt: furniture
+              children:
+                chair:
+                  prompt: chair
+                table:
+                  prompt: table
+                bed:
+                  prompt: bed
+                shelf:
+                  prompt: shelf bookcase
+            sign:
+              prompt: sign text lettering
+            lamp:
+              prompt: lamp lantern light fixture
+        interior:
+          prompt: interior space
+          children:
+            room:
+              prompt: room
+            hallway:
+              prompt: hallway corridor
+            staircase:
+              prompt: staircase
+            window_view:
+              prompt: window view
+            doorway:
+              prompt: doorway entrance
+
+    land:
+      prompt: landscape terrain
+      children:
+        mountain:
+          prompt: mountain
+          children:
+            peak:
+              prompt: mountain peak summit
+            ridge:
+              prompt: ridge
+            valley:
+              prompt: valley
+            cliff:
+              prompt: cliff precipice
+            glacier:
+              prompt: glacier
+        water:
+          prompt: water
+          children:
+            ocean:
+              prompt: ocean sea
+            river:
+              prompt: river stream
+            lake:
+              prompt: lake pond
+            waterfall:
+              prompt: waterfall
+            marsh:
+              prompt: marsh swamp wetland
+        forest:
+          prompt: forest woodland
+          children:
+            dense_forest:
+              prompt: dense forest
+            clearing:
+              prompt: forest clearing
+            canopy:
+              prompt: forest canopy
+            understory:
+              prompt: forest floor understory
+            path_through:
+              prompt: path through forest
+        field:
+          prompt: field meadow
+          children:
+            grassland:
+              prompt: grassland prairie
+            cropland:
+              prompt: cropland farmland
+            wildflower_field:
+              prompt: field of wildflowers
+            snow_field:
+              prompt: snow field
+            stubble:
+              prompt: stubble harvested field
+        coast:
+          prompt: coast shore
+          children:
+            beach:
+              prompt: beach sand
+            rocky_shore:
+              prompt: rocky shore
+            dune:
+              prompt: sand dune
+            tidepool:
+              prompt: tidepool
+            estuary:
+              prompt: estuary

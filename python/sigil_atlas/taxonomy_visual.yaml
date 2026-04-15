@@ -1,0 +1,575 @@
+# Visual sigil — how it looks.
+# The space-like beam. Distinctions of appearance.
+
+visual:
+  prompt: photograph
+  children:
+
+    light:
+      prompt: lighting
+      children:
+        bright:
+          prompt: bright high-key
+          children:
+            sunlit:
+              prompt: direct sunlight hard shadows
+            overcast:
+              prompt: soft diffused overcast light
+            backlit:
+              prompt: backlit rim light
+            flash:
+              prompt: flash artificial light
+            reflected:
+              prompt: reflected bounced light
+        dark:
+          prompt: dark low-key
+          children:
+            twilight:
+              prompt: twilight dusk
+            night:
+              prompt: night darkness
+            shadow:
+              prompt: deep shadow
+            silhouette:
+              prompt: silhouette against light
+            candlelight:
+              prompt: candlelight firelight
+        golden:
+          prompt: golden hour warm light
+          children:
+            sunrise:
+              prompt: sunrise light
+            sunset:
+              prompt: sunset light
+            amber:
+              prompt: amber warm glow
+        blue:
+          prompt: cool blue light
+          children:
+            moonlight:
+              prompt: moonlight
+            shade:
+              prompt: open shade blue
+            dawn:
+              prompt: pre-dawn blue
+        contrast:
+          prompt: dramatic light contrast
+          children:
+            chiaroscuro:
+              prompt: chiaroscuro strong light dark
+            dappled:
+              prompt: dappled light through leaves
+            shaft:
+              prompt: shaft of light beam
+            rim:
+              prompt: rim light edge glow
+            split:
+              prompt: split lighting half face
+
+    color:
+      prompt: color
+      children:
+        warm:
+          prompt: warm colors red orange yellow
+          children:
+            red:
+              prompt: red dominant
+              children:
+                crimson:
+                  prompt: crimson deep red
+                scarlet:
+                  prompt: scarlet bright red
+                rust_red:
+                  prompt: rust red brown
+                pink:
+                  prompt: pink rose
+                magenta:
+                  prompt: magenta fuchsia
+            orange:
+              prompt: orange amber
+              children:
+                peach:
+                  prompt: peach
+                copper:
+                  prompt: copper bronze
+                tangerine:
+                  prompt: tangerine bright orange
+            yellow:
+              prompt: yellow gold
+              children:
+                lemon:
+                  prompt: lemon bright yellow
+                gold:
+                  prompt: gold metallic
+                cream:
+                  prompt: cream pale yellow
+        cool:
+          prompt: cool colors blue green violet
+          children:
+            blue:
+              prompt: blue dominant
+              children:
+                sky_blue:
+                  prompt: sky blue
+                navy:
+                  prompt: navy deep blue
+                teal:
+                  prompt: teal cyan
+                ice:
+                  prompt: ice pale blue
+                cobalt:
+                  prompt: cobalt electric blue
+            green:
+              prompt: green dominant
+              children:
+                forest_green:
+                  prompt: forest dark green
+                lime:
+                  prompt: lime bright green
+                olive:
+                  prompt: olive muted green
+                emerald:
+                  prompt: emerald rich green
+                sage:
+                  prompt: sage gray green
+            violet:
+              prompt: violet purple
+              children:
+                lavender:
+                  prompt: lavender light purple
+                plum:
+                  prompt: plum dark purple
+                mauve:
+                  prompt: mauve dusty purple
+        neutral:
+          prompt: neutral muted
+          children:
+            monochrome:
+              prompt: black and white
+              children:
+                high_contrast_bw:
+                  prompt: high contrast black white
+                soft_gray:
+                  prompt: soft gray tones
+                sepia:
+                  prompt: sepia toned
+            earth:
+              prompt: earth tones brown
+              children:
+                sand:
+                  prompt: sand beige
+                clay:
+                  prompt: clay terracotta
+                chocolate:
+                  prompt: chocolate dark brown
+                umber:
+                  prompt: umber raw sienna
+            gray:
+              prompt: gray tones
+              children:
+                silver:
+                  prompt: silver metallic gray
+                slate:
+                  prompt: slate blue gray
+                ash:
+                  prompt: ash pale gray
+        vivid:
+          prompt: vivid saturated
+          children:
+            neon:
+              prompt: neon fluorescent
+            jewel_tone:
+              prompt: jewel tone rich saturated
+            primary:
+              prompt: primary colors bold
+            rainbow:
+              prompt: rainbow multicolor
+            iridescent:
+              prompt: iridescent pearlescent
+        pastel:
+          prompt: pastel soft
+          children:
+            blush:
+              prompt: blush soft pink
+            powder:
+              prompt: powder blue soft
+            mint:
+              prompt: mint soft green
+            lilac:
+              prompt: lilac soft purple
+            butter:
+              prompt: butter soft yellow
+
+    texture:
+      prompt: surface texture
+      children:
+        smooth:
+          prompt: smooth continuous
+          children:
+            glass:
+              prompt: glass reflective
+              children:
+                mirror:
+                  prompt: mirror reflection
+                water_surface:
+                  prompt: still water surface
+                polished:
+                  prompt: polished metal
+            skin:
+              prompt: skin organic smooth
+              children:
+                petal:
+                  prompt: flower petal smooth
+                fruit_skin:
+                  prompt: fruit skin surface
+                feather:
+                  prompt: feather plumage
+            mist:
+              prompt: mist fog haze
+              children:
+                dense_fog:
+                  prompt: dense fog
+                morning_mist:
+                  prompt: morning mist
+                smoke:
+                  prompt: smoke vapor
+                breath:
+                  prompt: visible breath cold air
+        rough:
+          prompt: rough coarse
+          children:
+            stone:
+              prompt: stone rock
+              children:
+                granite:
+                  prompt: granite
+                sandstone:
+                  prompt: sandstone
+                slate_rock:
+                  prompt: slate layered rock
+                pebble:
+                  prompt: pebbles gravel
+                boulder:
+                  prompt: boulder
+            bark:
+              prompt: bark wood
+              children:
+                smooth_bark:
+                  prompt: smooth birch bark
+                rough_bark:
+                  prompt: rough oak bark
+                driftwood:
+                  prompt: driftwood weathered wood
+                grain:
+                  prompt: wood grain
+            decay:
+              prompt: decay weathering
+              children:
+                rust:
+                  prompt: rust corrosion
+                peeling:
+                  prompt: peeling paint
+                crumbling:
+                  prompt: crumbling erosion
+                patina:
+                  prompt: patina aged surface
+                lichen_surface:
+                  prompt: lichen covered surface
+        pattern:
+          prompt: repeating pattern
+          children:
+            geometric:
+              prompt: geometric pattern
+              children:
+                grid:
+                  prompt: grid checkerboard
+                stripe:
+                  prompt: stripes lines
+                circle:
+                  prompt: circles dots
+                zigzag:
+                  prompt: zigzag chevron
+                tile:
+                  prompt: tile mosaic
+            organic:
+              prompt: organic pattern
+              children:
+                ripple:
+                  prompt: ripple wave pattern
+                spiral:
+                  prompt: spiral whorl
+                branch:
+                  prompt: branching fractal
+                cell:
+                  prompt: cellular honeycomb
+                scale:
+                  prompt: scale overlapping
+            woven:
+              prompt: woven textile
+              children:
+                cloth:
+                  prompt: cloth fabric
+                rope:
+                  prompt: rope net
+                basket:
+                  prompt: basket weave
+        grain_noise:
+          prompt: grain noise
+          children:
+            film_grain:
+              prompt: film grain
+            digital_noise:
+              prompt: digital noise
+            sand_grain:
+              prompt: sand grain texture
+            dust:
+              prompt: dust particles
+        fine_detail:
+          prompt: extreme fine detail macro
+          children:
+            crystal:
+              prompt: crystal structure
+            fiber:
+              prompt: fiber thread
+            droplet:
+              prompt: water droplet
+            vein:
+              prompt: leaf vein network
+            frost:
+              prompt: frost ice crystal
+
+    structure:
+      prompt: spatial structure composition
+      children:
+        line:
+          prompt: dominant lines
+          children:
+            horizontal:
+              prompt: horizontal lines
+              children:
+                horizon:
+                  prompt: horizon line
+                layer:
+                  prompt: horizontal layers strata
+                shelf:
+                  prompt: shelves ledges
+            vertical:
+              prompt: vertical lines
+              children:
+                column:
+                  prompt: columns pillars
+                trunk:
+                  prompt: tree trunks vertical
+                fall:
+                  prompt: falling rain waterfall vertical
+            diagonal:
+              prompt: diagonal lines
+              children:
+                slope:
+                  prompt: slope hillside
+                lean:
+                  prompt: leaning tilted
+                converging:
+                  prompt: converging perspective lines
+            curve:
+              prompt: curved lines
+              children:
+                arc:
+                  prompt: arc arch
+                meander:
+                  prompt: meandering river path
+                wave:
+                  prompt: wave undulation
+                coil:
+                  prompt: coil spiral curl
+            radial:
+              prompt: radial lines
+              children:
+                sunburst:
+                  prompt: sunburst radiating
+                spoke:
+                  prompt: spokes wheel
+                explosion:
+                  prompt: explosion outward
+        depth:
+          prompt: depth perspective
+          children:
+            shallow:
+              prompt: shallow depth of field bokeh
+              children:
+                foreground_focus:
+                  prompt: foreground in focus
+                background_blur:
+                  prompt: background blur
+                subject_isolation:
+                  prompt: isolated subject sharp
+            deep:
+              prompt: deep focus sharp throughout
+              children:
+                infinity:
+                  prompt: focus to infinity
+                hyperfocal:
+                  prompt: everything sharp near to far
+            layered:
+              prompt: distinct layers
+              children:
+                foreground_mid_back:
+                  prompt: foreground middle background layers
+                frame_within:
+                  prompt: frame within frame
+                overlap:
+                  prompt: overlapping planes
+            aerial:
+              prompt: aerial overhead
+              children:
+                birds_eye:
+                  prompt: birds eye view
+                oblique:
+                  prompt: oblique aerial
+        symmetry:
+          prompt: symmetry balance
+          children:
+            bilateral:
+              prompt: bilateral mirror symmetry
+            radial_symmetry:
+              prompt: radial symmetry
+            reflection:
+              prompt: reflection in water mirror
+            approximate:
+              prompt: approximate near symmetry
+        space:
+          prompt: spatial distribution
+          children:
+            open:
+              prompt: open expansive negative space
+              children:
+                minimal:
+                  prompt: minimal sparse
+                vast:
+                  prompt: vast empty expanse
+                isolated:
+                  prompt: isolated single element
+            dense:
+              prompt: dense packed
+              children:
+                cluttered:
+                  prompt: cluttered busy
+                layered_dense:
+                  prompt: layered dense complex
+                tangle:
+                  prompt: tangle intertwined
+            centered:
+              prompt: centered subject
+            edge:
+              prompt: subject at edge off center
+            scattered:
+              prompt: scattered distributed elements
+
+    atmosphere:
+      prompt: mood atmosphere
+      children:
+        serene:
+          prompt: calm serene peaceful
+          children:
+            still:
+              prompt: perfectly still quiet
+              children:
+                frozen:
+                  prompt: frozen moment
+                glassy:
+                  prompt: glassy calm water
+                held_breath:
+                  prompt: suspended held breath
+            gentle:
+              prompt: gentle soft movement
+              children:
+                breeze:
+                  prompt: gentle breeze
+                flowing:
+                  prompt: slow flowing
+                settling:
+                  prompt: settling dust snow
+        tense:
+          prompt: tense dramatic intense
+          children:
+            stormy:
+              prompt: storm wind turbulence
+              children:
+                thunderstorm:
+                  prompt: thunderstorm lightning
+                blizzard:
+                  prompt: blizzard snowstorm
+                gale:
+                  prompt: gale strong wind
+            stark:
+              prompt: stark harsh
+              children:
+                bleached:
+                  prompt: bleached harsh sun
+                barren:
+                  prompt: barren desolate
+                exposed:
+                  prompt: exposed raw
+            ominous:
+              prompt: ominous foreboding
+              children:
+                looming:
+                  prompt: looming threatening
+                dark_sky:
+                  prompt: dark threatening sky
+                approaching:
+                  prompt: approaching storm danger
+        mysterious:
+          prompt: mysterious atmospheric
+          children:
+            foggy:
+              prompt: fog mist obscured
+              children:
+                thick_fog:
+                  prompt: thick fog visibility low
+                wispy:
+                  prompt: wispy thin mist
+                ground_fog:
+                  prompt: ground fog low lying
+            hidden:
+              prompt: hidden obscured partial
+              children:
+                veiled:
+                  prompt: veiled curtained
+                emerging:
+                  prompt: emerging from shadow
+                glimpse:
+                  prompt: glimpse through gap
+            ethereal:
+              prompt: ethereal dreamlike
+              children:
+                glow:
+                  prompt: soft glow luminous
+                translucent:
+                  prompt: translucent transparent
+                floating:
+                  prompt: floating weightless
+        joyful:
+          prompt: bright joyful energetic
+          children:
+            vibrant:
+              prompt: vibrant alive
+            playful:
+              prompt: playful whimsical
+            warm_feeling:
+              prompt: warmth comfort
+            celebratory:
+              prompt: celebratory festive
+        melancholy:
+          prompt: melancholic somber
+          children:
+            lonely:
+              prompt: lonely solitary
+            fading:
+              prompt: fading disappearing
+            abandoned_mood:
+              prompt: abandoned forgotten
+            autumnal:
+              prompt: autumnal declining
+            rainy_mood:
+              prompt: rain melancholy gray
