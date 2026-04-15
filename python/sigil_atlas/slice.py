@@ -254,23 +254,7 @@ def compute_slice(
     if range_filters:
         logger.info("Range filters narrowed to %d images", len(candidates))
 
-    # Step 3: filter-role ContrastControls as bandpass (normalized to [-1, 1])
-    filter_controls = [c for c in contrast_controls if c.role == "filter"]
-    for cc in filter_controls:
-        if not candidates:
-            break
-        normalized = _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, CLIP_MODEL)
-        mask = (normalized >= cc.band_min) & (normalized <= cc.band_max)
-        candidates = [candidates[i] for i in range(len(candidates)) if mask[i]]
-        logger.info("Bandpass %s vs %s: %d images pass", cc.pole_a, cc.pole_b, len(candidates))
-
-    if not candidates:
-        return SliceResult([], {}, None, {})
-
-    # Step 4: proximity filters select images — union of per-term matches.
-    # Each named thing selects images above the knee of the score curve.
-    # The knee is where the score gradient transitions from steep (signal)
-    # to shallow (noise), found by maximum distance from the chord line.
+    # Step 3: attract selects matching images per term (union)
     if proximity_filters:
         selected = set()
         for pf in proximity_filters:
@@ -281,6 +265,19 @@ def compute_slice(
             logger.info("Attract '%s': %d images", pf.text, count)
         candidates = [c for c in candidates if c in selected]
         logger.info("Attract total: %d images", len(candidates))
+
+    if not candidates:
+        return SliceResult([], {}, None, {})
+
+    # Step 4: contrast bandpass further constrains the selection
+    filter_controls = [c for c in contrast_controls if c.role == "filter"]
+    for cc in filter_controls:
+        if not candidates:
+            break
+        normalized = _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, CLIP_MODEL)
+        mask = (normalized >= cc.band_min) & (normalized <= cc.band_max)
+        candidates = [candidates[i] for i in range(len(candidates)) if mask[i]]
+        logger.info("Bandpass %s vs %s: %d remain", cc.pole_a, cc.pole_b, len(candidates))
 
     # Score remaining images — composite of all attract signals
     attract_controls = [c for c in contrast_controls if c.role == "attract"]
