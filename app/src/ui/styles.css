@@ -73,6 +73,7 @@ html, body {
   background: #1a1a28;
 }
 
+.panel.right.folded + .panel-unfold-tab,
 .panel.folded .panel-unfold-tab {
   display: flex;
 }
@@ -86,18 +87,46 @@ html, body {
   position: relative;
 }
 
-.panel-resize-handle {
-  position: absolute;
-  top: 0;
-  left: -4px;
-  width: 8px;
-  height: 100%;
-  cursor: col-resize;
-  z-index: 10;
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
-.panel-resize-handle:hover,
-.panel-resize-handle.dragging {
+.panel-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #888;
+}
+
+.panel-collapse-btn {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.panel-collapse-btn:hover {
+  color: #ccc;
+}
+
+#panel-gutter {
+  width: 6px;
+  min-width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.1s;
+}
+
+#panel-gutter:hover {
+  background: rgba(100, 100, 200, 0.2);
+}
+
+#panel-gutter.dragging {
   background: rgba(100, 100, 200, 0.3);
 }
 

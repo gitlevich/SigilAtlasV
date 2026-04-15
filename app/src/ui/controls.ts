@@ -445,10 +445,34 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   const panel = document.getElementById("neighborhood-panel")!;
   panel.innerHTML = "";
 
-  // Resize handle with double-click to collapse
-  const resizeHandle = document.createElement("div");
-  resizeHandle.className = "panel-resize-handle";
-  panel.appendChild(resizeHandle);
+  // Gutter: resize by dragging, separate from the panel
+  const gutter = document.getElementById("panel-gutter")!;
+  gutter.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    gutter.setPointerCapture(e.pointerId);
+    gutter.classList.add("dragging");
+    const startX = e.clientX;
+    const startWidth = panel.offsetWidth;
+
+    const onMove = (ev: PointerEvent) => {
+      const delta = startX - ev.clientX;
+      const newWidth = Math.max(180, Math.min(400, startWidth + delta));
+      panel.style.width = `${newWidth}px`;
+      panel.style.minWidth = `${newWidth}px`;
+    };
+
+    const onUp = () => {
+      gutter.classList.remove("dragging");
+      gutter.removeEventListener("pointermove", onMove);
+      gutter.removeEventListener("pointerup", onUp);
+      gutter.removeEventListener("lostpointercapture", onUp);
+    };
+
+    gutter.addEventListener("pointermove", onMove);
+    gutter.addEventListener("pointerup", onUp);
+    gutter.addEventListener("lostpointercapture", onUp);
+  });
 
   // Unfold tab — visible only when panel is folded
   const unfoldTab = document.createElement("div");
@@ -457,52 +481,21 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   unfoldTab.addEventListener("click", () => panel.classList.remove("folded"));
   panel.appendChild(unfoldTab);
 
-  let resizing = false;
-  let lastPointerDown = 0;
-  let dragMoved = false;
+  // Panel header with collapse
+  const panelHeader = document.createElement("div");
+  panelHeader.className = "panel-header";
+  const panelTitle = document.createElement("span");
+  panelTitle.textContent = "Sigil Controls";
+  panelTitle.className = "panel-title";
+  const collapseBtn = document.createElement("button");
+  collapseBtn.className = "panel-collapse-btn";
+  collapseBtn.textContent = "\u25B6";
+  collapseBtn.addEventListener("click", () => panel.classList.add("folded"));
+  panelHeader.appendChild(panelTitle);
+  panelHeader.appendChild(collapseBtn);
+  panel.appendChild(panelHeader);
 
-  resizeHandle.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const now = Date.now();
-    if (now - lastPointerDown < 300 && !dragMoved) {
-      // Double-click: collapse/expand
-      panel.classList.toggle("folded");
-      lastPointerDown = 0;
-      return;
-    }
-    lastPointerDown = now;
-    dragMoved = false;
-
-    resizeHandle.setPointerCapture(e.pointerId);
-    resizing = true;
-    resizeHandle.classList.add("dragging");
-    const startX = e.clientX;
-    const startWidth = panel.offsetWidth;
-
-    const onMove = (ev: PointerEvent) => {
-      dragMoved = true;
-      const delta = startX - ev.clientX;
-      const newWidth = Math.max(180, Math.min(400, startWidth + delta));
-      panel.style.width = `${newWidth}px`;
-      panel.style.minWidth = `${newWidth}px`;
-    };
-
-    const onUp = () => {
-      resizing = false;
-      resizeHandle.classList.remove("dragging");
-      resizeHandle.removeEventListener("pointermove", onMove);
-      resizeHandle.removeEventListener("pointerup", onUp);
-      resizeHandle.removeEventListener("lostpointercapture", onUp);
-    };
-
-    resizeHandle.addEventListener("pointermove", onMove);
-    resizeHandle.addEventListener("pointerup", onUp);
-    resizeHandle.addEventListener("lostpointercapture", onUp);
-  });
-
-  // Mode tabs (not in a section — always visible at top)
+  // Mode tabs
   const modeTabs = document.createElement("div");
   modeTabs.className = "mode-tabs";
   let timeSection: HTMLElement;
