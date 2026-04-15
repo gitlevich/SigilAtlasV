@@ -154,7 +154,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             )
             for c in data.get("contrast_controls", [])
         ]
-        model = data.get("model", "clip-vit-b-32")
+        model = data.get("model", "clip-vit-l-14")
 
         result = compute_slice(
             _state.db, _state.provider,
@@ -178,7 +178,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         image_ids = data.get("image_ids", [])
         axes = data.get("axes")
         tightness = data.get("tightness", 0.5)
-        model = data.get("model", "clip-vit-b-32")
+        model = data.get("model", "clip-vit-l-14")
         strip_height = data.get("strip_height", 100.0)
         order_values = data.get("order_values")
 
@@ -212,7 +212,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _handle_things(self):
         data = self._read_json()
         terms = data.get("terms", [])
-        model = data.get("model", "clip-vit-b-32")
+        model = data.get("model", "clip-vit-l-14")
         strip_height = data.get("strip_height", 100.0)
         top_k = data.get("top_k", 200)
 

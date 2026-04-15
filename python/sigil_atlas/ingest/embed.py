@@ -70,6 +70,46 @@ class CLIPEmbedder:
         return [v.tolist() for v in vectors]
 
 
+# ── CLIP ViT-L/14 ──
+
+
+class CLIPLargeEmbedder:
+    """CLIP ViT-L/14 via open_clip. Produces 768-dim L2-normalized embeddings."""
+
+    MODEL_ID = "clip-vit-l-14"
+    DIMENSION = 768
+
+    def __init__(self) -> None:
+        self.device = _select_device()
+        self.model = None
+        self.preprocess = None
+
+    def load(self) -> None:
+        model, _, preprocess = open_clip.create_model_and_transforms(
+            "ViT-L-14", pretrained="openai"
+        )
+        model = model.to(self.device).eval()
+        self.model = model
+        self.preprocess = preprocess
+        logger.info("CLIP ViT-L/14 loaded on %s", self.device)
+
+    def unload(self) -> None:
+        self.model = None
+        self.preprocess = None
+        if self.device.type == "cuda":
+            torch.cuda.empty_cache()
+        logger.info("CLIP ViT-L/14 unloaded")
+
+    @torch.no_grad()
+    def embed_batch(self, images: list[Image.Image]) -> list[list[float]]:
+        """Embed a batch of PIL images. Returns L2-normalized 768-dim vectors."""
+        tensors = torch.stack([self.preprocess(img) for img in images]).to(self.device)
+        features = self.model.encode_image(tensors)
+        vectors = features.cpu().numpy().astype(np.float32)
+        vectors = _l2_normalize(vectors)
+        return [v.tolist() for v in vectors]
+
+
 # ── DINOv2 ViT-B/14 ──
 
 

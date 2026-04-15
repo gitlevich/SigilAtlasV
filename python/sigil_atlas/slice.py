@@ -172,7 +172,7 @@ def compute_slice(
     range_filters: list[RangeFilter] | None = None,
     proximity_filters: list[ProximityFilter] | None = None,
     contrast_controls: list[ContrastControl] | None = None,
-    model: str = "clip-vit-b-32",
+    model: str = "clip-vit-l-14",
 ) -> SliceResult:
     """Compute the slice per the spec's RelevanceFilter composition.
 
