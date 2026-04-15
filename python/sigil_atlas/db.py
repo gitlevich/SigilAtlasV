@@ -42,6 +42,35 @@ CREATE TABLE IF NOT EXISTS embeddings (
 CREATE INDEX IF NOT EXISTS idx_embeddings_image_id ON embeddings(image_id);
 CREATE INDEX IF NOT EXISTS idx_images_content_hash ON images(content_hash);
 
+CREATE TABLE IF NOT EXISTS kmeans_clusters (
+    model_identifier TEXT NOT NULL,
+    k INTEGER NOT NULL,
+    image_id TEXT NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+    cluster_id INTEGER NOT NULL,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (model_identifier, k, image_id)
+);
+CREATE INDEX IF NOT EXISTS idx_kmeans_model_k ON kmeans_clusters(model_identifier, k);
+
+CREATE TABLE IF NOT EXISTS kmeans_centroids (
+    model_identifier TEXT NOT NULL,
+    k INTEGER NOT NULL,
+    cluster_id INTEGER NOT NULL,
+    centroid BLOB NOT NULL,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (model_identifier, k, cluster_id)
+);
+
+CREATE TABLE IF NOT EXISTS umap_positions (
+    image_id TEXT NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+    model_identifier TEXT NOT NULL,
+    x REAL NOT NULL,
+    y REAL NOT NULL,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (image_id, model_identifier)
+);
+CREATE INDEX IF NOT EXISTS idx_umap_model ON umap_positions(model_identifier);
+
 CREATE TABLE IF NOT EXISTS characterizations (
     image_id TEXT NOT NULL REFERENCES images(id) ON DELETE CASCADE,
     proximity_name TEXT NOT NULL,
@@ -159,6 +188,15 @@ class CorpusDB:
     def fetch_image_ids(self) -> list[str]:
         rows = self._conn.execute("SELECT id FROM images").fetchall()
         return [r[0] for r in rows]
+
+    def fetch_capture_dates(self, image_ids: list[str]) -> dict[str, float]:
+        """Return {image_id: capture_date} for images that have dates."""
+        placeholders = ",".join("?" * len(image_ids))
+        rows = self._conn.execute(
+            f"SELECT id, capture_date FROM images WHERE id IN ({placeholders}) AND capture_date IS NOT NULL",
+            image_ids,
+        ).fetchall()
+        return {r[0]: r[1] for r in rows}
 
     def fetch_images_without_thumbnails(self) -> list[tuple[str, str]]:
         """Return (id, source_path) for images missing thumbnails."""
@@ -279,6 +317,100 @@ class CorpusDB:
             else:
                 result[r[0]][r[1]] = r[4]
         return result
+
+    # ── UMAP positions ──
+
+    def has_umap(self, model: str) -> bool:
+        row = self._conn.execute(
+            "SELECT 1 FROM umap_positions WHERE model_identifier = ? LIMIT 1",
+            (model,),
+        ).fetchone()
+        return row is not None
+
+    def umap_count(self, model: str) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM umap_positions WHERE model_identifier = ?",
+            (model,),
+        ).fetchone()
+        return row[0]
+
+    def insert_umap_batch(
+        self, model: str, positions: list[tuple[str, float, float]]
+    ) -> None:
+        """Insert batch of (image_id, x, y) UMAP positions."""
+        now = time.time()
+        self._conn.executemany(
+            """INSERT OR REPLACE INTO umap_positions
+               (image_id, model_identifier, x, y, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            [(iid, model, x, y, now) for iid, x, y in positions],
+        )
+        self._conn.commit()
+
+    def fetch_umap_positions(
+        self, model: str, image_ids: list[str]
+    ) -> dict[str, tuple[float, float]]:
+        """Return {image_id: (x, y)} for the given IDs."""
+        placeholders = ",".join("?" * len(image_ids))
+        rows = self._conn.execute(
+            f"SELECT image_id, x, y FROM umap_positions "
+            f"WHERE model_identifier = ? AND image_id IN ({placeholders})",
+            [model] + image_ids,
+        ).fetchall()
+        return {r[0]: (r[1], r[2]) for r in rows}
+
+    # ── KMeans clusters ──
+
+    def has_kmeans(self, model: str, k: int) -> bool:
+        row = self._conn.execute(
+            "SELECT 1 FROM kmeans_centroids WHERE model_identifier = ? AND k = ? LIMIT 1",
+            (model, k),
+        ).fetchone()
+        return row is not None
+
+    def insert_kmeans_batch(
+        self, model: str, k: int, assignments: list[tuple[str, int]]
+    ) -> None:
+        now = time.time()
+        self._conn.executemany(
+            """INSERT OR REPLACE INTO kmeans_clusters
+               (model_identifier, k, image_id, cluster_id, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            [(model, k, image_id, cluster_id, now) for image_id, cluster_id in assignments],
+        )
+        self._conn.commit()
+
+    def insert_kmeans_centroids(
+        self, model: str, k: int, centroids: dict[int, bytes]
+    ) -> None:
+        now = time.time()
+        self._conn.executemany(
+            """INSERT OR REPLACE INTO kmeans_centroids
+               (model_identifier, k, cluster_id, centroid, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            [(model, k, cid, blob, now) for cid, blob in centroids.items()],
+        )
+        self._conn.commit()
+
+    def fetch_kmeans_assignments_for_ids(
+        self, model: str, k: int, image_ids: list[str]
+    ) -> dict[str, int]:
+        if not image_ids:
+            return {}
+        placeholders = ",".join("?" * len(image_ids))
+        rows = self._conn.execute(
+            f"""SELECT image_id, cluster_id FROM kmeans_clusters
+                WHERE model_identifier = ? AND k = ? AND image_id IN ({placeholders})""",
+            [model, k, *image_ids],
+        ).fetchall()
+        return {r[0]: r[1] for r in rows}
+
+    def fetch_kmeans_centroids(self, model: str, k: int) -> dict[int, bytes]:
+        rows = self._conn.execute(
+            "SELECT cluster_id, centroid FROM kmeans_centroids WHERE model_identifier = ? AND k = ?",
+            (model, k),
+        ).fetchall()
+        return {r[0]: r[1] for r in rows}
 
     def fetch_uncharacterized_image_ids(self) -> list[str]:
         """Return image IDs that have CLIP embeddings but no characterizations."""

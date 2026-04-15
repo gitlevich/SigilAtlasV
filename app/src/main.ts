@@ -114,14 +114,17 @@ async function main(): Promise<void> {
     model: state.model,
   });
   state.imageIds = sliceRes.image_ids;
+  state.orderValues = sliceRes.order_values || {};
 
-  // Initial layout — torus dimensions derived from content (!gapless)
+  // Initial layout — ordered by capture date (default time direction)
+  const hasOrderValues = Object.keys(state.orderValues).length > 0;
   const layout = await api.computeLayout({
     image_ids: state.imageIds,
     axes: null,
     tightness: state.tightness,
     model: state.model,
     strip_height: state.stripHeight,
+    order_values: hasOrderValues ? state.orderValues : undefined,
   });
   state.layout = layout;
   state.torusWidth = layout.torus_width;

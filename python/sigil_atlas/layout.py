@@ -18,7 +18,6 @@ import logging
 from dataclasses import dataclass, field
 
 import numpy as np
-import umap
 
 from sigil_atlas.db import CorpusDB
 from sigil_atlas.embedding_provider import EmbeddingProvider
@@ -105,9 +104,10 @@ def _build_embedding_matrix(
 
 def _umap_positions(matrix: np.ndarray, n_neighbors: int = 15, min_dist: float = 0.1) -> np.ndarray:
     """Project embedding matrix to 2D positions in [0, 1]^2."""
+    import umap as umap_lib
     n = matrix.shape[0]
     nn = min(n_neighbors, max(2, n - 1))
-    reducer = umap.UMAP(
+    reducer = umap_lib.UMAP(
         n_components=2, n_neighbors=nn, min_dist=min_dist,
         metric="cosine", random_state=42,
     )
@@ -238,10 +238,38 @@ def _greedy_pack_strips(
 # Main entry point
 # ---------------------------------------------------------------------------
 
+def _ensure_umap_cached(
+    provider: EmbeddingProvider, db: CorpusDB,
+    image_ids: list[str], model: str,
+) -> dict[str, tuple[float, float]]:
+    """Return cached UMAP positions, computing if missing."""
+    cached = db.fetch_umap_positions(model, image_ids)
+    missing = [iid for iid in image_ids if iid not in cached]
+
+    if not missing:
+        return cached
+
+    # Compute UMAP for all images (not just missing — positions are relative)
+    logger.info("Computing UMAP for %d images (model=%s)...", len(image_ids), model)
+    matrix = provider.fetch_matrix(image_ids, model)
+    positions = _umap_positions(matrix, n_neighbors=min(15, max(2, len(image_ids) - 1)))
+
+    batch = [
+        (image_ids[i], float(positions[i, 0]), float(positions[i, 1]))
+        for i in range(len(image_ids))
+    ]
+    db.insert_umap_batch(model, batch)
+    logger.info("UMAP positions cached for %d images", len(image_ids))
+
+    return {iid: (x, y) for iid, x, y in batch}
+
+
 def compute_layout(
     provider: EmbeddingProvider, db: CorpusDB, image_ids: list[str],
     axes: list[str] | None = None, tightness: float = 0.5,
     model: str = "clip-vit-b-32", strip_height: float = 100.0,
+    preserve_order: bool = False,
+    order_values: dict[str, float] | None = None,
 ) -> StripLayout:
     n = len(image_ids)
     if n == 0:
@@ -265,15 +293,22 @@ def compute_layout(
     n_strips = max(1, round(np.sqrt(total_width / strip_height)))
     target_width = total_width / n_strips
 
-    # Stage 1: UMAP to 2D
-    matrix = _build_embedding_matrix(provider, image_ids, model, axes, db)
-    min_dist = max(0.0, min(0.99, tightness))
-    logger.info("Layout: %d images, %d target strips, tightness=%.2f", n, n_strips, tightness)
-    positions = _umap_positions(matrix, n_neighbors=min(15, max(2, n - 1)), min_dist=min_dist)
+    logger.info("Layout: %d images, %d target strips, tightness=%.2f, preserve_order=%s, has_order_values=%s",
+                n, n_strips, tightness, preserve_order, order_values is not None)
 
-    # Stage 2: Hilbert sort
-    order = _hilbert_order(positions)
-    sorted_ids = [image_ids[i] for i in order]
+    if order_values:
+        # Sort by order values (capture date or contrast projection)
+        sorted_ids = sorted(image_ids, key=lambda iid: order_values.get(iid, 0.0))
+    elif preserve_order:
+        # Slice already ordered by score — use that order directly
+        sorted_ids = image_ids
+    else:
+        # Stage 1: cached UMAP positions
+        pos_dict = _ensure_umap_cached(provider, db, image_ids, model)
+        positions = np.array([pos_dict[iid] for iid in image_ids], dtype=np.float32)
+        # Stage 2: Hilbert sort
+        order = _hilbert_order(positions)
+        sorted_ids = [image_ids[i] for i in order]
 
     # Stage 3: Greedy strip pack
     strips = _greedy_pack_strips(sorted_ids, natural_widths, thumbnails, strip_height, target_width)

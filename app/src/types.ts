@@ -31,15 +31,26 @@ export interface ProximityFilter {
   weight: number;
 }
 
+export interface ContrastControl {
+  pole_a: string;
+  pole_b: string;
+  role: "filter" | "attract" | "order";
+  band_min: number;
+  band_max: number;
+}
+
 export interface SliceRequest {
   range_filters: RangeFilter[];
   proximity_filters: ProximityFilter[];
+  contrast_controls: ContrastControl[];
   model: string;
 }
 
 export interface SliceResponse {
   image_ids: string[];
   count: number;
+  has_order_axis: boolean;
+  order_values: Record<string, number>;
 }
 
 export interface LayoutRequest {
@@ -48,6 +59,8 @@ export interface LayoutRequest {
   tightness: number;
   model: string;
   strip_height: number;
+  preserve_order?: boolean;
+  order_values?: Record<string, number>;
 }
 
 export interface Dimension {
@@ -62,4 +75,26 @@ export interface PointOfView {
   x: number;
   y: number;
   z: number; // 0 = one image fills frame, higher = zoomed out
+}
+
+export interface VocabularyTree {
+  [sigil: string]: VocabularyNode[];
+}
+
+export interface VocabularyNode {
+  name: string;
+  prompt: string;
+  children?: VocabularyNode[];
+}
+
+
+export interface Sibling {
+  name: string;
+  prompt: string;
+}
+
+export interface VocabTerm {
+  name: string;
+  path: string;
+  prompt: string;
 }

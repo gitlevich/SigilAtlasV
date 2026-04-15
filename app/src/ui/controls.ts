@@ -39,18 +39,21 @@ async function recomputeSliceAndLayout(): Promise<void> {
     model: state.model,
   });
   state.imageIds = res.image_ids;
+  state.orderValues = res.order_values || {};
 
   // Layout: arrange the slice on the torus
-  // When attract filters or contrast controls are active, preserve the score-based order
+  // Pass order_values so layout sorts by time or contrast projection
   const hasScoring = state.proximityFilters.length > 0 ||
     state.contrastControls.some((c) => c.role === "attract" || c.role === "order");
+  const hasOrderValues = Object.keys(state.orderValues).length > 0;
   const layout = await api.computeLayout({
     image_ids: state.imageIds,
     axes: state.selectedAxes.length > 0 ? state.selectedAxes : null,
     tightness: state.tightness,
     model: state.model,
     strip_height: state.stripHeight,
-    preserve_order: hasScoring,
+    preserve_order: hasScoring && !hasOrderValues,
+    order_values: hasOrderValues ? state.orderValues : undefined,
   });
   state.layout = layout;
   state.torusWidth = layout.torus_width;

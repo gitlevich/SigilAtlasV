@@ -16,7 +16,9 @@ from pathlib import Path
 from sigil_atlas.db import CorpusDB
 from sigil_atlas.embedding_provider import SqliteEmbeddingProvider
 from sigil_atlas.layout import compute_layout
-from sigil_atlas.slice import RangeFilter, ProximityFilter, compute_slice
+from sigil_atlas.slice import RangeFilter, ProximityFilter, ContrastControl, compute_slice
+from sigil_atlas.taxonomy import vocabulary, vocabulary_tree, vocabulary_flat
+from sigil_atlas.things import siblings
 from sigil_atlas.workspace import Workspace
 
 logger = logging.getLogger(__name__)
@@ -80,6 +82,15 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._handle_dimensions()
         elif self.path == "/models":
             self._handle_models()
+        elif self.path == "/vocabulary":
+            self._send_json(vocabulary())
+        elif self.path == "/vocabulary/tree":
+            self._send_json(vocabulary_tree())
+        elif self.path == "/vocabulary/flat":
+            self._send_json(vocabulary_flat())
+        elif self.path.startswith("/siblings/"):
+            term = self.path[len("/siblings/"):]
+            self._send_json({"siblings": siblings(term)})
         elif self.path.startswith("/thumbnail/"):
             image_id = self.path[len("/thumbnail/"):]
             thumb_path = _state.workspace.thumbnails_dir / f"{image_id}.jpg"
@@ -93,6 +104,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_slice()
             elif self.path == "/layout":
                 self._handle_layout()
+            elif self.path == "/things":
+                self._handle_things()
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as e:
@@ -136,10 +149,33 @@ class RequestHandler(BaseHTTPRequestHandler):
             ProximityFilter(text=f["text"], weight=f.get("weight", 1.0))
             for f in data.get("proximity_filters", [])
         ]
+        contrast_controls = [
+            ContrastControl(
+                pole_a=c["pole_a"], pole_b=c["pole_b"],
+                role=c.get("role", "filter"),
+                band_min=c.get("band_min", -1.0),
+                band_max=c.get("band_max", 1.0),
+            )
+            for c in data.get("contrast_controls", [])
+        ]
         model = data.get("model", "clip-vit-b-32")
 
-        image_ids = compute_slice(_state.db, _state.provider, range_filters, proximity_filters, model)
-        self._send_json({"image_ids": image_ids, "count": len(image_ids)})
+        result = compute_slice(
+            _state.db, _state.provider,
+            range_filters, proximity_filters, contrast_controls, model,
+        )
+        # Return order values: contrast projections if order axis active, else capture dates
+        if result.order_projections is not None:
+            order_values = result.order_projections
+        else:
+            order_values = result.capture_dates
+
+        self._send_json({
+            "image_ids": result.image_ids,
+            "count": len(result.image_ids),
+            "has_order_axis": result.order_projections is not None,
+            "order_values": order_values,
+        })
 
     def _handle_layout(self):
         data = self._read_json()
@@ -148,14 +184,17 @@ class RequestHandler(BaseHTTPRequestHandler):
         tightness = data.get("tightness", 0.5)
         model = data.get("model", "clip-vit-b-32")
         strip_height = data.get("strip_height", 100.0)
+        order_values = data.get("order_values")
 
         if not image_ids:
             image_ids = _state.db.fetch_image_ids()
 
+        preserve_order = data.get("preserve_order", False)
         layout = compute_layout(
             _state.provider, _state.db, image_ids,
             axes=axes, tightness=tightness, model=model,
-            strip_height=strip_height,
+            strip_height=strip_height, preserve_order=preserve_order,
+            order_values=order_values,
         )
 
         strips_json = []
@@ -168,6 +207,55 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         self._send_json({
             "strips": strips_json,
+            "torus_width": layout.torus_width,
+            "torus_height": layout.torus_height,
+            "strip_height": layout.strip_height,
+        })
+
+
+    def _handle_things(self):
+        data = self._read_json()
+        terms = data.get("terms", [])
+        model = data.get("model", "clip-vit-b-32")
+        strip_height = data.get("strip_height", 100.0)
+        top_k = data.get("top_k", 200)
+
+        image_ids = data.get("image_ids")
+        if not image_ids:
+            image_ids = _state.db.fetch_image_ids()
+
+        layout = compute_things_layout(
+            _state.provider, _state.db, image_ids,
+            terms=terms, model=model,
+            strip_height=strip_height, top_k=top_k,
+        )
+
+        neighborhoods_json = []
+        for nb in layout.neighborhoods:
+            strips_json = [
+                {
+                    "y": s.y,
+                    "height": s.height,
+                    "images": [
+                        {"id": img.id, "x": img.x, "width": img.width, "thumbnail_path": img.thumbnail_path}
+                        for img in s.images
+                    ],
+                }
+                for s in nb.strips
+            ]
+            neighborhoods_json.append({
+                "term": nb.term,
+                "prompt": nb.prompt,
+                "x": nb.x,
+                "y": nb.y,
+                "width": nb.width,
+                "height": nb.height,
+                "strips": strips_json,
+                "image_count": nb.image_count,
+            })
+
+        self._send_json({
+            "neighborhoods": neighborhoods_json,
             "torus_width": layout.torus_width,
             "torus_height": layout.torus_height,
             "strip_height": layout.strip_height,
@@ -191,6 +279,8 @@ def main():
     global _state
     _state = SidecarState(Path(args.workspace))
     logger.info("Workspace loaded: %s (%d images)", args.workspace, _state.db.image_count())
+
+    # CLIP model loads lazily on first text encode
 
     port = args.port or _find_free_port()
     server = HTTPServer(("127.0.0.1", port), RequestHandler)
