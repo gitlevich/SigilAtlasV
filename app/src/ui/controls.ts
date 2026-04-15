@@ -61,10 +61,13 @@ async function recomputeSliceAndLayout(): Promise<void> {
   const newArea = layout.torus_width * layout.torus_height;
   if (prevArea === 0 || Math.abs(newArea - prevArea) / prevArea > 0.5) {
     const canvas = document.getElementById("viewport") as HTMLCanvasElement;
+    const aspect = canvas.clientWidth / canvas.clientHeight;
+    const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
     const visibleStrips = 8;
+    const desiredZoom = visibleStrips * layout.strip_height * aspect;
     state.pov.x = layout.torus_width / 2;
     state.pov.y = layout.torus_height / 2;
-    state.pov.z = visibleStrips * layout.strip_height * (canvas.clientWidth / canvas.clientHeight);
+    state.pov.z = Math.min(desiredZoom, maxZoom);
   }
 
   if (viewport) viewport.setLayout(layout);

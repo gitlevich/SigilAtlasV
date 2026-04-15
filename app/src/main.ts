@@ -110,6 +110,7 @@ async function main(): Promise<void> {
   const sliceRes = await api.computeSlice({
     range_filters: [],
     proximity_filters: [],
+    contrast_controls: [],
     model: state.model,
   });
   state.imageIds = sliceRes.image_ids;
@@ -127,10 +128,11 @@ async function main(): Promise<void> {
   state.torusHeight = layout.torus_height;
   viewport.setLayout(layout);
 
-  // Center camera, zoom to show ~8 strips worth of content
-  const visibleStrips = 8;
-  const initialZoom = visibleStrips * layout.strip_height * (canvas.clientWidth / canvas.clientHeight);
-  state.pov = { x: layout.torus_width / 2, y: layout.torus_height / 2, z: initialZoom };
+  // Center camera, zoom to show ~8 strips worth of content, clamped to torus size
+  const aspect = canvas.clientWidth / canvas.clientHeight;
+  const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
+  const desiredZoom = 8 * layout.strip_height * aspect;
+  state.pov = { x: layout.torus_width / 2, y: layout.torus_height / 2, z: Math.min(desiredZoom, maxZoom) };
 
   // Init controls
   await initControls(dimensions, models);
@@ -139,18 +141,13 @@ async function main(): Promise<void> {
   hideStatus();
 
   // Camera interaction
-  setupCameraControls(canvas, state.pov, layout.torus_width, layout.torus_height);
+  setupCameraControls(canvas);
 
   // Render loop
   viewport.startRenderLoop(() => state.pov);
 }
 
-function setupCameraControls(
-  canvas: HTMLCanvasElement,
-  pov: PointOfView,
-  torusW: number,
-  torusH: number,
-): void {
+function setupCameraControls(canvas: HTMLCanvasElement): void {
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
@@ -168,12 +165,14 @@ function setupCameraControls(
     lastX = e.clientX;
     lastY = e.clientY;
 
-    const pixelsPerUnit = canvas.clientWidth / pov.z;
-    pov.x -= dx / pixelsPerUnit;
-    pov.y += dy / pixelsPerUnit;
+    const pixelsPerUnit = canvas.clientWidth / state.pov.z;
+    state.pov.x -= dx / pixelsPerUnit;
+    state.pov.y += dy / pixelsPerUnit;
 
-    pov.x = ((pov.x % torusW) + torusW) % torusW;
-    pov.y = ((pov.y % torusH) + torusH) % torusH;
+    const tw = state.torusWidth || 1;
+    const th = state.torusHeight || 1;
+    state.pov.x = ((state.pov.x % tw) + tw) % tw;
+    state.pov.y = ((state.pov.y % th) + th) % th;
   });
 
   window.addEventListener("mouseup", () => { dragging = false; });
@@ -181,9 +180,13 @@ function setupCameraControls(
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     const zoomFactor = 1 + e.deltaY * 0.001;
-    // Max zoom = torus width (one full period visible). The torus wraps,
-    // so you always see a full surface — never empty space (!gapless, !endless).
-    pov.z = Math.max(50, Math.min(torusW, pov.z * zoomFactor));
+    // Clamp zoom so you never see more than one copy of the torus.
+    // pov.z = visible width, pov.z/aspect = visible height.
+    const aspect = canvas.clientWidth / canvas.clientHeight;
+    const tw = state.torusWidth || 10000;
+    const th = state.torusHeight || 10000;
+    const maxZoom = Math.min(tw, th * aspect);
+    state.pov.z = Math.max(50, Math.min(maxZoom, state.pov.z * zoomFactor));
   }, { passive: false });
 }
 
