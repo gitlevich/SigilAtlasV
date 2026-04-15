@@ -385,3 +385,40 @@ html, body {
   align-items: center;
   gap: 6px;
 }
+
+/* ── Mode tabs ── */
+
+.mode-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mode-tab {
+  flex: 1;
+  padding: 5px 0;
+  background: #1a1a28;
+  border: none;
+  border-right: 1px solid #333;
+  color: #888;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.mode-tab:last-child {
+  border-right: none;
+}
+
+.mode-tab:hover {
+  color: #c8c8d0;
+  background: #222238;
+}
+
+.mode-tab.active {
+  color: #c8c8d0;
+  background: #2a2a4a;
+}

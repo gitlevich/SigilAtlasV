@@ -417,33 +417,28 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   const nbPanel = document.getElementById("neighborhood-panel")!;
   nbPanel.innerHTML = "<h3>Sigil Controls</h3>";
 
-  // Mode toggle
-  const modeGroup = document.createElement("div");
-  modeGroup.className = "control-group";
-  const modeLabel = document.createElement("label");
-  modeLabel.textContent = "Mode";
-  modeGroup.appendChild(modeLabel);
-
-  const modeSelect = document.createElement("select");
-  for (const m of [
+  // Mode tabs
+  const modeTabs = document.createElement("div");
+  modeTabs.className = "mode-tabs";
+  const modes: Array<{ value: "spacelike" | "timelike" | "tastelike"; label: string }> = [
     { value: "spacelike", label: "Spacelike" },
     { value: "timelike", label: "Timelike" },
     { value: "tastelike", label: "Tastelike" },
-  ]) {
-    const opt = document.createElement("option");
-    opt.value = m.value;
-    opt.textContent = m.label;
-    modeSelect.appendChild(opt);
+  ];
+  for (const m of modes) {
+    const tab = document.createElement("button");
+    tab.className = "mode-tab" + (m.value === state.mode ? " active" : "");
+    tab.textContent = m.label;
+    tab.addEventListener("click", () => {
+      state.mode = m.value;
+      modeTabs.querySelectorAll(".mode-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      timeGroup.style.display = state.mode === "timelike" ? "" : "none";
+      recomputeSliceAndLayout().catch((e) => console.error("Mode switch failed:", e));
+    });
+    modeTabs.appendChild(tab);
   }
-  modeSelect.value = state.mode;
-  modeSelect.addEventListener("change", () => {
-    state.mode = modeSelect.value as "timelike" | "spacelike" | "tastelike";
-    // Show/hide time direction based on mode
-    timeGroup.style.display = state.mode === "timelike" ? "" : "none";
-    recomputeSliceAndLayout().catch((e) => console.error("Mode switch failed:", e));
-  });
-  modeGroup.appendChild(modeSelect);
-  nbPanel.appendChild(modeGroup);
+  nbPanel.appendChild(modeTabs);
 
   // Things (proximity attract)
   const thingsGroup = document.createElement("div");
