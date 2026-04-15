@@ -212,6 +212,9 @@ def filter_by_range(db: CorpusDB, filters: list[RangeFilter]) -> set[str]:
     return result or set()
 
 
+CLIP_MODEL = "clip-vit-l-14"
+
+
 def compute_slice(
     db: CorpusDB,
     provider: EmbeddingProvider,
@@ -221,6 +224,10 @@ def compute_slice(
     model: str = "clip-vit-l-14",
 ) -> SliceResult:
     """Compute the slice per the spec's RelevanceFilter composition.
+
+    Text-based operations (attract, contrast, proximity) always use CLIP
+    embeddings — only CLIP has a text encoder. The model parameter affects
+    layout (UMAP) only.
 
     1. Start with all corpus images
     2. Apply metadata range filters (AND)
@@ -246,7 +253,7 @@ def compute_slice(
     for cc in filter_controls:
         if not candidates:
             break
-        normalized = _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, model)
+        normalized = _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, CLIP_MODEL)
         mask = (normalized >= cc.band_min) & (normalized <= cc.band_max)
         candidates = [candidates[i] for i in range(len(candidates)) if mask[i]]
         logger.info("Bandpass %s vs %s: %d images pass", cc.pole_a, cc.pole_b, len(candidates))
@@ -261,8 +268,8 @@ def compute_slice(
     if proximity_filters:
         selected = set()
         for pf in proximity_filters:
-            vec = _encode_cached(provider, pf.text, model)
-            matrix = provider.fetch_matrix(candidates, model)
+            vec = _encode_cached(provider, pf.text, CLIP_MODEL)
+            matrix = provider.fetch_matrix(candidates, CLIP_MODEL)
             raw = matrix @ vec
             count = _select_above_knee(raw, candidates, selected)
             logger.info("Attract '%s': %d images", pf.text, count)
@@ -274,10 +281,10 @@ def compute_slice(
     composite_scores = np.zeros(len(candidates), dtype=np.float32)
 
     for cc in attract_controls:
-        composite_scores += _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, model)
+        composite_scores += _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, CLIP_MODEL)
 
     for pf in proximity_filters:
-        composite_scores += _score_category(provider, candidates, pf.text, model) * pf.weight
+        composite_scores += _score_category(provider, candidates, pf.text, CLIP_MODEL) * pf.weight
 
     # Sort by composite score (descending)
     scores_dict = {candidates[i]: float(composite_scores[i]) for i in range(len(candidates))}
@@ -293,7 +300,7 @@ def compute_slice(
     order_projections = None
     if order_controls:
         oc = order_controls[0]  # single order axis invariant
-        projs = _score_contrast(provider, sorted_ids, oc.pole_a, oc.pole_b, model)
+        projs = _score_contrast(provider, sorted_ids, oc.pole_a, oc.pole_b, CLIP_MODEL)
         order_projections = {sorted_ids[i]: float(projs[i]) for i in range(len(sorted_ids))}
 
     # Fetch capture dates for default time ordering
