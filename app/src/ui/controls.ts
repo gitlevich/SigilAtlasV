@@ -445,6 +445,37 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   const panel = document.getElementById("neighborhood-panel")!;
   panel.innerHTML = "";
 
+  // Resize handle
+  const resizeHandle = document.createElement("div");
+  resizeHandle.className = "panel-resize-handle";
+  panel.appendChild(resizeHandle);
+
+  let resizing = false;
+  resizeHandle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    resizing = true;
+    resizeHandle.classList.add("dragging");
+    const startX = e.clientX;
+    const startWidth = panel.offsetWidth;
+
+    const onMove = (ev: PointerEvent) => {
+      const delta = startX - ev.clientX;
+      const newWidth = Math.max(180, Math.min(400, startWidth + delta));
+      panel.style.width = `${newWidth}px`;
+      panel.style.minWidth = `${newWidth}px`;
+    };
+
+    const onUp = () => {
+      resizing = false;
+      resizeHandle.classList.remove("dragging");
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
+
   // Mode tabs (not in a section — always visible at top)
   const modeTabs = document.createElement("div");
   modeTabs.className = "mode-tabs";

@@ -54,6 +54,22 @@ html, body {
 
 .panel.right {
   border-left: 1px solid #2a2a3a;
+  position: relative;
+}
+
+.panel-resize-handle {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.panel-resize-handle:hover,
+.panel-resize-handle.dragging {
+  background: rgba(100, 100, 200, 0.3);
 }
 
 .panel h3 {
