@@ -175,6 +175,14 @@ export class TextureAtlas {
     img.src = url;
   }
 
+  pageCount(): number {
+    return this.pages.length;
+  }
+
+  getPage(imageId: string): number {
+    return this.uvMap.get(imageId)?.page ?? 0;
+  }
+
   bindPage(page: number, textureUnit: number): void {
     const gl = this.gl;
     gl.activeTexture(gl.TEXTURE0 + textureUnit);

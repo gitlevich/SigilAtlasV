@@ -15,6 +15,7 @@ from pathlib import Path
 
 from sigil_atlas.cancel import CancellationToken
 from sigil_atlas.db import CorpusDB
+from sigil_atlas.ingest.cluster import KMEANS_K_LEVELS, run_clustering_stage
 from sigil_atlas.ingest.embed import CLIPEmbedder, DINOv2Embedder, run_embedding_stage
 from sigil_atlas.ingest.metadata import extract_metadata_batch
 from sigil_atlas.ingest.source import FolderSource
@@ -124,6 +125,11 @@ class IngestPipeline:
             if self.token.is_cancelled:
                 return
 
+            self._run_clustering_stage(db)
+
+            if self.token.is_cancelled:
+                return
+
             self.strategy.run(db, self.reporter, self.token)
 
             self.reporter.emit_event("pipeline_completed")
@@ -177,6 +183,19 @@ class IngestPipeline:
             # Wait for both to complete
             for f in futures:
                 f.result()
+
+    def _run_clustering_stage(self, db: CorpusDB) -> None:
+        """Precompute KMeans at multiple k levels for both models."""
+        from sigil_atlas.embedding_provider import SqliteEmbeddingProvider
+
+        provider = SqliteEmbeddingProvider(db)
+        for model_id in [CLIPEmbedder.MODEL_ID, DINOv2Embedder.MODEL_ID]:
+            if self.token.is_cancelled:
+                return
+            cluster_progress = self.reporter.create_stage(
+                f"cluster_{model_id}", len(KMEANS_K_LEVELS)
+            )
+            run_clustering_stage(db, provider, model_id, KMEANS_K_LEVELS, cluster_progress, self.token)
 
     def _run_embedding_stages(self, db: CorpusDB) -> None:
         """Run CLIP and DINOv2 embedding in parallel."""

@@ -148,7 +148,15 @@ export class TorusViewport {
     }
   }
 
+  private _buildInstancesForPage(pov: PointOfView, targetPage: number): InstanceData {
+    return this._buildInstancesInner(pov, targetPage);
+  }
+
   private _buildInstances(pov: PointOfView): InstanceData {
+    return this._buildInstancesInner(pov, null);
+  }
+
+  private _buildInstancesInner(pov: PointOfView, targetPage: number | null): InstanceData {
     if (!this.layout) return { offsets: new Float32Array(0), sizes: new Float32Array(0), uvs: new Float32Array(0), count: 0 };
 
     const { strips, torus_width, torus_height } = this.layout;
@@ -162,41 +170,38 @@ export class TorusViewport {
     const sizes: number[] = [];
     const uvs: number[] = [];
 
+    // Draw all torus-wrapped copies that fall within the visible window.
+    // This prevents overlaps and gaps at the seam.
+    const viewLeft = pov.x - visW * 0.5 - margin;
+    const viewRight = pov.x + visW * 0.5 + margin;
+    const viewTop = pov.y - visH * 0.5 - margin;
+    const viewBottom = pov.y + visH * 0.5 + margin;
+
     for (const strip of strips) {
       const sy = strip.y;
       const sh = strip.height;
 
-      // Find the best y-offset (closest to camera by strip center)
-      const cy = sy + sh * 0.5;
-      let bestDy = 0;
-      let bestDistY = Math.abs(cy - pov.y);
-      for (const dy of [-torus_height, torus_height]) {
-        const d = Math.abs(cy + dy - pov.y);
-        if (d < bestDistY) { bestDistY = d; bestDy = dy; }
-      }
-      const wy = sy + bestDy;
-      const relY = wy - pov.y;
-      if (relY + sh < -visH * 0.5 - margin || relY > visH * 0.5 + margin) continue;
+      // Emit strip at all y-wraps that are visible
+      for (let dy = -torus_height; dy <= torus_height; dy += torus_height) {
+        const wy = sy + dy;
+        if (wy + sh < viewTop || wy > viewBottom) continue;
 
-      for (const img of strip.images) {
-        // Find the best x-offset (closest to camera by image center)
-        const cx = img.x + img.width * 0.5;
-        let bestDx = 0;
-        let bestDistX = Math.abs(cx - pov.x);
-        for (const dx of [-torus_width, torus_width]) {
-          const d = Math.abs(cx + dx - pov.x);
-          if (d < bestDistX) { bestDistX = d; bestDx = dx; }
-        }
-        const wx = img.x + bestDx;
-        const relX = wx - pov.x;
-        if (relX + img.width < -visW * 0.5 - margin || relX > visW * 0.5 + margin) continue;
+        for (const img of strip.images) {
+          // Emit image at all x-wraps that are visible
+          for (let dx = -torus_width; dx <= torus_width; dx += torus_width) {
+            const wx = img.x + dx;
+            if (wx + img.width < viewLeft || wx > viewRight) continue;
 
-        const { uv } = this.atlas.getUV(img.id);
+            const entry = this.atlas.getUV(img.id);
+            if (targetPage !== null && entry.page !== targetPage) continue;
+            const { uv } = entry;
 
-        for (let v = 0; v < 6; v++) {
-          offsets.push(wx, wy);
-          sizes.push(img.width, sh);
-          uvs.push(uv.u0, uv.v0, uv.u1, uv.v1);
+            for (let v = 0; v < 6; v++) {
+              offsets.push(wx, wy);
+              sizes.push(img.width, sh);
+              uvs.push(uv.u0, uv.v0, uv.u1, uv.v1);
+            }
+          }
         }
       }
     }
@@ -238,41 +243,45 @@ export class TorusViewport {
     gl.uniform2f(this.uViewport, canvas.width, canvas.height);
     gl.uniform2f(this.uTorus, this.layout.torus_width, this.layout.torus_height);
 
-    this.atlas.bindPage(0, 0);
-    gl.uniform1i(this.uAtlas, 0);
+    // Render per atlas page — each page is a separate draw call
+    const pageCount = this.atlas.pageCount();
+    for (let page = 0; page < pageCount; page++) {
+      const pageInstances = this._buildInstancesForPage(pov, page);
+      if (pageInstances.count === 0) continue;
 
-    // Position attribute (from unit quad, repeated per vertex)
-    const quadData = [0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1];
-    const posData = new Float32Array(instances.count * 2);
-    for (let i = 0; i < instances.count; i++) {
-      const vi = i % 6;
-      posData[i * 2] = quadData[vi * 2];
-      posData[i * 2 + 1] = quadData[vi * 2 + 1];
+      this.atlas.bindPage(page, 0);
+      gl.uniform1i(this.uAtlas, 0);
+
+      // Position attribute
+      const quadData = [0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1];
+      const posData = new Float32Array(pageInstances.count * 2);
+      for (let i = 0; i < pageInstances.count; i++) {
+        const vi = i % 6;
+        posData[i * 2] = quadData[vi * 2];
+        posData[i * 2 + 1] = quadData[vi * 2 + 1];
+      }
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, posData, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(this.aPosition);
+      gl.vertexAttribPointer(this.aPosition, 2, gl.FLOAT, false, 0, 0);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.offsetBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, pageInstances.offsets, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(this.aOffset);
+      gl.vertexAttribPointer(this.aOffset, 2, gl.FLOAT, false, 0, 0);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.sizeBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, pageInstances.sizes, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(this.aSize);
+      gl.vertexAttribPointer(this.aSize, 2, gl.FLOAT, false, 0, 0);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, pageInstances.uvs, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(this.aUV);
+      gl.vertexAttribPointer(this.aUV, 4, gl.FLOAT, false, 0, 0);
+
+      gl.drawArrays(gl.TRIANGLES, 0, pageInstances.count);
     }
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, posData, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(this.aPosition);
-    gl.vertexAttribPointer(this.aPosition, 2, gl.FLOAT, false, 0, 0);
-
-    // Offset attribute
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.offsetBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, instances.offsets, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(this.aOffset);
-    gl.vertexAttribPointer(this.aOffset, 2, gl.FLOAT, false, 0, 0);
-
-    // Size attribute
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.sizeBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, instances.sizes, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(this.aSize);
-    gl.vertexAttribPointer(this.aSize, 2, gl.FLOAT, false, 0, 0);
-
-    // UV attribute
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, instances.uvs, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(this.aUV);
-    gl.vertexAttribPointer(this.aUV, 4, gl.FLOAT, false, 0, 0);
-
-    gl.drawArrays(gl.TRIANGLES, 0, instances.count);
   }
 
   startRenderLoop(getPov: () => PointOfView): void {

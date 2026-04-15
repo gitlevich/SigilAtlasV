@@ -1,8 +1,5 @@
 /**
  * API client for the Python sidecar.
- *
- * In Tauri mode, calls go through invoke(). In standalone web mode,
- * calls go directly to the sidecar HTTP server.
  */
 
 import type {
@@ -11,6 +8,9 @@ import type {
   LayoutRequest,
   StripLayout,
   Dimension,
+  VocabularyTree,
+  Sibling,
+  VocabTerm,
 } from "./types";
 
 let sidecarPort: number | null = null;
@@ -54,6 +54,19 @@ export async function getDimensions(): Promise<Dimension[]> {
 export async function getModels(): Promise<string[]> {
   const data = await get<{ models: string[] }>("/models");
   return data.models;
+}
+
+export async function getVocabularyTree(): Promise<VocabularyTree> {
+  return get("/vocabulary/tree");
+}
+
+export async function getSiblings(term: string): Promise<Sibling[]> {
+  const data = await get<{ siblings: Sibling[] }>(`/siblings/${encodeURIComponent(term)}`);
+  return data.siblings;
+}
+
+export async function getVocabularyFlat(): Promise<VocabTerm[]> {
+  return get("/vocabulary/flat");
 }
 
 export async function computeSlice(req: SliceRequest): Promise<SliceResponse> {
