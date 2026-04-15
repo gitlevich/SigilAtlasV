@@ -445,13 +445,9 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   const panel = document.getElementById("neighborhood-panel")!;
   panel.innerHTML = "";
 
-  // Resize handle (double-click to collapse/expand)
+  // Resize handle with double-click to collapse
   const resizeHandle = document.createElement("div");
   resizeHandle.className = "panel-resize-handle";
-  resizeHandle.addEventListener("dblclick", (e) => {
-    e.preventDefault();
-    panel.classList.toggle("folded");
-  });
   panel.appendChild(resizeHandle);
 
   // Unfold tab — visible only when panel is folded
@@ -462,8 +458,23 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   panel.appendChild(unfoldTab);
 
   let resizing = false;
+  let lastPointerDown = 0;
+  let dragMoved = false;
+
   resizeHandle.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    e.stopPropagation();
+
+    const now = Date.now();
+    if (now - lastPointerDown < 300 && !dragMoved) {
+      // Double-click: collapse/expand
+      panel.classList.toggle("folded");
+      lastPointerDown = 0;
+      return;
+    }
+    lastPointerDown = now;
+    dragMoved = false;
+
     resizeHandle.setPointerCapture(e.pointerId);
     resizing = true;
     resizeHandle.classList.add("dragging");
@@ -471,6 +482,7 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
     const startWidth = panel.offsetWidth;
 
     const onMove = (ev: PointerEvent) => {
+      dragMoved = true;
       const delta = startX - ev.clientX;
       const newWidth = Math.max(180, Math.min(400, startWidth + delta));
       panel.style.width = `${newWidth}px`;
