@@ -370,27 +370,38 @@ html, body {
 
 .bandpass-handle {
   position: absolute;
-  top: 1px;
+  top: -2px;
+  width: 10px;
+  height: 16px;
+  background: transparent;
+  cursor: ew-resize;
+  z-index: 1;
+}
+
+/* Visible part of the handle — thinner than the hit area */
+.bandpass-handle::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 3px;
   width: 4px;
   height: 10px;
   background: #999;
   border-radius: 1px;
-  cursor: ew-resize;
-  z-index: 1;
   transition: background 0.1s;
 }
 
-.bandpass-handle:hover,
-.bandpass-handle.dragging {
+.bandpass-handle:hover::after,
+.bandpass-handle.dragging::after {
   background: #ccc;
 }
 
 .bandpass-handle.left {
-  left: -4px;
+  left: -6px;
 }
 
 .bandpass-handle.right {
-  right: -4px;
+  right: -6px;
 }
 
 .add-contrast {
