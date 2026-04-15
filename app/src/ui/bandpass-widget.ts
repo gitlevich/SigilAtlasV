@@ -127,6 +127,16 @@ export function createBandpassWidget(options: BandpassOptions): HTMLElement {
     if (onCommit) onCommit(current);
   }
 
+  // Double-click resets to full range
+  track.addEventListener("dblclick", (e) => {
+    e.preventDefault();
+    current.min = rangeMin;
+    current.max = rangeMax;
+    updateDOM();
+    if (onChange) onChange(current);
+    if (onCommit) onCommit(current);
+  });
+
   handleL.addEventListener("pointerdown", (e) => beginDrag(e, "left"));
   handleR.addEventListener("pointerdown", (e) => beginDrag(e, "right"));
   band.addEventListener("pointerdown", (e) => {

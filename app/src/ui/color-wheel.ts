@@ -146,6 +146,16 @@ export function createColorWheel(options: ColorWheelOptions): HTMLElement {
   let dragStartCenter = 0;
   let dragStartWidth = 0;
 
+  // Double-click resets the color selection
+  canvas.addEventListener("dblclick", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    current.width = 0;
+    current.center = 0;
+    draw();
+    onChange(current);
+  });
+
   canvas.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
