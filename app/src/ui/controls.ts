@@ -42,18 +42,24 @@ async function recomputeSliceAndLayout(): Promise<void> {
   state.orderValues = res.order_values || {};
 
   // Layout: arrange the slice on the torus
-  // Pass order_values so layout sorts by time or contrast projection
+  // Time direction determines ordering strategy
   const hasScoring = state.proximityFilters.length > 0 ||
-    state.contrastControls.some((c) => c.role === "attract" || c.role === "order");
-  const hasOrderValues = Object.keys(state.orderValues).length > 0;
+    state.contrastControls.some((c) => c.role === "attract");
+  let orderValues: Record<string, number> | undefined;
+  if (state.timeDirection === "capture_date") {
+    const hasOV = Object.keys(state.orderValues).length > 0;
+    orderValues = hasOV ? state.orderValues : undefined;
+  }
+  // "similarity" means UMAP layout — no order_values, no preserve_order
+
   const layout = await api.computeLayout({
     image_ids: state.imageIds,
     axes: state.selectedAxes.length > 0 ? state.selectedAxes : null,
     tightness: state.tightness,
     model: state.model,
     strip_height: state.stripHeight,
-    preserve_order: hasScoring && !hasOrderValues,
-    order_values: hasOrderValues ? state.orderValues : undefined,
+    preserve_order: hasScoring && !orderValues,
+    order_values: orderValues,
   });
   state.layout = layout;
   state.torusWidth = layout.torus_width;
@@ -428,6 +434,32 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
     recomputeSliceAndLayout().catch((e) => console.error("Slice failed:", e));
   });
   nbPanel.appendChild(contrastGroup);
+
+  // Time direction
+  const timeGroup = document.createElement("div");
+  timeGroup.className = "control-group";
+  const timeLabel = document.createElement("label");
+  timeLabel.textContent = "Time direction";
+  timeGroup.appendChild(timeLabel);
+
+  const timeSelect = document.createElement("select");
+  const timeOpts: Array<{ value: string; label: string }> = [
+    { value: "capture_date", label: "Capture date" },
+    { value: "similarity", label: "Similarity (UMAP)" },
+  ];
+  for (const o of timeOpts) {
+    const opt = document.createElement("option");
+    opt.value = o.value;
+    opt.textContent = o.label;
+    timeSelect.appendChild(opt);
+  }
+  timeSelect.value = state.timeDirection;
+  timeSelect.addEventListener("change", () => {
+    state.timeDirection = timeSelect.value as "similarity" | "capture_date";
+    recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
+  });
+  timeGroup.appendChild(timeSelect);
+  nbPanel.appendChild(timeGroup);
 
   // Tightness slider
   const tightnessGroup = document.createElement("div");

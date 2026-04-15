@@ -23,6 +23,9 @@ export interface AppState {
   imageIds: string[];
   orderValues: Record<string, number>;
 
+  // Time direction: "similarity" | "capture_date" | index into contrastControls
+  timeDirection: "similarity" | "capture_date";
+
   // Camera
   pov: PointOfView;
 
@@ -46,6 +49,7 @@ export const state: AppState = {
   layout: null,
   imageIds: [],
   orderValues: {},
+  timeDirection: "capture_date",
   pov: { x: 0, y: 0, z: 1000 },
   torusWidth: 0,
   torusHeight: 0,
