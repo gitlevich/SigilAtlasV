@@ -147,6 +147,52 @@ def _score_contrast(
     return ((raw - lo) / (hi - lo) * 2.0 - 1.0).astype(np.float32)
 
 
+def _select_above_knee(
+    scores: np.ndarray,
+    candidates: list[str],
+    selected: set[str],
+    max_candidates: int = 500,
+) -> int:
+    """Select images above the knee of the descending score curve.
+
+    The knee is the point of maximum curvature — where the score gradient
+    transitions from steep (genuine matches) to shallow (noise). Found by
+    maximum perpendicular distance from the chord connecting the first and
+    last points of the top-N sorted scores.
+
+    Returns the number of images added to `selected`.
+    """
+    n = min(max_candidates, len(scores))
+    if n < 3:
+        for i in range(n):
+            selected.add(candidates[int(np.argmax(scores))])
+        return n
+
+    order = np.argsort(-scores)
+    sorted_scores = scores[order[:n]]
+
+    # Chord from (0, best_score) to (n-1, score_at_n)
+    x = np.arange(n, dtype=float)
+    y = sorted_scores
+    x0, y0 = 0.0, float(y[0])
+    x1, y1 = float(n - 1), float(y[n - 1])
+    dx, dy = x1 - x0, y1 - y0
+    length = np.sqrt(dx * dx + dy * dy)
+    if length < 1e-12:
+        return 0
+
+    distances = np.abs(dy * x - dx * y + x1 * y0 - x0 * y1) / length
+    knee = int(np.argmax(distances))
+    # Take at least 5, at most up to the knee
+    knee = max(5, knee)
+
+    count = 0
+    for i in range(knee):
+        selected.add(candidates[order[i]])
+        count += 1
+    return count
+
+
 def filter_by_range(db: CorpusDB, filters: list[RangeFilter]) -> set[str]:
     """Apply range filters on characterizations. Multiple filters AND together."""
     if not filters:
@@ -208,20 +254,18 @@ def compute_slice(
     if not candidates:
         return SliceResult([], {}, None, {})
 
-    # Step 4: proximity filters select images — union of per-term top matches
-    # Each named thing defines a neighborhood. Only the strongest matches survive.
-    # Use raw cosine similarity, select top 100 per term (or fewer if corpus is small).
+    # Step 4: proximity filters select images — union of per-term matches.
+    # Each named thing selects images above the knee of the score curve.
+    # The knee is where the score gradient transitions from steep (signal)
+    # to shallow (noise), found by maximum distance from the chord line.
     if proximity_filters:
         selected = set()
-        top_k = min(30, max(5, len(candidates) // 200))
         for pf in proximity_filters:
             vec = _encode_cached(provider, pf.text, model)
             matrix = provider.fetch_matrix(candidates, model)
             raw = matrix @ vec
-            indices = np.argsort(-raw)[:top_k]
-            for idx in indices:
-                selected.add(candidates[idx])
-            logger.info("Attract '%s': top %d images", pf.text, top_k)
+            count = _select_above_knee(raw, candidates, selected)
+            logger.info("Attract '%s': %d images", pf.text, count)
         candidates = [c for c in candidates if c in selected]
         logger.info("Attract total: %d images", len(candidates))
 
