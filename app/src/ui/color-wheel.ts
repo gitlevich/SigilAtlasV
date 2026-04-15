@@ -1,9 +1,10 @@
 /**
  * Color wheel widget for hue selection.
  *
- * A canvas-drawn hue ring. Click/drag to select a hue center.
- * A draggable arc shows the selected hue range.
- * Outputs { min, max } in degrees [0, 360], wrapping around.
+ * A canvas-drawn hue ring with a draggable arc selection.
+ * - Drag the arc body to rotate (change center hue)
+ * - Drag the arc edge handles to widen/narrow the range
+ * - Click the ring outside the arc to set a new center
  */
 
 export interface HueRange {
@@ -17,6 +18,17 @@ export interface ColorWheelOptions {
   onChange: (range: HueRange) => void;
 }
 
+function normAngle(a: number): number {
+  return ((a % 360) + 360) % 360;
+}
+
+function angleDiff(a: number, b: number): number {
+  let d = a - b;
+  while (d > 180) d -= 360;
+  while (d < -180) d += 360;
+  return d;
+}
+
 export function createColorWheel(options: ColorWheelOptions): HTMLElement {
   const { size, initial, onChange } = options;
   const current: HueRange = { ...initial };
@@ -25,7 +37,7 @@ export function createColorWheel(options: ColorWheelOptions): HTMLElement {
   container.className = "color-wheel-container";
 
   const canvas = document.createElement("canvas");
-  canvas.width = size * 2;  // retina
+  canvas.width = size * 2;
   canvas.height = size * 2;
   canvas.style.width = `${size}px`;
   canvas.style.height = `${size}px`;
@@ -38,15 +50,20 @@ export function createColorWheel(options: ColorWheelOptions): HTMLElement {
   const outerR = cx - 4;
   const innerR = outerR * 0.65;
   const midR = (outerR + innerR) / 2;
+  const handleR = 7;
+
+  function startAngle(): number { return normAngle(current.center - current.width / 2); }
+  function endAngle(): number { return normAngle(current.center + current.width / 2); }
+
+  function toCanvas(deg: number): number { return (deg - 90) * Math.PI / 180; }
 
   function draw(): void {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw hue ring
-    const steps = 360;
-    for (let i = 0; i < steps; i++) {
-      const a0 = (i - 90) * Math.PI / 180;
-      const a1 = (i + 1 - 90) * Math.PI / 180;
+    for (let i = 0; i < 360; i++) {
+      const a0 = toCanvas(i);
+      const a1 = toCanvas(i + 1);
       ctx.beginPath();
       ctx.arc(cx, cy, outerR, a0, a1);
       ctx.arc(cx, cy, innerR, a1, a0, true);
@@ -55,52 +72,37 @@ export function createColorWheel(options: ColorWheelOptions): HTMLElement {
       ctx.fill();
     }
 
-    // Dim the ring outside the selected range
-    if (current.width > 0 && current.width < 360) {
-      const startAngle = current.center - current.width / 2;
-      const endAngle = current.center + current.width / 2;
-      // Draw a dim overlay on the unselected part
-      ctx.globalCompositeOperation = "source-atop";
-      ctx.fillStyle = "rgba(13, 13, 18, 0.7)";
+    if (current.width <= 0 || current.width >= 360) return;
 
-      // Fill the entire ring, then clear the selected arc
+    // Dim unselected portion
+    const sa = toCanvas(startAngle());
+    const ea = toCanvas(endAngle());
+
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.fillStyle = "rgba(13, 13, 18, 0.7)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR + 1, 0, Math.PI * 2);
+    ctx.arc(cx, cy, innerR - 1, 0, Math.PI * 2, true);
+    ctx.fill();
+
+    // Cut out the selected arc
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, outerR + 2, sa, ea);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+
+    // Edge handles — small circles on the ring at start and end angles
+    for (const angle of [startAngle(), endAngle()]) {
+      const a = toCanvas(angle);
+      const hx = cx + midR * Math.cos(a);
+      const hy = cy + midR * Math.sin(a);
       ctx.beginPath();
-      ctx.arc(cx, cy, outerR + 1, 0, Math.PI * 2);
-      ctx.arc(cx, cy, innerR - 1, 0, Math.PI * 2, true);
-      ctx.fill();
-
-      // Restore the selected arc
-      const sa = (startAngle - 90) * Math.PI / 180;
-      const ea = (endAngle - 90) * Math.PI / 180;
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, outerR + 2, sa, ea);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.globalCompositeOperation = "source-over";
-
-      // Draw selection indicator lines
-      for (const angle of [startAngle, endAngle]) {
-        const a = (angle - 90) * Math.PI / 180;
-        ctx.beginPath();
-        ctx.moveTo(cx + innerR * Math.cos(a), cy + innerR * Math.sin(a));
-        ctx.lineTo(cx + outerR * Math.cos(a), cy + outerR * Math.sin(a));
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-    }
-
-    // Draw center dot showing selected hue
-    if (current.width > 0) {
-      const a = (current.center - 90) * Math.PI / 180;
-      const dotR = midR;
-      ctx.beginPath();
-      ctx.arc(cx + dotR * Math.cos(a), cy + dotR * Math.sin(a), 6, 0, Math.PI * 2);
-      ctx.fillStyle = `hsl(${current.center}, 80%, 50%)`;
-      ctx.strokeStyle = "#fff";
+      ctx.arc(hx, hy, handleR, 0, Math.PI * 2);
+      ctx.fillStyle = "#c8c8d0";
+      ctx.strokeStyle = "#0d0d12";
       ctx.lineWidth = 2;
       ctx.fill();
       ctx.stroke();
@@ -119,21 +121,68 @@ export function createColorWheel(options: ColorWheelOptions): HTMLElement {
     return deg;
   }
 
-  let dragging = false;
-
-  canvas.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
+  function distFromEvent(e: MouseEvent): number {
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width * canvas.width - cx;
     const y = (e.clientY - rect.top) / rect.height * canvas.height - cy;
-    const dist = Math.sqrt(x * x + y * y);
+    return Math.sqrt(x * x + y * y);
+  }
 
-    // Only respond to clicks on the ring
-    if (dist < innerR - 10 || dist > outerR + 10) return;
+  function isNearHandle(e: MouseEvent, handleAngle: number): boolean {
+    const a = toCanvas(handleAngle);
+    const hx = cx + midR * Math.cos(a);
+    const hy = cy + midR * Math.sin(a);
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width * canvas.width;
+    const my = (e.clientY - rect.top) / rect.height * canvas.height;
+    const dx = mx - hx;
+    const dy = my - hy;
+    return Math.sqrt(dx * dx + dy * dy) < handleR * 3;
+  }
 
-    dragging = true;
-    current.center = angleFromEvent(e);
-    if (current.width === 0) current.width = 40; // activate with default range
+  type DragMode = "start-edge" | "end-edge" | "rotate" | "none";
+  let mode: DragMode = "none";
+  let dragStartAngle = 0;
+  let dragStartCenter = 0;
+  let dragStartWidth = 0;
+
+  canvas.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const dist = distFromEvent(e);
+    if (dist < innerR - 20 || dist > outerR + 20) return;
+
+    const clickAngle = angleFromEvent(e);
+
+    if (current.width > 0 && current.width < 360) {
+      // Check if near an edge handle
+      if (isNearHandle(e, startAngle())) {
+        mode = "start-edge";
+      } else if (isNearHandle(e, endAngle())) {
+        mode = "end-edge";
+      } else {
+        // Check if inside the arc — rotate
+        const diff = angleDiff(clickAngle, current.center);
+        if (Math.abs(diff) < current.width / 2) {
+          mode = "rotate";
+        } else {
+          // Click outside arc — set new center
+          current.center = clickAngle;
+          if (current.width === 0) current.width = 40;
+          mode = "rotate";
+        }
+      }
+    } else {
+      // No selection yet — create one
+      current.center = clickAngle;
+      current.width = 40;
+      mode = "rotate";
+    }
+
+    dragStartAngle = clickAngle;
+    dragStartCenter = current.center;
+    dragStartWidth = current.width;
+
     draw();
     onChange(current);
 
@@ -142,25 +191,35 @@ export function createColorWheel(options: ColorWheelOptions): HTMLElement {
   });
 
   function onMove(e: PointerEvent): void {
-    if (!dragging) return;
-    current.center = angleFromEvent(e);
+    if (mode === "none") return;
+    const angle = angleFromEvent(e);
+
+    if (mode === "rotate") {
+      const delta = angleDiff(angle, dragStartAngle);
+      current.center = normAngle(dragStartCenter + delta);
+    } else if (mode === "start-edge") {
+      // Move the start edge: changes width, keeps end fixed
+      const end = normAngle(dragStartCenter + dragStartWidth / 2);
+      const newWidth = angleDiff(end, angle);
+      current.width = Math.max(10, Math.min(350, ((newWidth % 360) + 360) % 360));
+      current.center = normAngle(end - current.width / 2);
+    } else if (mode === "end-edge") {
+      // Move the end edge: changes width, keeps start fixed
+      const start = normAngle(dragStartCenter - dragStartWidth / 2);
+      const newWidth = angleDiff(angle, start);
+      current.width = Math.max(10, Math.min(350, ((newWidth % 360) + 360) % 360));
+      current.center = normAngle(start + current.width / 2);
+    }
+
     draw();
     onChange(current);
   }
 
   function onUp(): void {
-    dragging = false;
+    mode = "none";
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
   }
-
-  // Width control: scroll on the wheel to widen/narrow the range
-  canvas.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    current.width = Math.max(0, Math.min(360, current.width + e.deltaY * 0.5));
-    draw();
-    onChange(current);
-  }, { passive: false });
 
   return container;
 }
@@ -170,7 +229,6 @@ export function hueRangeToFilter(range: HueRange): { min: number; max: number } 
   if (range.width <= 0 || range.width >= 360) return null;
   let min = range.center - range.width / 2;
   let max = range.center + range.width / 2;
-  // Normalize to [0, 360]
   if (min < 0) min += 360;
   if (max > 360) max -= 360;
   return { min, max };
