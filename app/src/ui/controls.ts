@@ -240,6 +240,49 @@ function buildContrastsSection(body: HTMLElement): void {
 }
 
 
+function createEditablePole(
+  cc: ContrastControl,
+  pole: "pole_a" | "pole_b",
+  onChange: () => void,
+): HTMLElement {
+  const stripPrefix = (s: string) => s.replace(/^a photograph (?:of |that is )/, "");
+  const addPrefix = (s: string) => `a photograph that is ${s}`;
+
+  const span = document.createElement("span");
+  span.className = "pole-label";
+  span.textContent = stripPrefix(cc[pole]);
+
+  span.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "pole-edit";
+    input.value = stripPrefix(cc[pole]);
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const text = input.value.trim();
+      if (text) {
+        cc[pole] = addPrefix(text);
+      }
+      const newSpan = createEditablePole(cc, pole, onChange);
+      input.replaceWith(newSpan);
+      if (text) onChange();
+    };
+
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") { ev.preventDefault(); commit(); }
+      if (ev.key === "Escape") { input.replaceWith(createEditablePole(cc, pole, onChange)); }
+    });
+    input.addEventListener("blur", commit);
+  });
+
+  return span;
+}
+
+
 function createContrastWidget(
   cc: ContrastControl, index: number,
   onChange: () => void, rerender: () => void,
@@ -248,9 +291,16 @@ function createContrastWidget(
   widget.className = "contrast-widget";
 
   const stripPromptPrefix = (s: string) => s.replace(/^a photograph (?:of |that is )/, "");
+
   const header = document.createElement("div");
   header.className = "contrast-header";
-  header.innerHTML = `<span>${stripPromptPrefix(cc.pole_b)}</span><span class="contrast-vs">vs</span><span>${stripPromptPrefix(cc.pole_a)}</span>`;
+  header.appendChild(createEditablePole(cc, "pole_b", onChange));
+  const vsSpan = document.createElement("span");
+  vsSpan.className = "contrast-vs";
+  vsSpan.textContent = "vs";
+  header.appendChild(vsSpan);
+  header.appendChild(createEditablePole(cc, "pole_a", onChange));
+
   const removeBtn = document.createElement("span");
   removeBtn.className = "pill-remove";
   removeBtn.textContent = "\u00d7";

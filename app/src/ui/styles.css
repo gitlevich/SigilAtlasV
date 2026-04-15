@@ -494,6 +494,27 @@ html, body {
   cursor: crosshair;
 }
 
+.pole-label {
+  cursor: text;
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+.pole-label:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pole-edit {
+  width: 60px;
+  padding: 1px 3px;
+  background: #1e1e2a;
+  border: 1px solid #555;
+  border-radius: 2px;
+  color: #c8c8d0;
+  font-size: 11px;
+  outline: none;
+}
+
 .section-hint {
   font-size: 9px;
   color: #555;
