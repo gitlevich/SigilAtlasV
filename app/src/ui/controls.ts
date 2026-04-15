@@ -238,7 +238,7 @@ function createContrastWidget(
   const stripPromptPrefix = (s: string) => s.replace(/^a photograph (?:of |that is )/, "");
   const header = document.createElement("div");
   header.className = "contrast-header";
-  header.innerHTML = `<span>${stripPromptPrefix(cc.pole_a)}</span><span class="contrast-vs">vs</span><span>${stripPromptPrefix(cc.pole_b)}</span>`;
+  header.innerHTML = `<span>${stripPromptPrefix(cc.pole_b)}</span><span class="contrast-vs">vs</span><span>${stripPromptPrefix(cc.pole_a)}</span>`;
   const removeBtn = document.createElement("span");
   removeBtn.className = "pill-remove";
   removeBtn.textContent = "\u00d7";
