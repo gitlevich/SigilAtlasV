@@ -208,20 +208,33 @@ def compute_slice(
     if not candidates:
         return SliceResult([], {}, None, {})
 
-    # Step 4: score against attract-role contrasts + proximity filters
-    # All scores are min-max normalized so they compose meaningfully
+    # Step 4: proximity filters select images — union of per-term top matches
+    # Each named thing defines a neighborhood. Images not matching any are excluded.
+    if proximity_filters:
+        selected = set()
+        per_term_scores: dict[str, np.ndarray] = {}
+        for pf in proximity_filters:
+            scores = _score_category(provider, candidates, pf.text, model)
+            per_term_scores[pf.text] = scores
+            # Select images in the top quartile for this term
+            threshold = np.percentile(scores, 75)
+            for i, s in enumerate(scores):
+                if s >= threshold:
+                    selected.add(candidates[i])
+        candidates = [c for c in candidates if c in selected]
+        logger.info("Attract terms selected %d images", len(candidates))
+
+    # Score remaining images — composite of all attract signals
     attract_controls = [c for c in contrast_controls if c.role == "attract"]
     composite_scores = np.zeros(len(candidates), dtype=np.float32)
 
-    # Attract-role contrasts: normalized contrast score in [-1, 1]
     for cc in attract_controls:
         composite_scores += _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, model)
 
-    # Proximity filters: normalized category score in [0, 1]
     for pf in proximity_filters:
         composite_scores += _score_category(provider, candidates, pf.text, model) * pf.weight
 
-    # Step 5: sort by composite score (descending)
+    # Sort by composite score (descending)
     scores_dict = {candidates[i]: float(composite_scores[i]) for i in range(len(candidates))}
 
     if attract_controls or proximity_filters:
