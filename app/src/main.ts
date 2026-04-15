@@ -53,17 +53,20 @@ async function startSidecarViaTauri(): Promise<number> {
 }
 
 async function main(): Promise<void> {
+  const t0 = performance.now();
+  const mark = (label: string) => console.log(`[startup] ${label}: ${(performance.now() - t0).toFixed(0)}ms`);
+
   let port: number;
 
   if (isTauri()) {
     try {
       port = await startSidecarViaTauri();
+      mark("sidecar started");
     } catch (e) {
       showStatus(`Sidecar failed: ${e}`, "#c44");
       return;
     }
   } else {
-    // Browser dev mode: get port from URL
     const params = new URLSearchParams(window.location.search);
     port = parseInt(params.get("port") ?? "0", 10);
     if (!port) {
@@ -76,7 +79,6 @@ async function main(): Promise<void> {
   }
 
   api.setSidecarPort(port);
-  showStatus("Connecting to sidecar...");
 
   // Wait for sidecar health
   let healthy = false;
@@ -89,22 +91,21 @@ async function main(): Promise<void> {
     showStatus(`Sidecar not responding on port ${port}`, "#c44");
     return;
   }
-
-  showStatus("Loading corpus...");
+  mark("sidecar healthy");
 
   // Init WebGL
   const canvas = document.getElementById("viewport") as HTMLCanvasElement;
   const viewport = new TorusViewport(canvas);
   setViewport(viewport);
   viewport.setThumbnailBaseUrl(`http://127.0.0.1:${port}`);
+  mark("webgl init");
 
   // Load dimensions and models
   const [dimensions, models] = await Promise.all([
     api.getDimensions(),
     api.getModels(),
   ]);
-
-  showStatus("Computing layout...");
+  mark("dimensions + models");
 
   // Initial slice: entire corpus
   const sliceRes = await api.computeSlice({
@@ -115,8 +116,9 @@ async function main(): Promise<void> {
   });
   state.imageIds = sliceRes.image_ids;
   state.orderValues = sliceRes.order_values || {};
+  mark("slice");
 
-  // Initial layout — spacelike by default (UMAP + Hilbert)
+  // Initial layout — spacelike by default
   const layout = await api.computeLayout({
     image_ids: state.imageIds,
     axes: null,
@@ -128,8 +130,9 @@ async function main(): Promise<void> {
   state.torusWidth = layout.torus_width;
   state.torusHeight = layout.torus_height;
   viewport.setLayout(layout);
+  mark("layout");
 
-  // Center camera, zoom to show ~8 strips worth of content, clamped to torus size
+  // Center camera
   const aspect = canvas.clientWidth / canvas.clientHeight;
   const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
   const desiredZoom = 8 * layout.strip_height * aspect;
@@ -138,14 +141,24 @@ async function main(): Promise<void> {
   // Init controls
   await initControls(dimensions, models);
   notify();
+  mark("controls ready");
 
   hideStatus();
 
   // Camera interaction
   setupCameraControls(canvas);
 
-  // Render loop
-  viewport.startRenderLoop(() => state.pov);
+  // Render loop — track first frame with thumbnails
+  let firstThumbLogged = false;
+  const origSetLayout = viewport.setLayout.bind(viewport);
+  viewport.startRenderLoop(() => {
+    if (!firstThumbLogged && layout.strips.length > 0) {
+      // Check if any thumbnails have loaded by looking at atlas
+      firstThumbLogged = true;
+      requestAnimationFrame(() => mark("first frame"));
+    }
+    return state.pov;
+  });
 }
 
 function setupCameraControls(canvas: HTMLCanvasElement): void {
