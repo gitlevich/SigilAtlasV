@@ -443,7 +443,7 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   const tightnessGroup = document.createElement("div");
   tightnessGroup.className = "control-group";
   const tightnessLabel = document.createElement("label");
-  tightnessLabel.textContent = "Tightness";
+  tightnessLabel.textContent = "Feather";
   tightnessGroup.appendChild(tightnessLabel);
 
   const tightnessSlider = document.createElement("input");
@@ -455,7 +455,7 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
 
   const tightnessLabels = document.createElement("div");
   tightnessLabels.className = "slider-labels";
-  tightnessLabels.innerHTML = "<span>tight</span><span>loose</span>";
+  tightnessLabels.innerHTML = "<span>strict</span><span>permissive</span>";
 
   tightnessSlider.addEventListener("change", () => {
     state.tightness = parseFloat(tightnessSlider.value);
