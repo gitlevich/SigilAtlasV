@@ -113,6 +113,7 @@ async function main(): Promise<void> {
     proximity_filters: [],
     contrast_controls: [],
     model: state.model,
+    tightness: state.tightness,
   });
   state.imageIds = sliceRes.image_ids;
   state.orderValues = sliceRes.order_values || {};

@@ -44,6 +44,7 @@ export interface SliceRequest {
   proximity_filters: ProximityFilter[];
   contrast_controls: ContrastControl[];
   model: string;
+  tightness: number;
 }
 
 export interface SliceResponse {

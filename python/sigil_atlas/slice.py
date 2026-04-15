@@ -151,14 +151,16 @@ def _select_above_knee(
     scores: np.ndarray,
     candidates: list[str],
     selected: set[str],
+    tightness: float = 0.5,
     max_candidates: int = 200,
 ) -> int:
     """Select images above the knee of the descending score curve.
 
-    The knee is the point of maximum curvature — where the score gradient
-    transitions from steep (genuine matches) to shallow (noise). Found by
-    maximum perpendicular distance from the chord connecting the first and
-    last points of the top-N sorted scores.
+    The knee is where signal transitions to noise. Tightness controls
+    the roll-off around the knee:
+      0.0 (loose) = take 2x the knee count
+      0.5 (default) = take exactly at the knee
+      1.0 (tight) = take half the knee count
 
     Returns the number of images added to `selected`.
     """
@@ -183,11 +185,14 @@ def _select_above_knee(
 
     distances = np.abs(dy * x - dx * y + x1 * y0 - x0 * y1) / length
     knee = int(np.argmax(distances))
-    # Take at least 5, at most up to the knee
-    knee = max(5, knee)
+
+    # Roll-off: tightness 0=2x knee, 0.5=knee, 1.0=knee/2
+    scale = 2.0 - 1.5 * tightness  # 2.0 at tight=0, 0.5 at tight=1
+    cutoff = max(5, int(knee * scale))
+    cutoff = min(cutoff, n)
 
     count = 0
-    for i in range(knee):
+    for i in range(cutoff):
         selected.add(candidates[order[i]])
         count += 1
     return count
@@ -222,6 +227,7 @@ def compute_slice(
     proximity_filters: list[ProximityFilter] | None = None,
     contrast_controls: list[ContrastControl] | None = None,
     model: str = "clip-vit-l-14",
+    tightness: float = 0.5,
 ) -> SliceResult:
     """Compute the slice per the spec's RelevanceFilter composition.
 
@@ -271,7 +277,7 @@ def compute_slice(
             vec = _encode_cached(provider, pf.text, CLIP_MODEL)
             matrix = provider.fetch_matrix(candidates, CLIP_MODEL)
             raw = matrix @ vec
-            count = _select_above_knee(raw, candidates, selected)
+            count = _select_above_knee(raw, candidates, selected, tightness=tightness)
             logger.info("Attract '%s': %d images", pf.text, count)
         candidates = [c for c in candidates if c in selected]
         logger.info("Attract total: %d images", len(candidates))

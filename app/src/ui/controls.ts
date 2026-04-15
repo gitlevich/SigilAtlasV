@@ -36,6 +36,7 @@ async function recomputeSliceAndLayout(): Promise<void> {
     proximity_filters: state.proximityFilters,
     contrast_controls: state.contrastControls,
     model: state.model,
+    tightness: state.tightness,
   });
   state.imageIds = res.image_ids;
   state.orderValues = res.order_values || {};
@@ -263,7 +264,7 @@ function createContrastWidget(
 
   const labels = document.createElement("div");
   labels.className = "slider-labels";
-  labels.innerHTML = `<span>${stripPromptPrefix(cc.pole_a)}</span><span>${stripPromptPrefix(cc.pole_b)}</span>`;
+  labels.innerHTML = `<span>${stripPromptPrefix(cc.pole_b)}</span><span>${stripPromptPrefix(cc.pole_a)}</span>`;
 
   widget.appendChild(bandWidget);
   widget.appendChild(labels);

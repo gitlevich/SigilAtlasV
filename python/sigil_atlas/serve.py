@@ -155,11 +155,13 @@ class RequestHandler(BaseHTTPRequestHandler):
             for c in data.get("contrast_controls", [])
         ]
         model = data.get("model", "clip-vit-l-14")
-        logger.info("Slice request: model=%s, proximity=%s", model, [f["text"] for f in data.get("proximity_filters", [])])
+        tightness = data.get("tightness", 0.5)
+        logger.info("Slice request: model=%s, tightness=%.2f, proximity=%s", model, tightness, [f["text"] for f in data.get("proximity_filters", [])])
 
         result = compute_slice(
             _state.db, _state.provider,
             range_filters, proximity_filters, contrast_controls, model,
+            tightness=tightness,
         )
         # Return order values: contrast projections if order axis active, else capture dates
         if result.order_projections is not None:
