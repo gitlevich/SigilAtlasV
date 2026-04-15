@@ -27,6 +27,7 @@ export function setViewport(vp: TorusViewport): void {
 }
 
 async function recomputeSliceAndLayout(): Promise<void> {
+  console.log("[recompute] proximity:", state.proximityFilters.length, "contrasts:", state.contrastControls.length, "range:", state.rangeFilters.length);
   const res = await api.computeSlice({
     range_filters: state.rangeFilters,
     proximity_filters: state.proximityFilters,
