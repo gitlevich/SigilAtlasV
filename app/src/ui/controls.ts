@@ -65,21 +65,26 @@ async function recomputeSliceAndLayout(): Promise<void> {
     order_values: orderValues,
   });
   state.layout = layout;
+
+  // Recenter camera and clamp zoom to new torus bounds
+  const prevArea = state.torusWidth * state.torusHeight;
+  const newArea = layout.torus_width * layout.torus_height;
   state.torusWidth = layout.torus_width;
   state.torusHeight = layout.torus_height;
 
-  // Recenter camera only if surface size changed significantly
-  const prevArea = state.torusWidth * state.torusHeight;
-  const newArea = layout.torus_width * layout.torus_height;
-  if (prevArea === 0 || Math.abs(newArea - prevArea) / prevArea > 0.5) {
-    const canvas = document.getElementById("viewport") as HTMLCanvasElement;
-    const aspect = canvas.clientWidth / canvas.clientHeight;
-    const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
+  const canvas = document.getElementById("viewport") as HTMLCanvasElement;
+  const aspect = canvas.clientWidth / canvas.clientHeight;
+  const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
+
+  if (prevArea === 0 || Math.abs(newArea - prevArea) / prevArea > 0.3) {
     const visibleStrips = 8;
     const desiredZoom = visibleStrips * layout.strip_height * aspect;
     state.pov.x = layout.torus_width / 2;
     state.pov.y = layout.torus_height / 2;
     state.pov.z = Math.min(desiredZoom, maxZoom);
+  } else {
+    // Always clamp zoom to new bounds even without recenter
+    state.pov.z = Math.min(state.pov.z, maxZoom);
   }
 
   if (viewport) viewport.setLayout(layout);
