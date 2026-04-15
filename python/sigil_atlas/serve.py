@@ -38,7 +38,7 @@ _state: SidecarState | None = None
 
 class RequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        logger.info(format, *args)
+        pass  # suppress per-request HTTP noise
 
     def _send_json(self, data, status=200):
         body = json.dumps(data).encode("utf-8")

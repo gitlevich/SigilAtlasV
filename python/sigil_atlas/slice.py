@@ -196,7 +196,8 @@ def compute_slice(
         candidates = list(filter_by_range(db, range_filters))
     else:
         candidates = db.fetch_image_ids()
-    logger.info("Range filters: %d -> %d candidates", len(range_filters), len(candidates))
+    if range_filters:
+        logger.info("Range filters narrowed to %d images", len(candidates))
 
     # Step 3: filter-role ContrastControls as bandpass (normalized to [-1, 1])
     filter_controls = [c for c in contrast_controls if c.role == "filter"]
@@ -206,11 +207,7 @@ def compute_slice(
         normalized = _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, model)
         mask = (normalized >= cc.band_min) & (normalized <= cc.band_max)
         candidates = [candidates[i] for i in range(len(candidates)) if mask[i]]
-        logger.info(
-            "Bandpass '%s' vs '%s' [%.1f, %.1f]: %d -> %d",
-            cc.pole_a, cc.pole_b, cc.band_min, cc.band_max,
-            mask.shape[0], sum(mask),
-        )
+        logger.info("Bandpass %s vs %s: %d images pass", cc.pole_a, cc.pole_b, len(candidates))
 
     if not candidates:
         return SliceResult([], {}, None, {})
@@ -248,7 +245,6 @@ def compute_slice(
     # Fetch capture dates for default time ordering
     capture_dates = db.fetch_capture_dates(sorted_ids)
 
-    logger.info("Slice: %d images, %d attract, %d filter, %d order controls",
-                len(sorted_ids), len(attract_controls), len(filter_controls), len(order_controls))
+    logger.info("Slice: %d images", len(sorted_ids))
 
     return SliceResult(sorted_ids, scores_dict, order_projections, capture_dates)

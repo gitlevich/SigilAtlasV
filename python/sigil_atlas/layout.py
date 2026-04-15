@@ -293,8 +293,8 @@ def compute_layout(
     n_strips = max(1, round(np.sqrt(total_width / strip_height)))
     target_width = total_width / n_strips
 
-    logger.info("Layout: %d images, %d target strips, tightness=%.2f, preserve_order=%s, has_order_values=%s",
-                n, n_strips, tightness, preserve_order, order_values is not None)
+    mode = "ordered" if order_values else ("scored" if preserve_order else "spacelike")
+    logger.info("Layout: %d images, %s", n, mode)
 
     if order_values:
         # Sort by order values (capture date or contrast projection)
@@ -315,6 +315,6 @@ def compute_layout(
 
     torus_width = target_width
     torus_height = sum(s.height for s in strips)
-    logger.info("Layout: %d strips, surface=%.0fx%.0f", len(strips), torus_width, torus_height)
+    logger.info("Torus: %d strips, %.0f x %.0f", len(strips), torus_width, torus_height)
 
     return StripLayout(strips, torus_width, torus_height, strip_height)
