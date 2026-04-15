@@ -210,19 +210,22 @@ def compute_slice(
 
     # Step 4: proximity filters select images — union of per-term top matches
     # Each named thing defines a neighborhood. Images not matching any are excluded.
+    # Use raw cosine similarity and select images above mean + 2*std per term.
     if proximity_filters:
         selected = set()
-        per_term_scores: dict[str, np.ndarray] = {}
         for pf in proximity_filters:
-            scores = _score_category(provider, candidates, pf.text, model)
-            per_term_scores[pf.text] = scores
-            # Select images in the top quartile for this term
-            threshold = np.percentile(scores, 75)
-            for i, s in enumerate(scores):
-                if s >= threshold:
+            vec = _encode_cached(provider, pf.text, model)
+            matrix = provider.fetch_matrix(candidates, model)
+            raw = matrix @ vec
+            threshold = float(raw.mean() + 1.5 * raw.std())
+            count = 0
+            for i in range(len(candidates)):
+                if raw[i] >= threshold:
                     selected.add(candidates[i])
+                    count += 1
+            logger.info("Attract '%s': %d images above threshold", pf.text, count)
         candidates = [c for c in candidates if c in selected]
-        logger.info("Attract terms selected %d images", len(candidates))
+        logger.info("Attract total: %d images", len(candidates))
 
     # Score remaining images — composite of all attract signals
     attract_controls = [c for c in contrast_controls if c.role == "attract"]
