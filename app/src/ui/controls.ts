@@ -80,7 +80,9 @@ async function recomputeSliceAndLayout(): Promise<void> {
     const visibleStrips = 8;
     const desiredZoom = visibleStrips * layout.strip_height * aspect;
     state.pov.x = layout.torus_width / 2;
-    state.pov.y = layout.torus_height / 2;
+    // Center on the top strips when attract is active (best matches are first)
+    const hasAttract = state.proximityFilters.length > 0;
+    state.pov.y = hasAttract ? desiredZoom / aspect / 2 : layout.torus_height / 2;
     state.pov.z = Math.min(desiredZoom, maxZoom);
   } else {
     // Always clamp zoom to new bounds even without recenter
