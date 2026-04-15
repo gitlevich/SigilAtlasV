@@ -9,3 +9,5 @@ I use this application to @explore an image corpus in different modes, like @Spa
 @Sigil is our fundamental structure.
 
 i need @affordances to see the  @contrasts available in the @corpus and to steer compression by choosing what contrasts i care about now, and to #move-in-sigil-space @timelike or @spacelike
+
+@AttentionLanguage@Entanglement with @Slice

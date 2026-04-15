@@ -1,1 +1,1 @@
-single-handle slider, defaults to middle. + on the right (attract), - on the left (repulse). @Pole name underneath. Middle = natural corpus distribution preserved in the @slice. !real-time.
+Names what I want to see. Each named thing selects images that match it — the union of all named things becomes the @slice. Images not matching any named thing are excluded. !real-time.

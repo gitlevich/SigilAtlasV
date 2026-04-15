@@ -1,1 +1,1 @@
-Name things I want to be closer to or farther from. Images are scored by distance — those too far from what I want or too close to what I don't want are excluded from the @slice.
+Name things I want to see. Each named thing selects its matching images. Multiple things take the union. Images not matching any named thing are excluded from the @slice.

@@ -1,0 +1,14 @@
+{
+  "id": "chat-1776224590631",
+  "name": "Chat 6",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello DP. What do you remember?"
+    },
+    {
+      "role": "assistant",
+      "content": "I remember the messages in this chat and the instructions I’m currently following. I don’t retain personal memories across separate conversations unless the system you’re using explicitly provides that.\n\nRight now, I know you greeted me as DP and asked what I remember. If you mean project files or specs in your workspace, I can inspect those if you want.I remember the messages in this chat and the instructions I’m currently following. I don’t retain personal memories across separate conversations unless the system you’re using explicitly provides that.\n\nRight now, I know you greeted me as DP and asked what I remember. If you mean project files or specs in your workspace, I can inspect those if you want."
+    }
+  ]
+}
