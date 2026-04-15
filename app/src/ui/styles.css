@@ -48,10 +48,33 @@ html, body {
   overflow: hidden;
 }
 
-.panel.folded .panel-resize-handle {
-  left: -8px;
-  width: 8px;
-  overflow: visible;
+.panel-unfold-tab {
+  display: none;
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 40px;
+  background: #14141c;
+  border: 1px solid #2a2a3a;
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  color: #888;
+  font-size: 10px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.panel-unfold-tab:hover {
+  color: #ccc;
+  background: #1a1a28;
+}
+
+.panel.folded .panel-unfold-tab {
+  display: flex;
 }
 
 .panel.left {

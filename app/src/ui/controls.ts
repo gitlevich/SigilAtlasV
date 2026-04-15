@@ -454,6 +454,13 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   });
   panel.appendChild(resizeHandle);
 
+  // Unfold tab — visible only when panel is folded
+  const unfoldTab = document.createElement("div");
+  unfoldTab.className = "panel-unfold-tab";
+  unfoldTab.textContent = "\u25C0";
+  unfoldTab.addEventListener("click", () => panel.classList.remove("folded"));
+  panel.appendChild(unfoldTab);
+
   let resizing = false;
   resizeHandle.addEventListener("pointerdown", (e) => {
     e.preventDefault();
