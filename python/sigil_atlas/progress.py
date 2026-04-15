@@ -57,3 +57,50 @@ class ProgressReporter:
         with self._lock:
             sys.stdout.write(line + "\n")
             sys.stdout.flush()
+
+
+class BufferedProgressReporter(ProgressReporter):
+    """Buffers progress for HTTP polling instead of writing to stdout.
+
+    Thread-safe. The HTTP handler reads `snapshot()` to return current state.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._stages: dict[str, dict] = {}
+        self._events: list[dict] = []
+        self._status = "idle"
+        self._started_at: float | None = None
+
+    def emit(self, stage: StageProgress) -> None:
+        with self._lock:
+            self._stages[stage.stage_name] = {
+                "name": stage.stage_name,
+                "completed": stage.completed,
+                "total": stage.total,
+                "timestamp": time.time(),
+            }
+
+    def emit_event(self, event: str, **kwargs) -> None:
+        msg = {"type": event, "timestamp": time.time(), **kwargs}
+        with self._lock:
+            self._events.append(msg)
+            if event == "pipeline_started":
+                self._status = "running"
+                self._started_at = time.time()
+            elif event == "pipeline_completed":
+                self._status = "completed"
+            elif event == "pipeline_error":
+                self._status = "error"
+
+    def set_status(self, status: str) -> None:
+        with self._lock:
+            self._status = status
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            return {
+                "status": self._status,
+                "stages": list(self._stages.values()),
+                "started_at": self._started_at,
+            }

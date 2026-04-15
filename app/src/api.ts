@@ -11,6 +11,7 @@ import type {
   VocabularyTree,
   Sibling,
   VocabTerm,
+  ImportProgress,
 } from "./types";
 
 let sidecarPort: number | null = null;
@@ -75,4 +76,20 @@ export async function computeSlice(req: SliceRequest): Promise<SliceResponse> {
 
 export async function computeLayout(req: LayoutRequest): Promise<StripLayout> {
   return post("/layout", req);
+}
+
+export async function startImport(source: string): Promise<{ status: string }> {
+  return post("/ingest/start", { source });
+}
+
+export async function getImportProgress(): Promise<ImportProgress> {
+  return get("/ingest/progress");
+}
+
+export async function pauseImport(): Promise<{ status: string }> {
+  return post("/ingest/pause", {});
+}
+
+export async function resumeImport(): Promise<{ status: string }> {
+  return post("/ingest/resume", {});
 }

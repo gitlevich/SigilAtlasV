@@ -31,10 +31,10 @@ class Workspace:
         self.datastore_dir.mkdir(parents=True, exist_ok=True)
         self.thumbnails_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Workspace initialized at %s", self.root)
-        db = self.open_db()
-        db.initialize_schema()
-        db.close()
+        self.open_db().close()
         return self
 
     def open_db(self) -> CorpusDB:
-        return CorpusDB(self.db_path)
+        db = CorpusDB(self.db_path)
+        db.initialize_schema()
+        return db

@@ -99,3 +99,16 @@ export interface VocabTerm {
   path: string;
   prompt: string;
 }
+
+export interface StageProgress {
+  name: string;
+  completed: number;
+  total: number;
+  timestamp: number;
+}
+
+export interface ImportProgress {
+  status: "idle" | "running" | "paused" | "completed" | "error";
+  stages: StageProgress[];
+  started_at: number | null;
+}

@@ -8,7 +8,9 @@
 import { TorusViewport } from "./renderer/torus-viewport";
 import { state, notify } from "./state";
 import * as api from "./api";
-import { initControls, setViewport } from "./ui/controls";
+import { initControls, setViewport, recomputeSliceAndLayout } from "./ui/controls";
+import { initStatusBar } from "./ui/status-bar";
+import { initMenu } from "./ui/menu";
 import type { PointOfView } from "./types";
 
 declare global {
@@ -62,6 +64,8 @@ async function main(): Promise<void> {
     try {
       port = await startSidecarViaTauri();
       mark("sidecar started");
+      await initMenu();
+      mark("menu");
     } catch (e) {
       showStatus(`Sidecar failed: ${e}`, "#c44");
       return;
@@ -92,6 +96,15 @@ async function main(): Promise<void> {
     return;
   }
   mark("sidecar healthy");
+
+  // Status bar
+  let statusBar = document.getElementById("status-bar");
+  if (!statusBar) {
+    statusBar = document.createElement("div");
+    statusBar.id = "status-bar";
+    statusBar.classList.add("hidden");
+    document.body.appendChild(statusBar);
+  }
 
   // Init WebGL
   const canvas = document.getElementById("viewport") as HTMLCanvasElement;
@@ -141,6 +154,11 @@ async function main(): Promise<void> {
 
   // Init controls
   await initControls(dimensions, models);
+  initStatusBar({
+    onComplete: () => {
+      recomputeSliceAndLayout().catch((e) => console.error("Post-import refresh failed:", e));
+    },
+  });
   notify();
   mark("controls ready");
 

@@ -33,10 +33,17 @@ def main() -> None:
         "--source", type=Path, required=True, help="Source folder containing images"
     )
 
+    backfill_parser = sub.add_parser("backfill-hashes", help="Compute content hashes for images missing them")
+    backfill_parser.add_argument(
+        "--workspace", type=Path, required=True, help="Workspace directory"
+    )
+
     args = parser.parse_args()
 
     if args.command == "ingest":
         _run_ingest(args.workspace, args.source)
+    elif args.command == "backfill-hashes":
+        _run_backfill_hashes(args.workspace)
 
 
 def _run_ingest(workspace_path: Path, source_path: Path) -> None:
@@ -70,6 +77,43 @@ def _run_ingest(workspace_path: Path, source_path: Path) -> None:
     except Exception:
         logger.error("Pipeline failed", exc_info=True)
         sys.exit(1)
+
+
+def _run_backfill_hashes(workspace_path: Path) -> None:
+    from sigil_atlas.ingest.source import content_hash
+
+    workspace = Workspace(workspace_path)
+    db = workspace.open_db()
+
+    rows = db._conn.execute(
+        "SELECT id, source_path FROM images WHERE content_hash IS NULL"
+    ).fetchall()
+
+    if not rows:
+        logger.info("All images already have content hashes")
+        db.close()
+        return
+
+    logger.info("Backfilling hashes for %d images", len(rows))
+    updated = 0
+    for row in rows:
+        image_id, source_path = row[0], row[1]
+        path = Path(source_path)
+        if not path.is_file():
+            logger.warning("Source file missing, skipping: %s", source_path)
+            continue
+        h = content_hash(path)
+        db._conn.execute(
+            "UPDATE images SET content_hash = ? WHERE id = ?", (h, image_id)
+        )
+        updated += 1
+        if updated % 500 == 0:
+            db._conn.commit()
+            logger.info("  %d / %d", updated, len(rows))
+
+    db._conn.commit()
+    logger.info("Backfilled %d content hashes", updated)
+    db.close()
 
 
 if __name__ == "__main__":

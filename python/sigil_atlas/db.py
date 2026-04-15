@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS embeddings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_image_id ON embeddings(image_id);
-CREATE INDEX IF NOT EXISTS idx_images_content_hash ON images(content_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_images_content_hash ON images(content_hash);
 
 CREATE TABLE IF NOT EXISTS kmeans_clusters (
     model_identifier TEXT NOT NULL,
@@ -118,7 +118,23 @@ class CorpusDB:
 
     def initialize_schema(self) -> None:
         self._conn.executescript(SCHEMA)
+        self._migrate()
         logger.info("Database schema initialized at %s", self.path)
+
+    def _migrate(self) -> None:
+        """Run forward-only migrations on existing databases."""
+        # Upgrade content_hash index from non-unique to unique.
+        # The old index has the same name but isn't unique; drop and recreate.
+        row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_images_content_hash'"
+        ).fetchone()
+        if row and "UNIQUE" not in (row[0] or ""):
+            self._conn.execute("DROP INDEX idx_images_content_hash")
+            self._conn.execute(
+                "CREATE UNIQUE INDEX idx_images_content_hash ON images(content_hash)"
+            )
+            self._conn.commit()
+            logger.info("Migrated content_hash index to UNIQUE")
 
     def close(self) -> None:
         self._conn.close()
@@ -181,6 +197,13 @@ class CorpusDB:
             (thumbnail_path, time.time(), image_id),
         )
         self._conn.commit()
+
+    def fetch_content_hashes(self) -> set[str]:
+        """Return all known content hashes for dedup."""
+        rows = self._conn.execute(
+            "SELECT content_hash FROM images WHERE content_hash IS NOT NULL"
+        ).fetchall()
+        return {r[0] for r in rows}
 
     def image_count(self) -> int:
         row = self._conn.execute("SELECT COUNT(*) FROM images").fetchone()

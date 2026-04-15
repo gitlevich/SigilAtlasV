@@ -38,19 +38,31 @@ class FolderSource:
         return files
 
     def register_images(self, db: CorpusDB, files: list[Path], batch_size: int = 500) -> int:
-        """Register image files in the database. Skips already-registered paths.
+        """Register image files in the database. Deduplicates by content hash.
+
+        Computes SHA-256 of each file. Images whose hash already exists in the
+        corpus are silently skipped — the same photo from a different path or
+        source won't produce a duplicate.
 
         Returns count of newly registered images.
         """
+        known_hashes = db.fetch_content_hashes()
         registered = 0
+        skipped = 0
         batch: list[ImageRecord] = []
 
         for f in files:
-            record = ImageRecord(
+            h = content_hash(f)
+            if h in known_hashes:
+                skipped += 1
+                continue
+            known_hashes.add(h)
+
+            batch.append(ImageRecord(
                 id=str(uuid.uuid4()),
                 source_path=str(f),
-            )
-            batch.append(record)
+                content_hash=h,
+            ))
 
             if len(batch) >= batch_size:
                 db.insert_images_batch(batch)
@@ -61,6 +73,8 @@ class FolderSource:
             db.insert_images_batch(batch)
             registered += len(batch)
 
+        if skipped:
+            logger.info("Skipped %d duplicate images (by content hash)", skipped)
         logger.info("Registered %d new images", registered)
         return registered
 

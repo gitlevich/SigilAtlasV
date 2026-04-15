@@ -14,3 +14,4 @@ I choose a @mode that determines how @images are ordered on the @torus:
 The @corpus responds to a @RelevanceFilter with a @slice — the set of matched @images. The @slice is laid out on the @torus as @strips. I navigate by moving my @PointOfView along the surface.
 
 Switching @mode recomputes the @strip layout from the current @slice. The @slice determines which @images are present; the @mode determines how they are arranged.
+

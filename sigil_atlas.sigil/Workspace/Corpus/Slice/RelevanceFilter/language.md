@@ -4,7 +4,9 @@ status: idea
 
 # Relevance Filter
 
-The structural query. Built from the active @sigilControls — a set of @contrastControls, each with a role and range.
+Defines the @invariants of the @slice interms of allowed ranges along the relevant @contrasts and named @things we want to see.
+
+todo the stuff below does not belong here and needs to go to @Explore section.
 
 ## How it works
 

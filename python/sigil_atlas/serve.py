@@ -10,18 +10,81 @@ import logging
 import mimetypes
 import socket
 import sys
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
+from sigil_atlas.cancel import CancellationToken
 from sigil_atlas.db import CorpusDB
 from sigil_atlas.embedding_provider import SqliteEmbeddingProvider
+from sigil_atlas.ingest.pipeline import IngestPipeline
+from sigil_atlas.ingest.source import FolderSource
 from sigil_atlas.layout import compute_layout
+from sigil_atlas.progress import BufferedProgressReporter
 from sigil_atlas.slice import RangeFilter, ProximityFilter, ContrastControl, compute_slice
 from sigil_atlas.taxonomy import vocabulary, vocabulary_tree, vocabulary_flat
 from sigil_atlas.things import siblings
 from sigil_atlas.workspace import Workspace
 
 logger = logging.getLogger(__name__)
+
+
+class IngestState:
+    """Tracks the current ingest pipeline, if any."""
+
+    def __init__(self) -> None:
+        self.thread: threading.Thread | None = None
+        self.token: CancellationToken | None = None
+        self.reporter: BufferedProgressReporter = BufferedProgressReporter()
+        self.current_source: str | None = None
+        self._lock = threading.Lock()
+
+    @property
+    def is_running(self) -> bool:
+        return self.thread is not None and self.thread.is_alive()
+
+    def start(self, workspace: "Workspace", source_path: str) -> str:
+        with self._lock:
+            if self.is_running:
+                return "already_running"
+
+            source = FolderSource(Path(source_path))
+            self.token = CancellationToken()
+            self.reporter = BufferedProgressReporter()
+            self.current_source = source_path
+
+            pipeline = IngestPipeline(
+                workspace=workspace,
+                source=source,
+                token=self.token,
+                reporter=self.reporter,
+            )
+
+            self.thread = threading.Thread(
+                target=self._run_pipeline,
+                args=(pipeline,),
+                daemon=True,
+                name="ingest-pipeline",
+            )
+            self.thread.start()
+            return "started"
+
+    def _run_pipeline(self, pipeline: IngestPipeline) -> None:
+        try:
+            pipeline.run()
+        except Exception:
+            logger.error("Ingest pipeline failed", exc_info=True)
+
+    def pause(self) -> str:
+        with self._lock:
+            if not self.is_running or self.token is None:
+                return "not_running"
+            self.token.cancel()
+            self.reporter.set_status("paused")
+            return "paused"
+
+    def progress(self) -> dict:
+        return self.reporter.snapshot()
 
 
 class SidecarState:
@@ -31,6 +94,7 @@ class SidecarState:
         self.workspace = Workspace(workspace_path)
         self.db = self.workspace.open_db()
         self.provider = SqliteEmbeddingProvider(self.db)
+        self.ingest = IngestState()
 
 
 _state: SidecarState | None = None
@@ -95,6 +159,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             image_id = self.path[len("/thumbnail/"):]
             thumb_path = _state.workspace.thumbnails_dir / f"{image_id}.jpg"
             self._send_file(thumb_path)
+        elif self.path == "/ingest/progress":
+            self._send_json(_state.ingest.progress())
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -106,11 +172,48 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_layout()
             elif self.path == "/things":
                 self._handle_things()
+            elif self.path == "/ingest/start":
+                self._handle_ingest_start()
+            elif self.path == "/ingest/pause":
+                self._handle_ingest_pause()
+            elif self.path == "/ingest/resume":
+                self._handle_ingest_resume()
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as e:
             logger.exception("Error handling %s", self.path)
             self._send_json({"error": str(e)}, 500)
+
+    def _handle_ingest_start(self):
+        data = self._read_json()
+        source = data.get("source")
+        if not source:
+            self._send_json({"error": "missing 'source' field"}, 400)
+            return
+        source_path = Path(source)
+        if not source_path.is_dir():
+            self._send_json({"error": f"source folder does not exist: {source}"}, 400)
+            return
+        result = _state.ingest.start(_state.workspace, source)
+        if result == "already_running":
+            self._send_json({"error": "import already running"}, 409)
+            return
+        self._send_json({"status": result})
+
+    def _handle_ingest_pause(self):
+        result = _state.ingest.pause()
+        self._send_json({"status": result})
+
+    def _handle_ingest_resume(self):
+        source = _state.ingest.current_source
+        if not source:
+            self._send_json({"error": "no previous import to resume"}, 400)
+            return
+        result = _state.ingest.start(_state.workspace, source)
+        if result == "already_running":
+            self._send_json({"error": "import already running"}, 409)
+            return
+        self._send_json({"status": result})
 
     def _handle_dimensions(self):
         """Return range characterization dimensions with their min/max.

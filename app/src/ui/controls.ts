@@ -11,6 +11,7 @@ import type { Dimension, ContrastControl } from "../types";
 import type { TorusViewport } from "../renderer/torus-viewport";
 import { createBandpassWidget } from "./bandpass-widget";
 import { createColorWheel, hueRangeToFilter, type HueRange } from "./color-wheel";
+import { startPolling } from "./status-bar";
 
 let sliceDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 function debouncedRecompute(): void {
@@ -26,7 +27,7 @@ export function setViewport(vp: TorusViewport): void {
   viewport = vp;
 }
 
-async function recomputeSliceAndLayout(): Promise<void> {
+export async function recomputeSliceAndLayout(): Promise<void> {
   // Cancel any pending debounced recompute to avoid stale overwrites
   if (sliceDebounceTimer) { clearTimeout(sliceDebounceTimer); sliceDebounceTimer = null; }
   console.log("[recompute] proximity:", state.proximityFilters.length, "contrasts:", state.contrastControls.length, "range:", state.rangeFilters.length);
@@ -412,6 +413,108 @@ function buildToneSection(body: HTMLElement, dimensions: Dimension[]): void {
 }
 
 
+// ── Import section ──
+
+function buildImportSection(body: HTMLElement): void {
+  const row = document.createElement("div");
+  row.className = "import-row";
+
+  const pathInput = document.createElement("input");
+  pathInput.type = "text";
+  pathInput.className = "import-path";
+  pathInput.placeholder = "/path/to/photos...";
+
+  const browseBtn = document.createElement("button");
+  browseBtn.className = "import-browse";
+  browseBtn.textContent = "...";
+  browseBtn.title = "Choose folder";
+  browseBtn.addEventListener("click", async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({ directory: true, title: "Choose source folder" });
+      if (typeof selected === "string") {
+        pathInput.value = selected;
+      }
+    } catch {
+      // Not in Tauri or dialog plugin not available — user types path manually
+    }
+  });
+
+  row.appendChild(pathInput);
+  row.appendChild(browseBtn);
+  body.appendChild(row);
+
+  const actions = document.createElement("div");
+  actions.className = "import-actions";
+
+  const startBtn = document.createElement("button");
+  startBtn.className = "import-btn";
+  startBtn.textContent = "Start Import";
+
+  const pauseBtn = document.createElement("button");
+  pauseBtn.className = "import-btn import-btn-secondary";
+  pauseBtn.textContent = "Pause";
+  pauseBtn.style.display = "none";
+
+  const resumeBtn = document.createElement("button");
+  resumeBtn.className = "import-btn import-btn-secondary";
+  resumeBtn.textContent = "Resume";
+  resumeBtn.style.display = "none";
+
+  const statusText = document.createElement("span");
+  statusText.className = "import-status";
+
+  startBtn.addEventListener("click", async () => {
+    const source = pathInput.value.trim();
+    if (!source) return;
+    try {
+      statusText.textContent = "Starting...";
+      const res = await api.startImport(source);
+      if (res.status === "started") {
+        statusText.textContent = "Running";
+        startBtn.style.display = "none";
+        pauseBtn.style.display = "";
+        resumeBtn.style.display = "none";
+        startPolling();
+      }
+    } catch (e) {
+      statusText.textContent = `Error: ${e}`;
+    }
+  });
+
+  pauseBtn.addEventListener("click", async () => {
+    try {
+      await api.pauseImport();
+      statusText.textContent = "Paused";
+      pauseBtn.style.display = "none";
+      resumeBtn.style.display = "";
+    } catch (e) {
+      statusText.textContent = `Error: ${e}`;
+    }
+  });
+
+  resumeBtn.addEventListener("click", async () => {
+    try {
+      const res = await api.resumeImport();
+      if (res.status === "started") {
+        statusText.textContent = "Running";
+        resumeBtn.style.display = "none";
+        pauseBtn.style.display = "";
+        startPolling();
+      }
+    } catch (e) {
+      statusText.textContent = `Error: ${e}`;
+    }
+  });
+
+  actions.appendChild(startBtn);
+  actions.appendChild(pauseBtn);
+  actions.appendChild(resumeBtn);
+  actions.appendChild(statusText);
+  body.appendChild(actions);
+}
+
+
 // ── Main init ──
 
 export async function initControls(dimensions: Dimension[], models: string[]): Promise<void> {
@@ -625,6 +728,12 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   countEl.id = "image-count";
   countEl.textContent = `${state.imageIds.length} images`;
   settings.body.appendChild(countEl);
+
+  // Import (browser dev mode fallback; primary path is File > Import...)
+  const importGroup = document.createElement("div");
+  importGroup.className = "control-group";
+  buildImportSection(importGroup);
+  settings.body.appendChild(importGroup);
 
   panel.appendChild(settings.section);
 }

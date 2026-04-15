@@ -17,7 +17,7 @@ html, body {
 #app {
   display: flex;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 24px);
 }
 
 #viewport {
@@ -593,4 +593,138 @@ html, body {
   color: #555;
   text-align: center;
   margin-top: 4px;
+}
+
+/* ── Import section ── */
+
+.import-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.import-path {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  background: #1e1e2a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #c8c8d0;
+  font-size: 11px;
+}
+
+.import-path::placeholder {
+  color: #555;
+}
+
+.import-browse {
+  padding: 4px 8px;
+  background: #1e1e2a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #888;
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.import-browse:hover {
+  color: #c8c8d0;
+  background: #2a2a44;
+}
+
+.import-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.import-btn {
+  padding: 4px 12px;
+  background: #2a2a4a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #c8c8d0;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.import-btn:hover {
+  background: #3a3a5a;
+}
+
+.import-btn-secondary {
+  background: #1e1e2a;
+}
+
+.import-btn-secondary:hover {
+  background: #2a2a3a;
+}
+
+.import-status {
+  font-size: 10px;
+  color: #888;
+  margin-left: 4px;
+}
+
+/* ── Status bar ── */
+
+#status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: #111118;
+  border-top: 1px solid #2a2a3a;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 16px;
+  z-index: 50;
+  font-size: 10px;
+}
+
+#status-bar.hidden {
+  display: none;
+}
+
+.status-message {
+  color: #888;
+}
+
+.status-error {
+  color: #c44;
+}
+
+.status-stage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stage-label {
+  color: #888;
+  min-width: 60px;
+}
+
+.stage-bar-outer {
+  width: 80px;
+  height: 4px;
+  background: #2a2a3a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stage-bar-inner {
+  height: 100%;
+  background: #6a6aff;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.stage-info {
+  color: #666;
+  min-width: 80px;
 }
