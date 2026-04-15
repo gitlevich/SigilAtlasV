@@ -413,7 +413,7 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   for (const m of models) {
     const opt = document.createElement("option");
     opt.value = m;
-    opt.textContent = m === "clip-vit-l-14" ? "CLIP (semantic)" : m === "dinov2-vitb14" ? "DINOv2 (texture)" : m;
+    opt.textContent = m === "clip-vit-b-32" ? "Semantic" : m === "clip-vit-l-14" ? "Semantic LG" : m === "dinov2-vitb14" ? "Visual" : m;
     modelSelect.appendChild(opt);
   }
   modelSelect.value = state.model;

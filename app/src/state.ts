@@ -48,7 +48,7 @@ export const state: AppState = {
   contrastControls: [],
   selectedAxes: [],
   tightness: 0.5,
-  model: "clip-vit-l-14",
+  model: "clip-vit-b-32",
   layout: null,
   imageIds: [],
   orderValues: {},
