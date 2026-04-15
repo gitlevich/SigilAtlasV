@@ -113,26 +113,22 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._send_json({"error": str(e)}, 500)
 
     def _handle_dimensions(self):
-        """Return available characterization dimensions with their ranges."""
+        """Return range characterization dimensions with their min/max.
+
+        Only range dimensions are returned — they drive the bandpass
+        sliders in the Slice panel. Enum dimensions (taxonomy terms)
+        are accessed via the vocabulary endpoints instead.
+        """
         rows = _state.db._conn.execute(
-            "SELECT DISTINCT proximity_name, value_type FROM characterizations"
+            "SELECT proximity_name, MIN(value_range), MAX(value_range) "
+            "FROM characterizations WHERE value_type = 'range' "
+            "GROUP BY proximity_name"
         ).fetchall()
 
-        dimensions = []
-        for name, vtype in rows:
-            if vtype == "range":
-                min_max = _state.db._conn.execute(
-                    "SELECT MIN(value_range), MAX(value_range) FROM characterizations WHERE proximity_name = ?",
-                    (name,),
-                ).fetchone()
-                dimensions.append({"name": name, "type": "range", "min": min_max[0], "max": min_max[1]})
-            else:
-                values = _state.db._conn.execute(
-                    "SELECT DISTINCT value_enum FROM characterizations WHERE proximity_name = ?",
-                    (name,),
-                ).fetchall()
-                dimensions.append({"name": name, "type": "enum", "values": [v[0] for v in values]})
-
+        dimensions = [
+            {"name": r[0], "type": "range", "min": r[1], "max": r[2]}
+            for r in rows
+        ]
         self._send_json({"dimensions": dimensions})
 
     def _handle_models(self):

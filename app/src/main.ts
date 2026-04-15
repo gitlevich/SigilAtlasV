@@ -116,16 +116,13 @@ async function main(): Promise<void> {
   state.imageIds = sliceRes.image_ids;
   state.orderValues = sliceRes.order_values || {};
 
-  // Initial layout — time direction from state (default: capture_date)
-  const initialOrderValues = state.timeDirection === "capture_date" && Object.keys(state.orderValues).length > 0
-    ? state.orderValues : undefined;
+  // Initial layout — spacelike by default (UMAP + Hilbert)
   const layout = await api.computeLayout({
     image_ids: state.imageIds,
     axes: null,
     tightness: state.tightness,
     model: state.model,
     strip_height: state.stripHeight,
-    order_values: initialOrderValues,
   });
   state.layout = layout;
   state.torusWidth = layout.torus_width;

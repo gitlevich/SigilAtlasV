@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS characterizations (
     created_at REAL NOT NULL,
     PRIMARY KEY (image_id, proximity_name)
 );
+CREATE INDEX IF NOT EXISTS idx_characterizations_name ON characterizations(proximity_name, value_type);
 """
 
 

@@ -41,16 +41,20 @@ async function recomputeSliceAndLayout(): Promise<void> {
   state.imageIds = res.image_ids;
   state.orderValues = res.order_values || {};
 
-  // Layout: arrange the slice on the torus
-  // Time direction determines ordering strategy
-  const hasScoring = state.proximityFilters.length > 0 ||
-    state.contrastControls.some((c) => c.role === "attract");
+  // Layout: mode determines how images arrange on the torus
   let orderValues: Record<string, number> | undefined;
-  if (state.timeDirection === "capture_date") {
+  let preserveOrder = false;
+
+  if (state.mode === "timelike") {
+    // Timelike: order by capture date or contrast projection
     const hasOV = Object.keys(state.orderValues).length > 0;
     orderValues = hasOV ? state.orderValues : undefined;
+  } else if (state.mode === "tastelike") {
+    // Tastelike: preserve score-based order from slice
+    preserveOrder = state.proximityFilters.length > 0 ||
+      state.contrastControls.some((c) => c.role === "attract");
   }
-  // "similarity" means UMAP layout — no order_values, no preserve_order
+  // Spacelike: no order_values, no preserve_order — UMAP + Hilbert
 
   const layout = await api.computeLayout({
     image_ids: state.imageIds,
@@ -58,7 +62,7 @@ async function recomputeSliceAndLayout(): Promise<void> {
     tightness: state.tightness,
     model: state.model,
     strip_height: state.stripHeight,
-    preserve_order: hasScoring && !orderValues,
+    preserve_order: preserveOrder,
     order_values: orderValues,
   });
   state.layout = layout;
@@ -413,6 +417,34 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   const nbPanel = document.getElementById("neighborhood-panel")!;
   nbPanel.innerHTML = "<h3>Sigil Controls</h3>";
 
+  // Mode toggle
+  const modeGroup = document.createElement("div");
+  modeGroup.className = "control-group";
+  const modeLabel = document.createElement("label");
+  modeLabel.textContent = "Mode";
+  modeGroup.appendChild(modeLabel);
+
+  const modeSelect = document.createElement("select");
+  for (const m of [
+    { value: "spacelike", label: "Spacelike" },
+    { value: "timelike", label: "Timelike" },
+    { value: "tastelike", label: "Tastelike" },
+  ]) {
+    const opt = document.createElement("option");
+    opt.value = m.value;
+    opt.textContent = m.label;
+    modeSelect.appendChild(opt);
+  }
+  modeSelect.value = state.mode;
+  modeSelect.addEventListener("change", () => {
+    state.mode = modeSelect.value as "timelike" | "spacelike" | "tastelike";
+    // Show/hide time direction based on mode
+    timeGroup.style.display = state.mode === "timelike" ? "" : "none";
+    recomputeSliceAndLayout().catch((e) => console.error("Mode switch failed:", e));
+  });
+  modeGroup.appendChild(modeSelect);
+  nbPanel.appendChild(modeGroup);
+
   // Things (proximity attract)
   const thingsGroup = document.createElement("div");
   thingsGroup.className = "control-group";
@@ -443,22 +475,18 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   timeGroup.appendChild(timeLabel);
 
   const timeSelect = document.createElement("select");
-  const timeOpts: Array<{ value: string; label: string }> = [
-    { value: "capture_date", label: "Capture date" },
-    { value: "similarity", label: "Similarity (UMAP)" },
-  ];
-  for (const o of timeOpts) {
-    const opt = document.createElement("option");
-    opt.value = o.value;
-    opt.textContent = o.label;
-    timeSelect.appendChild(opt);
-  }
+  const captureOpt = document.createElement("option");
+  captureOpt.value = "capture_date";
+  captureOpt.textContent = "Capture date";
+  timeSelect.appendChild(captureOpt);
+  // Order-role contrasts will be added dynamically as they're created
   timeSelect.value = state.timeDirection;
   timeSelect.addEventListener("change", () => {
-    state.timeDirection = timeSelect.value as "similarity" | "capture_date";
+    state.timeDirection = timeSelect.value as "capture_date";
     recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
   });
   timeGroup.appendChild(timeSelect);
+  timeGroup.style.display = state.mode === "timelike" ? "" : "none";
   nbPanel.appendChild(timeGroup);
 
   // Tightness slider
