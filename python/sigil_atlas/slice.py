@@ -98,11 +98,57 @@ def _project_images(
     direction: np.ndarray,
     model: str,
 ) -> np.ndarray:
-    """Project images onto a contrast direction. Returns (N,) array of projections."""
+    """Project images onto a contrast direction. Returns (N,) array of raw projections."""
     if not image_ids:
         return np.array([], dtype=np.float32)
     matrix = provider.fetch_matrix(image_ids, model)
     return matrix @ direction
+
+
+def _score_category(
+    provider: EmbeddingProvider,
+    image_ids: list[str],
+    text: str,
+    model: str,
+) -> np.ndarray:
+    """Score images against a text concept with min-max normalization to [0, 1].
+
+    Stretches the narrow CLIP cosine similarity range to fill [0, 1],
+    making scores meaningful for ranking and thresholding.
+    """
+    if not image_ids:
+        return np.array([], dtype=np.float32)
+    vec = _encode_cached(provider, text, model)
+    matrix = provider.fetch_matrix(image_ids, model)
+    raw = matrix @ vec
+    lo, hi = float(raw.min()), float(raw.max())
+    if hi - lo < 1e-9:
+        return np.full(len(raw), 0.5, dtype=np.float32)
+    return ((raw - lo) / (hi - lo)).astype(np.float32)
+
+
+def _score_contrast(
+    provider: EmbeddingProvider,
+    image_ids: list[str],
+    pole_a: str,
+    pole_b: str,
+    model: str,
+) -> np.ndarray:
+    """Score images along a contrast axis with min-max normalization to [-1, 1].
+
+    Computes difference in cosine similarity to each pole, then stretches
+    the narrow CLIP range to fill [-1, 1].
+    """
+    if not image_ids:
+        return np.array([], dtype=np.float32)
+    vec_a = _encode_cached(provider, pole_a, model)
+    vec_b = _encode_cached(provider, pole_b, model)
+    matrix = provider.fetch_matrix(image_ids, model)
+    raw = matrix @ vec_a - matrix @ vec_b
+    lo, hi = float(raw.min()), float(raw.max())
+    if hi - lo < 1e-9:
+        return np.zeros(len(raw), dtype=np.float32)
+    return ((raw - lo) / (hi - lo) * 2.0 - 1.0).astype(np.float32)
 
 
 def filter_by_range(db: CorpusDB, filters: list[RangeFilter]) -> set[str]:
@@ -152,21 +198,12 @@ def compute_slice(
         candidates = db.fetch_image_ids()
     logger.info("Range filters: %d -> %d candidates", len(range_filters), len(candidates))
 
-    # Step 3: filter-role ContrastControls as bandpass
+    # Step 3: filter-role ContrastControls as bandpass (normalized to [-1, 1])
     filter_controls = [c for c in contrast_controls if c.role == "filter"]
     for cc in filter_controls:
         if not candidates:
             break
-        direction = _compute_contrast_direction(provider, cc.pole_a, cc.pole_b, model)
-        projections = _project_images(provider, candidates, direction, model)
-        # Normalize projections to [-1, 1] range based on corpus distribution
-        p_min, p_max = projections.min(), projections.max()
-        span = p_max - p_min
-        if span > 1e-8:
-            normalized = 2.0 * (projections - p_min) / span - 1.0
-        else:
-            normalized = np.zeros_like(projections)
-        # Apply bandpass
+        normalized = _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, model)
         mask = (normalized >= cc.band_min) & (normalized <= cc.band_max)
         candidates = [candidates[i] for i in range(len(candidates)) if mask[i]]
         logger.info(
@@ -176,27 +213,20 @@ def compute_slice(
         )
 
     if not candidates:
-        return SliceResult([], {}, None)
+        return SliceResult([], {}, None, {})
 
     # Step 4: score against attract-role contrasts + proximity filters
+    # All scores are min-max normalized so they compose meaningfully
     attract_controls = [c for c in contrast_controls if c.role == "attract"]
     composite_scores = np.zeros(len(candidates), dtype=np.float32)
 
-    # Attract-role contrasts: project onto direction, use as score
+    # Attract-role contrasts: normalized contrast score in [-1, 1]
     for cc in attract_controls:
-        direction = _compute_contrast_direction(provider, cc.pole_a, cc.pole_b, model)
-        projections = _project_images(provider, candidates, direction, model)
-        composite_scores += projections
+        composite_scores += _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, model)
 
-    # Proximity filters: score by cosine similarity to text
+    # Proximity filters: normalized category score in [0, 1]
     for pf in proximity_filters:
-        vec = _encode_cached(provider, pf.text, model)
-        norm = np.linalg.norm(vec)
-        if norm > 1e-8:
-            vec = vec / norm
-        matrix = provider.fetch_matrix(candidates, model)
-        scores = matrix @ vec
-        composite_scores += scores * pf.weight
+        composite_scores += _score_category(provider, candidates, pf.text, model) * pf.weight
 
     # Step 5: sort by composite score (descending)
     scores_dict = {candidates[i]: float(composite_scores[i]) for i in range(len(candidates))}
@@ -207,13 +237,12 @@ def compute_slice(
     else:
         sorted_ids = candidates
 
-    # Step 6: order-role contrast (for strip ordering)
+    # Step 6: order-role contrast (for strip ordering), normalized to [-1, 1]
     order_controls = [c for c in contrast_controls if c.role == "order"]
     order_projections = None
     if order_controls:
         oc = order_controls[0]  # single order axis invariant
-        direction = _compute_contrast_direction(provider, oc.pole_a, oc.pole_b, model)
-        projs = _project_images(provider, sorted_ids, direction, model)
+        projs = _score_contrast(provider, sorted_ids, oc.pole_a, oc.pole_b, model)
         order_projections = {sorted_ids[i]: float(projs[i]) for i in range(len(sorted_ids))}
 
     # Fetch capture dates for default time ordering
