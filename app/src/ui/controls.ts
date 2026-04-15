@@ -474,12 +474,15 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
     gutter.addEventListener("lostpointercapture", onUp);
   });
 
-  // Unfold tab — visible only when panel is folded
+  // Unfold tab — sibling after the panel so it isn't clipped by overflow:hidden
   const unfoldTab = document.createElement("div");
   unfoldTab.className = "panel-unfold-tab";
   unfoldTab.textContent = "\u25C0";
-  unfoldTab.addEventListener("click", () => panel.classList.remove("folded"));
-  panel.appendChild(unfoldTab);
+  unfoldTab.addEventListener("click", (e) => {
+    e.stopPropagation();
+    panel.classList.remove("folded");
+  });
+  panel.parentElement!.appendChild(unfoldTab);
 
   // Panel header with collapse
   const panelHeader = document.createElement("div");
@@ -490,7 +493,12 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   const collapseBtn = document.createElement("button");
   collapseBtn.className = "panel-collapse-btn";
   collapseBtn.textContent = "\u25B6";
-  collapseBtn.addEventListener("click", () => panel.classList.add("folded"));
+  collapseBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    panel.style.width = "";
+    panel.style.minWidth = "";
+    panel.classList.add("folded");
+  });
   panelHeader.appendChild(panelTitle);
   panelHeader.appendChild(collapseBtn);
   panel.appendChild(panelHeader);

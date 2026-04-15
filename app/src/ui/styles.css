@@ -73,8 +73,7 @@ html, body {
   background: #1a1a28;
 }
 
-.panel.right.folded + .panel-unfold-tab,
-.panel.folded .panel-unfold-tab {
+.panel.right.folded + .panel-unfold-tab {
   display: flex;
 }
 
