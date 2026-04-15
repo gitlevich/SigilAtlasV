@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/v2/crates/tauri-cli/schema.json",
   "productName": "Sigil Atlas",
   "version": "0.1.0",
-  "identifier": "com.sigilatlas.app",
+  "identifier": "com.sigilatlas.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1520",
@@ -21,6 +21,13 @@
     ],
     "security": {
       "csp": null
+    }
+  },
+  "bundle": {
+    "targets": ["dmg"],
+    "macOS": {
+      "signingIdentity": null,
+      "minimumSystemVersion": "10.15"
     }
   },
   "plugins": {
