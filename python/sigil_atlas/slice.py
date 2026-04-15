@@ -67,13 +67,9 @@ class SliceResult:
 
 
 def _encode_cached(provider: EmbeddingProvider, text: str, model: str) -> np.ndarray:
-    """Encode text with caching via things module."""
+    """Encode text directly — no taxonomy substitution."""
     from sigil_atlas.things import _encode_prompt
-    # Use the taxonomy prompt if available, otherwise raw text
-    from sigil_atlas.things import _find_node
-    node = _find_node(text)
-    prompt = node.prompt if node else text
-    return _encode_prompt(prompt)
+    return _encode_prompt(text)
 
 
 def _compute_contrast_direction(
