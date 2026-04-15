@@ -26,10 +26,11 @@ export interface BandpassOptions {
   initial: BandpassState;
   onChange?: (state: BandpassState) => void;
   onCommit?: (state: BandpassState) => void;
+  dimension?: string;
 }
 
 export function createBandpassWidget(options: BandpassOptions): HTMLElement {
-  const { rangeMin, rangeMax, initial, onChange, onCommit } = options;
+  const { rangeMin, rangeMax, initial, onChange, onCommit, dimension } = options;
   const span = rangeMax - rangeMin;
   if (span <= 0) {
     return document.createElement("div");
@@ -39,6 +40,7 @@ export function createBandpassWidget(options: BandpassOptions): HTMLElement {
 
   const track = document.createElement("div");
   track.className = "bandpass-track";
+  if (dimension) track.dataset.dim = dimension;
 
   const bg = document.createElement("div");
   bg.className = "bandpass-track-bg";

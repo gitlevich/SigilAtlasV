@@ -339,6 +339,7 @@ function buildToneSection(body: HTMLElement, dimensions: Dimension[]): void {
       rangeMin: dim.min,
       rangeMax: dim.max,
       initial: { min: dim.min, max: dim.max },
+      dimension: tc.name,
       onChange: (band) => {
         setRangeFilter(tc.name, band.min, band.max);
         debouncedRecompute();

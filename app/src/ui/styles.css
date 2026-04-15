@@ -331,16 +331,28 @@ html, body {
   top: 8px;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 3px;
   background: #2a2a3a;
   border-radius: 2px;
+}
+
+/* Gradient hints per dimension */
+.bandpass-track[data-dim="brightness"] .bandpass-track-bg {
+  background: linear-gradient(to right, #1a1a1a, #e0e0e0);
+}
+.bandpass-track[data-dim="contrast"] .bandpass-track-bg {
+  background: linear-gradient(to right, #555, #fff);
+}
+.bandpass-track[data-dim="color_temperature"] .bandpass-track-bg {
+  background: linear-gradient(to right, #4488cc, #dd8833);
 }
 
 .bandpass-band {
   position: absolute;
   top: 5px;
-  height: 10px;
-  background: #4a4a7a;
+  height: 8px;
+  background: rgba(180, 180, 190, 0.25);
+  border: 1px solid rgba(180, 180, 190, 0.4);
   border-radius: 3px;
   cursor: grab;
   min-width: 6px;
@@ -348,21 +360,21 @@ html, body {
 }
 
 .bandpass-band:hover {
-  background: #5a5a8a;
+  background: rgba(180, 180, 190, 0.35);
 }
 
 .bandpass-band.dragging {
-  background: #6a6aff;
+  background: rgba(200, 200, 210, 0.4);
   cursor: grabbing;
 }
 
 .bandpass-handle {
   position: absolute;
-  top: 3px;
-  width: 8px;
-  height: 14px;
-  background: #8888cc;
-  border-radius: 2px;
+  top: 1px;
+  width: 4px;
+  height: 10px;
+  background: #999;
+  border-radius: 1px;
   cursor: ew-resize;
   z-index: 1;
   transition: background 0.1s;
@@ -370,7 +382,7 @@ html, body {
 
 .bandpass-handle:hover,
 .bandpass-handle.dragging {
-  background: #aaaaff;
+  background: #ccc;
 }
 
 .bandpass-handle.left {
