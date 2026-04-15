@@ -1,12 +1,8 @@
 /**
  * UI controls — SigilControls per spec.
  *
- * SigilControls = the right panel. A sigil builder.
- * The active set of ContrastControls IS the query. The slice is the result.
- *
- * Things = proximity filters (attract role). Name a concept, bias toward it.
- * Contrasts = two-pole bandpass filters. Define a tension, set the range.
- * Both feed into slice -> layout pipeline.
+ * Right panel with Lightroom-style collapsible sections:
+ * Mode, Attract, Contrasts, Color, Tone, Settings.
  */
 
 import { state, notify } from "../state";
@@ -14,6 +10,7 @@ import * as api from "../api";
 import type { Dimension, ContrastControl } from "../types";
 import type { TorusViewport } from "../renderer/torus-viewport";
 import { createBandpassWidget } from "./bandpass-widget";
+import { createColorWheel, hueRangeToFilter, type HueRange } from "./color-wheel";
 
 let sliceDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 function debouncedRecompute(): void {
@@ -30,7 +27,6 @@ export function setViewport(vp: TorusViewport): void {
 }
 
 async function recomputeSliceAndLayout(): Promise<void> {
-  // Slice: apply all controls
   const res = await api.computeSlice({
     range_filters: state.rangeFilters,
     proximity_filters: state.proximityFilters,
@@ -41,19 +37,15 @@ async function recomputeSliceAndLayout(): Promise<void> {
   state.imageIds = res.image_ids;
   state.orderValues = res.order_values || {};
 
-  // Layout: mode determines how images arrange on the torus
   let orderValues: Record<string, number> | undefined;
   let preserveOrder = false;
 
   if (state.mode === "timelike") {
-    // Timelike: order by capture date or contrast projection
     const hasOV = Object.keys(state.orderValues).length > 0;
     orderValues = hasOV ? state.orderValues : undefined;
   } else if (state.mode === "tastelike" || state.proximityFilters.length > 0) {
-    // Tastelike or attract active: preserve score-based order from slice
     preserveOrder = true;
   }
-  // Spacelike with no attract: UMAP + Hilbert
 
   const layout = await api.computeLayout({
     image_ids: state.imageIds,
@@ -66,7 +58,6 @@ async function recomputeSliceAndLayout(): Promise<void> {
   });
   state.layout = layout;
 
-  // Recenter camera and clamp zoom to new torus bounds
   const prevArea = state.torusWidth * state.torusHeight;
   const newArea = layout.torus_width * layout.torus_height;
   state.torusWidth = layout.torus_width;
@@ -83,7 +74,6 @@ async function recomputeSliceAndLayout(): Promise<void> {
     state.pov.y = layout.torus_height / 2;
     state.pov.z = Math.min(desiredZoom, maxZoom);
   } else {
-    // Always clamp zoom to new bounds even without recenter
     state.pov.z = Math.min(state.pov.z, maxZoom);
   }
 
@@ -97,11 +87,39 @@ function updateImageCount(): void {
   if (el) el.textContent = `${state.imageIds.length} images`;
 }
 
-function makeFoldable(panel: HTMLElement): void {
-  const h3 = panel.querySelector("h3");
-  if (h3) {
-    h3.addEventListener("click", () => panel.classList.toggle("folded"));
-  }
+
+// ── Section builder ──
+
+function createSection(title: string, collapsed = false): { section: HTMLElement; body: HTMLElement } {
+  const section = document.createElement("div");
+  section.className = "section" + (collapsed ? " collapsed" : "");
+
+  const header = document.createElement("div");
+  header.className = "section-header";
+  header.textContent = title;
+  header.addEventListener("click", () => section.classList.toggle("collapsed"));
+  section.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "section-body";
+  section.appendChild(body);
+
+  return { section, body };
+}
+
+
+// ── Range filter helper ──
+
+function setRangeFilter(dimension: string, min: number, max: number): void {
+  const existing = state.rangeFilters.findIndex((f) => f.dimension === dimension);
+  const filter = { dimension, min, max };
+  if (existing >= 0) state.rangeFilters[existing] = filter;
+  else state.rangeFilters.push(filter);
+}
+
+function removeRangeFilter(dimension: string): void {
+  const idx = state.rangeFilters.findIndex((f) => f.dimension === dimension);
+  if (idx >= 0) state.rangeFilters.splice(idx, 1);
 }
 
 
@@ -109,10 +127,7 @@ function makeFoldable(panel: HTMLElement): void {
 
 const thingNames: string[] = [];
 
-function createThingsHolder(
-  container: HTMLElement,
-  onChange: () => void,
-): void {
+function buildAttractSection(body: HTMLElement): void {
   const holder = document.createElement("div");
   holder.className = "pill-holder";
 
@@ -131,7 +146,7 @@ function createThingsHolder(
         state.proximityFilters.splice(idx, 1);
         thingNames.splice(idx, 1);
         renderPills();
-        onChange();
+        recomputeSliceAndLayout().catch((e) => console.error("Slice failed:", e));
       });
       pill.appendChild(remove);
       holder.insertBefore(pill, holder.lastElementChild);
@@ -151,33 +166,30 @@ function createThingsHolder(
       thingNames.push(text);
       input.value = "";
       renderPills();
-      onChange();
+      recomputeSliceAndLayout().catch((e) => console.error("Slice failed:", e));
     }
   });
 
   holder.appendChild(input);
-  container.appendChild(holder);
+  body.appendChild(holder);
 }
 
 
-// ── Contrast (two-pole bandpass) ──
+// ── Contrasts ──
 
-function createContrastBuilder(
-  container: HTMLElement,
-  onChange: () => void,
-): void {
+function buildContrastsSection(body: HTMLElement): void {
   const list = document.createElement("div");
   list.className = "contrast-list";
+
+  const onChange = () => recomputeSliceAndLayout().catch((e) => console.error("Slice failed:", e));
 
   const renderContrasts = () => {
     list.innerHTML = "";
     for (let i = 0; i < state.contrastControls.length; i++) {
-      const cc = state.contrastControls[i];
-      list.appendChild(createContrastWidget(cc, i, onChange, renderContrasts));
+      list.appendChild(createContrastWidget(state.contrastControls[i], i, onChange, renderContrasts));
     }
   };
 
-  // Add contrast: two text inputs with "vs" between them
   const addBtn = document.createElement("div");
   addBtn.className = "add-contrast";
 
@@ -220,21 +232,18 @@ function createContrastBuilder(
   addBtn.appendChild(vs);
   addBtn.appendChild(rightInput);
 
-  container.appendChild(list);
-  container.appendChild(addBtn);
+  body.appendChild(list);
+  body.appendChild(addBtn);
 }
 
 
 function createContrastWidget(
-  cc: ContrastControl,
-  index: number,
-  onChange: () => void,
-  rerender: () => void,
+  cc: ContrastControl, index: number,
+  onChange: () => void, rerender: () => void,
 ): HTMLElement {
   const widget = document.createElement("div");
   widget.className = "contrast-widget";
 
-  // Header: pole_a vs pole_b [x]
   const stripPromptPrefix = (s: string) => s.replace(/^a photograph (?:of |that is )/, "");
   const header = document.createElement("div");
   header.className = "contrast-header";
@@ -250,7 +259,6 @@ function createContrastWidget(
   header.appendChild(removeBtn);
   widget.appendChild(header);
 
-  // Bandpass widget
   const bandWidget = createBandpassWidget({
     rangeMin: -1,
     rangeMax: 1,
@@ -268,8 +276,85 @@ function createContrastWidget(
 
   widget.appendChild(bandWidget);
   widget.appendChild(labels);
-
   return widget;
+}
+
+
+// ── Color section ──
+
+function buildColorSection(body: HTMLElement, dimensions: Dimension[]): void {
+  const hueDim = dimensions.find((d) => d.name === "hue_dominant");
+  if (!hueDim) return;
+
+  const wheel = createColorWheel({
+    size: 140,
+    initial: { center: 0, width: 0 },
+    onChange: (range: HueRange) => {
+      const filter = hueRangeToFilter(range);
+      if (filter) {
+        // Handle wrapping: if min > max, it wraps around 360
+        if (filter.min <= filter.max) {
+          setRangeFilter("hue_dominant", filter.min, filter.max);
+        } else {
+          // For wrapping hue, set to full range and let the backend handle it
+          // TODO: proper wrapping filter support
+          setRangeFilter("hue_dominant", filter.min, filter.max);
+        }
+      } else {
+        removeRangeFilter("hue_dominant");
+      }
+      debouncedRecompute();
+    },
+  });
+  body.appendChild(wheel);
+
+  const hint = document.createElement("div");
+  hint.className = "section-hint";
+  hint.textContent = "click ring to select hue, scroll to adjust range";
+  body.appendChild(hint);
+}
+
+
+// ── Tone section ──
+
+function buildToneSection(body: HTMLElement, dimensions: Dimension[]): void {
+  const toneControls: Array<{ name: string; label: string; leftLabel?: string; rightLabel?: string }> = [
+    { name: "brightness", label: "Brightness", leftLabel: "dark", rightLabel: "bright" },
+    { name: "contrast", label: "Contrast", leftLabel: "flat", rightLabel: "punchy" },
+    { name: "color_temperature", label: "White balance", leftLabel: "cool", rightLabel: "warm" },
+  ];
+
+  for (const tc of toneControls) {
+    const dim = dimensions.find((d) => d.name === tc.name);
+    if (!dim || dim.min === undefined || dim.max === undefined) continue;
+
+    const group = document.createElement("div");
+    group.className = "control-group";
+
+    const label = document.createElement("label");
+    label.textContent = tc.label;
+    group.appendChild(label);
+
+    const widget = createBandpassWidget({
+      rangeMin: dim.min,
+      rangeMax: dim.max,
+      initial: { min: dim.min, max: dim.max },
+      onChange: (band) => {
+        setRangeFilter(tc.name, band.min, band.max);
+        debouncedRecompute();
+      },
+    });
+    group.appendChild(widget);
+
+    if (tc.leftLabel || tc.rightLabel) {
+      const labels = document.createElement("div");
+      labels.className = "slider-labels";
+      labels.innerHTML = `<span>${tc.leftLabel || ""}</span><span>${tc.rightLabel || ""}</span>`;
+      group.appendChild(labels);
+    }
+
+    body.appendChild(group);
+  }
 }
 
 
@@ -277,9 +362,10 @@ function createContrastWidget(
 
 export async function initControls(dimensions: Dimension[], models: string[]): Promise<void> {
 
-  // --- Slice panel (left) ---
+  // --- Left panel: start folded, keep dimension sliders for advanced use ---
   const slicePanel = document.getElementById("slice-panel")!;
   slicePanel.innerHTML = "<h3>Slice</h3>";
+  slicePanel.classList.add("folded");
 
   for (const dim of dimensions) {
     if (dim.type !== "range" || dim.min === undefined || dim.max === undefined) continue;
@@ -288,16 +374,12 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
     const label = document.createElement("label");
     label.textContent = dim.name;
     container.appendChild(label);
-
     const widget = createBandpassWidget({
       rangeMin: dim.min,
       rangeMax: dim.max,
       initial: { min: dim.min, max: dim.max },
       onChange: (band) => {
-        const existing = state.rangeFilters.findIndex((f) => f.dimension === dim.name);
-        const filter = { dimension: dim.name, min: band.min, max: band.max };
-        if (existing >= 0) state.rangeFilters[existing] = filter;
-        else state.rangeFilters.push(filter);
+        setRangeFilter(dim.name, band.min, band.max);
         debouncedRecompute();
       },
     });
@@ -305,13 +387,14 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
     slicePanel.appendChild(container);
   }
 
-  // --- SigilControls panel (right) ---
-  const nbPanel = document.getElementById("neighborhood-panel")!;
-  nbPanel.innerHTML = "<h3>Sigil Controls</h3>";
+  // --- Right panel: Lightroom-style sections ---
+  const panel = document.getElementById("neighborhood-panel")!;
+  panel.innerHTML = "";
 
-  // Mode tabs
+  // Mode tabs (not in a section — always visible at top)
   const modeTabs = document.createElement("div");
   modeTabs.className = "mode-tabs";
+  let timeSection: HTMLElement;
   const modes: Array<{ value: "spacelike" | "timelike" | "tastelike"; label: string }> = [
     { value: "spacelike", label: "Spacelike" },
     { value: "timelike", label: "Timelike" },
@@ -325,58 +408,37 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
       state.mode = m.value;
       modeTabs.querySelectorAll(".mode-tab").forEach((t) => t.classList.remove("active"));
       tab.classList.add("active");
-      timeGroup.style.display = state.mode === "timelike" ? "" : "none";
+      if (timeSection) timeSection.style.display = state.mode === "timelike" ? "" : "none";
       recomputeSliceAndLayout().catch((e) => console.error("Mode switch failed:", e));
     });
     modeTabs.appendChild(tab);
   }
-  nbPanel.appendChild(modeTabs);
+  panel.appendChild(modeTabs);
 
-  // Things (proximity attract)
-  const thingsGroup = document.createElement("div");
-  thingsGroup.className = "control-group";
-  const thingsLabel = document.createElement("label");
-  thingsLabel.textContent = "Attract";
-  thingsGroup.appendChild(thingsLabel);
-  createThingsHolder(thingsGroup, () => {
-    recomputeSliceAndLayout().catch((e) => console.error("Slice failed:", e));
-  });
-  nbPanel.appendChild(thingsGroup);
+  // Attract section
+  const attract = createSection("Attract");
+  buildAttractSection(attract.body);
+  panel.appendChild(attract.section);
 
-  // Contrasts
-  const contrastGroup = document.createElement("div");
-  contrastGroup.className = "control-group";
-  const contrastLabel = document.createElement("label");
-  contrastLabel.textContent = "Contrasts";
-  contrastGroup.appendChild(contrastLabel);
-  createContrastBuilder(contrastGroup, () => {
-    recomputeSliceAndLayout().catch((e) => console.error("Slice failed:", e));
-  });
-  nbPanel.appendChild(contrastGroup);
+  // Contrasts section
+  const contrasts = createSection("Contrasts");
+  buildContrastsSection(contrasts.body);
+  panel.appendChild(contrasts.section);
 
-  // Time direction
-  const timeGroup = document.createElement("div");
-  timeGroup.className = "control-group";
-  const timeLabel = document.createElement("label");
-  timeLabel.textContent = "Time direction";
-  timeGroup.appendChild(timeLabel);
+  // Color section
+  const color = createSection("Color");
+  buildColorSection(color.body, dimensions);
+  panel.appendChild(color.section);
 
-  const timeSelect = document.createElement("select");
-  const captureOpt = document.createElement("option");
-  captureOpt.value = "capture_date";
-  captureOpt.textContent = "Capture date";
-  timeSelect.appendChild(captureOpt);
-  // Order-role contrasts will be added dynamically as they're created
-  timeSelect.value = state.timeDirection;
-  timeSelect.addEventListener("change", () => {
-    state.timeDirection = timeSelect.value as "capture_date";
-    recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
-  });
-  timeGroup.appendChild(timeSelect);
-  timeGroup.style.display = state.mode === "timelike" ? "" : "none";
-  nbPanel.appendChild(timeGroup);
+  // Tone section
+  const tone = createSection("Tone");
+  buildToneSection(tone.body, dimensions);
+  panel.appendChild(tone.section);
 
-  // Tightness slider
+  // Settings section (collapsed by default)
+  const settings = createSection("Settings", true);
+
+  // Tightness
   const tightnessGroup = document.createElement("div");
   tightnessGroup.className = "control-group";
   const tightnessLabel = document.createElement("label");
@@ -400,9 +462,31 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   });
   tightnessGroup.appendChild(tightnessSlider);
   tightnessGroup.appendChild(tightnessLabels);
-  nbPanel.appendChild(tightnessGroup);
+  settings.body.appendChild(tightnessGroup);
 
-  // Model dropdown
+  // Time direction
+  const timeDirGroup = document.createElement("div");
+  timeDirGroup.className = "control-group";
+  const timeDirLabel = document.createElement("label");
+  timeDirLabel.textContent = "Time direction";
+  timeDirGroup.appendChild(timeDirLabel);
+
+  const timeSelect = document.createElement("select");
+  const captureOpt = document.createElement("option");
+  captureOpt.value = "capture_date";
+  captureOpt.textContent = "Capture date";
+  timeSelect.appendChild(captureOpt);
+  timeSelect.value = state.timeDirection;
+  timeSelect.addEventListener("change", () => {
+    state.timeDirection = timeSelect.value;
+    recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
+  });
+  timeDirGroup.appendChild(timeSelect);
+  timeDirGroup.style.display = state.mode === "timelike" ? "" : "none";
+  settings.body.appendChild(timeDirGroup);
+  timeSection = timeDirGroup;
+
+  // Model
   const modelGroup = document.createElement("div");
   modelGroup.className = "control-group";
   const modelLabel = document.createElement("label");
@@ -422,14 +506,13 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
     recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
   });
   modelGroup.appendChild(modelSelect);
-  nbPanel.appendChild(modelGroup);
+  settings.body.appendChild(modelGroup);
 
   // Image count
   const countEl = document.createElement("div");
   countEl.id = "image-count";
   countEl.textContent = `${state.imageIds.length} images`;
-  nbPanel.appendChild(countEl);
+  settings.body.appendChild(countEl);
 
-  makeFoldable(slicePanel);
-  makeFoldable(nbPanel);
+  panel.appendChild(settings.section);
 }

@@ -429,3 +429,51 @@ html, body {
   color: #c8c8d0;
   background: #2a2a4a;
 }
+
+/* ── Collapsible sections ── */
+
+.section {
+  border-bottom: 1px solid #2a2a3a;
+}
+
+.section-header {
+  cursor: pointer;
+  padding: 8px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #888;
+  user-select: none;
+}
+
+.section-header:hover {
+  color: #bbb;
+}
+
+.section.collapsed .section-body {
+  display: none;
+}
+
+.section-body {
+  padding: 0 0 8px 0;
+}
+
+/* ── Color wheel ── */
+
+.color-wheel-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.color-wheel-canvas {
+  cursor: crosshair;
+}
+
+.section-hint {
+  font-size: 9px;
+  color: #555;
+  text-align: center;
+  margin-top: 4px;
+}
