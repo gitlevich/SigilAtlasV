@@ -11,3 +11,4 @@ The @torus arranged into @neighborhoods. Two modes of interaction:
 With no contrasts configured, the @slice is the entire @corpus and the layout uses raw @embedding distance from the active @visionModel.
 
 !local-neighborhoods.
+
