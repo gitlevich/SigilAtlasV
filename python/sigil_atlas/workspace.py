@@ -39,12 +39,18 @@ class Workspace:
     def open_db(self) -> CorpusDB:
         db = CorpusDB(self.db_path)
         db.initialize_schema()
+        return db
+
+    def recover(self, db: CorpusDB) -> None:
+        """Repair state after a crash: verify thumbnails, promote completed images.
+
+        Call this after the server is serving — it's O(N) in corpus size
+        and not needed for query correctness.
+        """
         self._verify_thumbnails(db)
-        # Promote any images that were fully processed before a crash/restart.
         completed = db.mark_completed()
         if completed:
             logger.info("Recovered %d images from interrupted import", completed)
-        return db
 
     def _verify_thumbnails(self, db: CorpusDB) -> None:
         """Demote images whose thumbnail file is missing on disk.

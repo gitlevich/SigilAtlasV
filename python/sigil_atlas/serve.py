@@ -14,14 +14,10 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
-from sigil_atlas.cancel import CancellationToken
 from sigil_atlas.db import CorpusDB
 from sigil_atlas.embedding_provider import SqliteEmbeddingProvider
-from sigil_atlas.ingest.pipeline import IngestPipeline
-from sigil_atlas.ingest.source import FolderSource
 from sigil_atlas.layout import compute_layout
 from sigil_atlas.model_registry import get_adapter
-from sigil_atlas.progress import BufferedProgressReporter
 from sigil_atlas.slice import RangeFilter, ProximityFilter, ContrastControl, compute_slice
 from sigil_atlas.taxonomy import vocabulary, vocabulary_tree, vocabulary_flat
 from sigil_atlas.things import siblings
@@ -34,9 +30,10 @@ class IngestState:
     """Tracks the current ingest pipeline, if any."""
 
     def __init__(self) -> None:
+        from sigil_atlas.progress import BufferedProgressReporter
         self.thread: threading.Thread | None = None
-        self.token: CancellationToken | None = None
-        self.reporter: BufferedProgressReporter = BufferedProgressReporter()
+        self.token = None
+        self.reporter = BufferedProgressReporter()
         self.current_source: str | None = None
         self._lock = threading.Lock()
 
@@ -45,6 +42,11 @@ class IngestState:
         return self.thread is not None and self.thread.is_alive()
 
     def start(self, workspace: "Workspace", source_path: str) -> str:
+        from sigil_atlas.cancel import CancellationToken
+        from sigil_atlas.ingest.pipeline import IngestPipeline
+        from sigil_atlas.ingest.source import FolderSource
+        from sigil_atlas.progress import BufferedProgressReporter
+
         with self._lock:
             if self.is_running:
                 return "already_running"
@@ -70,7 +72,7 @@ class IngestState:
             self.thread.start()
             return "started"
 
-    def _run_pipeline(self, pipeline: IngestPipeline) -> None:
+    def _run_pipeline(self, pipeline) -> None:
         try:
             pipeline.run()
         except Exception:
@@ -245,6 +247,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         import threading
         from sigil_atlas.cancel import CancellationToken
+        from sigil_atlas.progress import BufferedProgressReporter
         from sigil_atlas.ingest.pixel_features import run_pixel_features_stage
 
         _state.ingest.token = CancellationToken()
@@ -275,6 +278,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         import threading
         from sigil_atlas.cancel import CancellationToken
+        from sigil_atlas.progress import BufferedProgressReporter
         from sigil_atlas.ingest.embed import CLIPEmbedder, CLIPLargeEmbedder, DINOv2Embedder, run_embedding_stage
 
         _state.ingest.token = CancellationToken()
@@ -495,6 +499,12 @@ def main():
     # Print port on first line for Tauri to read
     print(port, flush=True)
     logger.info("Sidecar server listening on http://127.0.0.1:%d", port)
+
+    # Crash recovery runs after the server is serving — it's O(N) in corpus
+    # size and not needed for queries, only for repairing interrupted imports.
+    threading.Thread(
+        target=_state.workspace.recover, args=(_state.db,), daemon=True, name="recover"
+    ).start()
 
     try:
         server.serve_forever()
