@@ -1,0 +1,115 @@
+# Spec ontology — the SigilAtlas spec itself projected into CLIP.
+# Each term is a concept from the .sigil specification.
+# When projected onto the corpus, shows which images "light up" which spec concepts.
+
+spec:
+  prompt: photograph
+  children:
+
+    corpus:
+      prompt: collection of photographs organized and searchable
+      children:
+        image:
+          prompt: single photograph image file
+        identity:
+          prompt: unique recognizable identity content hash fingerprint
+        metadata:
+          prompt: EXIF data date time camera location technical information
+        embedding:
+          prompt: vector representation semantic meaning visual texture encoded
+
+    ingest:
+      prompt: importing photographs from external source
+      children:
+        source:
+          prompt: folder directory location where photographs come from
+        pipeline:
+          prompt: processing pipeline streaming stages progress
+        vision_model:
+          prompt: AI model CLIP encoding understanding images
+
+    explore:
+      prompt: exploring viewing browsing photographs
+      children:
+        torus:
+          prompt: continuous wrapping surface where images tile seamlessly
+        strip:
+          prompt: horizontal row of images wrapping around
+        neighborhood:
+          prompt: cluster of similar images grouped together
+        screen:
+          prompt: viewport frame window looking at images
+
+    mode:
+      prompt: how images are arranged and ordered
+      children:
+        timelike:
+          prompt: chronological timeline temporal order left to right
+        spacelike:
+          prompt: spatial arrangement by visual similarity clustering
+        tastelike:
+          prompt: arranged by personal preference taste relevance
+
+    filter:
+      prompt: filtering selecting which images to show
+      children:
+        slice:
+          prompt: subset of images matching a relevance filter
+        relevance:
+          prompt: relevant interesting important matching criteria
+        thing:
+          prompt: named object flower person building animal
+        contrast:
+          prompt: tension between two opposite qualities poles
+
+    time:
+      prompt: temporal dimension progression change
+      children:
+        story:
+          prompt: burst of images close in time narrative sequence event
+        playback:
+          prompt: playing back moving through time transport controls
+        timescale:
+          prompt: temporal granularity scale zoom level of time
+        sequencing:
+          prompt: ordered series sequence progression
+
+    space:
+      prompt: spatial dimension arrangement proximity
+      children:
+        similarity:
+          prompt: similar images close together resemblance likeness
+        distance:
+          prompt: far apart different dissimilar remote
+        attractor:
+          prompt: focal point center of gravity drawing images toward it
+        boundary:
+          prompt: edge border limit separation between regions
+
+    sigil:
+      prompt: recognizable pattern boundary with invariants and affordances
+      children:
+        invariant:
+          prompt: constraint rule that must hold within boundary
+        affordance:
+          prompt: capability action possibility offered to observer
+        name:
+          prompt: pattern by which something is recognized identity label
+        scope:
+          prompt: lexical scope boundary containment nested hierarchy
+
+    quality:
+      prompt: image quality and character
+      children:
+        resolution:
+          prompt: high resolution detailed sharp fine texture
+        composition:
+          prompt: composition arrangement framing balance visual structure
+        light:
+          prompt: lighting illumination brightness shadow contrast
+        color:
+          prompt: color palette hue saturation warmth coolness
+        depth:
+          prompt: depth layers foreground background distance perspective
+        texture:
+          prompt: texture surface pattern grain material tactile

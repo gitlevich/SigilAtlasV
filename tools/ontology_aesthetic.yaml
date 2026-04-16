@@ -1,0 +1,147 @@
+# Aesthetic ontology — qualities that matter to an attentive observer.
+# A focused lens: not what IS depicted, but how it FEELS to look at it.
+# Each branch is a contrast axis in attention space.
+
+aesthetic:
+  prompt: photograph
+  children:
+
+    beauty:
+      prompt: beautiful photograph
+      children:
+        elegant:
+          prompt: elegant refined graceful
+        sublime:
+          prompt: sublime awe-inspiring transcendent
+        delicate:
+          prompt: delicate subtle tender
+        raw:
+          prompt: raw powerful visceral beauty
+        ugly:
+          prompt: ugly repulsive harsh
+
+    coherence:
+      prompt: visual coherence
+      children:
+        unified:
+          prompt: unified coherent harmonious composition
+        fragmented:
+          prompt: fragmented chaotic disjoint incoherent
+        balanced:
+          prompt: balanced symmetrical ordered
+        tense:
+          prompt: tense unresolved visual tension
+        resolved:
+          prompt: resolved calm settled complete
+
+    precision:
+      prompt: visual precision
+      children:
+        sharp:
+          prompt: sharp precise crisp detailed
+        blurry:
+          prompt: blurry soft out of focus
+        high_resolution:
+          prompt: high resolution fine detail intricate
+        low_resolution:
+          prompt: low resolution coarse grainy
+        selective_focus:
+          prompt: selective focus one sharp element rest soft
+
+    complexity:
+      prompt: visual complexity
+      children:
+        simple:
+          prompt: simple minimal clean sparse
+        complicated:
+          prompt: complicated dense busy cluttered
+        layered:
+          prompt: layered depth multiple planes
+        flat:
+          prompt: flat two-dimensional no depth
+        fractal:
+          prompt: fractal self-similar pattern at many scales
+
+    expression:
+      prompt: expressive quality
+      children:
+        verbose:
+          prompt: verbose detailed elaborate ornate
+        concise:
+          prompt: concise economical restrained essential
+        loud:
+          prompt: loud bold aggressive dominant
+        quiet:
+          prompt: quiet subdued understated whispered
+        ambiguous:
+          prompt: ambiguous uncertain mysterious unclear
+
+    attention:
+      prompt: what captures attention
+      children:
+        focal:
+          prompt: strong focal point clear subject
+        diffuse:
+          prompt: diffuse no single focus distributed attention
+        immersive:
+          prompt: immersive enveloping surrounding
+        distant:
+          prompt: distant removed observational detached
+        intimate:
+          prompt: intimate close personal private
+
+    narrative:
+      prompt: narrative quality
+      children:
+        story:
+          prompt: tells a story moment in time narrative
+        still:
+          prompt: still timeless static no narrative
+        before:
+          prompt: something is about to happen anticipation
+        after:
+          prompt: something has just happened aftermath
+        eternal:
+          prompt: eternal unchanging permanent outside time
+
+    frame:
+      prompt: how the frame is used
+      children:
+        tight:
+          prompt: tight close crop frame
+        wide:
+          prompt: wide expansive open frame
+        centered:
+          prompt: centered subject in middle
+        edge:
+          prompt: subject at edge of frame off-center
+        negative_space:
+          prompt: negative space emptiness around subject
+
+    contrast:
+      prompt: contrast quality
+      children:
+        high_contrast:
+          prompt: high contrast dramatic light and dark
+        low_contrast:
+          prompt: low contrast flat even tonal range
+        color_contrast:
+          prompt: contrasting colors complementary vivid
+        tonal:
+          prompt: tonal subtle gradations monochrome
+        boundary:
+          prompt: sharp boundaries hard edges defined separation
+
+    collapse:
+      prompt: what survives compression
+      children:
+        essential:
+          prompt: essential irreducible nothing superfluous
+        redundant:
+          prompt: redundant repetitive could be simplified
+        surprising:
+          prompt: surprising unexpected violates expectation
+        predictable:
+          prompt: predictable expected follows pattern
+        memorable:
+          prompt: memorable unforgettable striking lasting impression

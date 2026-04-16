@@ -1,0 +1,181 @@
+# Attention Language ontology — the contrasts that matter to an observer.
+# Each branch is a contrast axis with explicit poles.
+# Plus the core Attention Language vocabulary as CLIP prompts.
+
+attention_language:
+  prompt: photograph
+  children:
+
+    # ── Contrast axes (pole vs pole) ──
+
+    beautiful_ugly:
+      prompt: aesthetic quality
+      children:
+        beautiful:
+          prompt: beautiful elegant refined graceful photograph
+        ugly:
+          prompt: ugly harsh repulsive unpleasant photograph
+
+    coherent_incoherent:
+      prompt: visual coherence
+      children:
+        coherent:
+          prompt: coherent unified harmonious balanced composition
+        incoherent:
+          prompt: incoherent fragmented chaotic disjoint messy
+
+    precise_blurry:
+      prompt: precision and focus
+      children:
+        precise:
+          prompt: precise sharp crisp clear in focus
+        blurry:
+          prompt: blurry soft out of focus hazy unfocused
+
+    high_res_low_res:
+      prompt: resolution and detail
+      children:
+        high_resolution:
+          prompt: high resolution fine detail intricate texture
+        low_resolution:
+          prompt: low resolution coarse grainy pixelated
+
+    verbose_concise:
+      prompt: visual density
+      children:
+        verbose:
+          prompt: verbose elaborate ornate detailed dense busy
+        concise:
+          prompt: concise minimal sparse clean economical
+
+    simple_complicated:
+      prompt: complexity
+      children:
+        simple:
+          prompt: simple clear straightforward minimal
+        complicated:
+          prompt: complicated complex layered intricate busy
+
+    # ── Attention Language vocabulary ──
+
+    attention:
+      prompt: attention and awareness
+      children:
+        focused_attention:
+          prompt: focused concentrated single point of attention
+        diffuse_attention:
+          prompt: diffuse scattered distributed peripheral awareness
+        captured_attention:
+          prompt: attention captured arrested riveted
+
+    observer:
+      prompt: observer point of view
+      children:
+        intimate_observer:
+          prompt: intimate close personal private viewpoint
+        distant_observer:
+          prompt: distant detached removed observational viewpoint
+        immersed_observer:
+          prompt: immersive enveloping surrounded first person
+
+    frame:
+      prompt: photographic frame
+      children:
+        tight_frame:
+          prompt: tight close crop compressed frame
+        wide_frame:
+          prompt: wide expansive open spacious frame
+        decisive_moment:
+          prompt: decisive moment peak action perfect timing
+
+    narrative:
+      prompt: story and time
+      children:
+        story:
+          prompt: narrative story unfolding moment in time
+        timeless:
+          prompt: timeless eternal still static outside time
+        anticipation:
+          prompt: anticipation something about to happen tension
+        aftermath:
+          prompt: aftermath something just happened consequence
+
+    contrast:
+      prompt: visual contrast
+      children:
+        high_contrast:
+          prompt: high contrast dramatic stark light and dark
+        low_contrast:
+          prompt: low contrast flat even subtle tonal range
+        boundary:
+          prompt: sharp boundary edge separation defined border
+
+    collapse:
+      prompt: what survives attention
+      children:
+        essential:
+          prompt: essential irreducible nothing superfluous pure
+        redundant:
+          prompt: redundant repetitive could be simplified
+        surprising:
+          prompt: surprising unexpected violates expectation novel
+        memorable:
+          prompt: memorable unforgettable striking lasting impression
+
+    invariant:
+      prompt: what persists
+      children:
+        stable:
+          prompt: stable enduring persistent unchanging solid
+        fragile:
+          prompt: fragile fleeting ephemeral transient about to vanish
+
+    # ── Emotional/visceral axes ──
+
+    attraction_repulsion:
+      prompt: emotional pull
+      children:
+        attractive:
+          prompt: attractive inviting appealing drawing you in magnetic
+        repulsive:
+          prompt: repulsive pushing away aversive disturbing repellent
+
+    comfort_discomfort:
+      prompt: bodily feeling
+      children:
+        comfortable:
+          prompt: comfortable safe warm soothing restful
+        uncomfortable:
+          prompt: uncomfortable uneasy tense anxious unsettling
+
+    wonder_indifference:
+      prompt: curiosity response
+      children:
+        wonder:
+          prompt: wonderful awe inspiring breathtaking wondrous
+        indifference:
+          prompt: indifferent boring dull flat uninteresting
+
+    tenderness_aggression:
+      prompt: emotional tone
+      children:
+        tender:
+          prompt: tender gentle caring soft loving nurturing
+        aggressive:
+          prompt: aggressive violent forceful threatening harsh
+
+    sacred_profane:
+      prompt: reverence
+      children:
+        sacred:
+          prompt: sacred holy spiritual reverent transcendent luminous
+        profane:
+          prompt: profane mundane ordinary banal everyday common
+
+    joy_sorrow:
+      prompt: emotional valence
+      children:
+        joyful:
+          prompt: joyful happy celebratory elated radiant
+        sorrowful:
+          prompt: sorrowful sad melancholic grieving mournful
