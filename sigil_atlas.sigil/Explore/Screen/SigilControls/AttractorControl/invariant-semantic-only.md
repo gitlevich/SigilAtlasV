@@ -1,0 +1,1 @@
+only words can be names, so it is not useful for visual models

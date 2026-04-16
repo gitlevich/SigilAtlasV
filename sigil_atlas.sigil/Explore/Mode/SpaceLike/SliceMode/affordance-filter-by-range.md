@@ -1,1 +1,0 @@
-Set a range on a @contrast. Images outside the range are excluded from the @slice.

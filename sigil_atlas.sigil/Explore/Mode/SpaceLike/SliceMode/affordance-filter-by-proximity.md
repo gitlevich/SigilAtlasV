@@ -1,1 +1,0 @@
-Name things I want to see. Each named thing selects its matching images. Multiple things take the union. Images not matching any named thing are excluded from the @slice.

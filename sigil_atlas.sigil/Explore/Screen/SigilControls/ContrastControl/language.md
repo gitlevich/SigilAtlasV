@@ -4,8 +4,10 @@ status: idea
 
 # Contrast Control
 
-A @bandPass along a tension between two @poles. Direction = normalize(pole_A.embedding - pole_B.embedding). Each image projected onto this direction via dot product.
+Lets me define a @contrast by naming two @poles. A good @contrast is a span between mutually exclusive polar opposites, like dark vs bright, or colors on the opposite sides of the Color Wheel. 
 
-Compact horizontal slider with @pole names underneath. Enter to activate. X to #delete (with confirmation). #rearrange by dragging.
+Lets me select a preferred range along each @contrast via @BandPass control. 
 
-Used to #filter, #attract-repulse and #order @images.
+Visually, it is a compact horizontal slider with @pole names underneath. Enter to activate. X icon to #delete (with confirmation). #rearrange by dragging.
+
+Used to #filter @images.

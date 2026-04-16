@@ -1,0 +1,1 @@
+works like AND operation: will attract the @images that have all named things in them

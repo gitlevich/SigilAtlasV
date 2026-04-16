@@ -1,1 +1,0 @@
-Checkboxes. Available dimensions: defined @contrasts, physical location, and time. Check the ones that define similarity for layout.

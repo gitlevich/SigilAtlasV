@@ -1,1 +1,0 @@
-One slider. Small = compact @neighborhoods with sharp boundaries. Large = loose neighborhoods that bleed into each other.

@@ -1,1 +1,0 @@
-Neighborhood mode controls how @images are arranged on the @torus. It never changes which images are in the @slice.

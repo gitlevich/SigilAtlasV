@@ -4,6 +4,9 @@ status: idea
 
 # Pole
 
-One end of a @contrastControl. Has a name and one or more @concepts.
+Two of these controls define one @contrast. They should be mutually-exclusive, like dark vs bright.
 
-Embedding = normalize(sum of all concept vectors).
+Accepts one or more comma-separated phrases. A minimal phrase is one word.
+
+A @contrastControl is constructed from two @poles.
+

@@ -1,1 +1,0 @@
-Choose which @visionModel provides the @embedding for layout. CLIP groups by semantic content. DINOv2 groups by visual texture.

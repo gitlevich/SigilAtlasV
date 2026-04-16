@@ -1,0 +1,1 @@
+a little x next to the attractor, lets me delete it, after a confirmation
