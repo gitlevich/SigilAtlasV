@@ -183,7 +183,8 @@ def _select_by_knee(
     distances = np.abs(dy * x - dx * y + x1 * y0 - x0 * y1) / length
     knee = int(np.argmax(distances))
 
-    scale = 2.0 - 1.5 * tightness
+    # 0 = strict (knee/2), 1 = permissive (2x knee)
+    scale = 0.5 + 1.5 * tightness
     cutoff = max(5, int(knee * scale))
     cutoff = min(cutoff, n)
 
@@ -212,7 +213,9 @@ def _select_by_sigma(
     if std < 1e-9:
         return 0
 
-    sigma = 1.0 + 2.0 * tightness
+    # Slider: 0 = strict (few results), 1 = permissive (many results)
+    # Sigma: high = strict, low = permissive
+    sigma = 3.0 - 2.0 * tightness
     threshold = mean + sigma * std
 
     count = 0
@@ -266,6 +269,9 @@ def compute_slice(
     candidates = db.fetch_image_ids()
 
     # Step 1: attract selects matching images per term (union)
+    # Raw scores are preserved for ordering — re-scoring the filtered
+    # subset would destroy ranking (min-max on a narrow band = noise).
+    attract_raw_scores: dict[str, float] = {}
     if proximity_filters:
         selected = set()
         for pf in proximity_filters:
@@ -273,6 +279,11 @@ def compute_slice(
             matrix = provider.fetch_matrix(candidates, adapter.model_id)
             raw = matrix @ vec
             count = _select_relevant(raw, candidates, selected, tightness=tightness)
+            # Preserve raw scores for ordering
+            for i, iid in enumerate(candidates):
+                if iid in selected:
+                    prev = attract_raw_scores.get(iid, 0.0)
+                    attract_raw_scores[iid] = prev + float(raw[i]) * pf.weight
             logger.info("Attract '%s' [%s]: %d images", pf.text, adapter.model_id, count)
         candidates = [c for c in candidates if c in selected]
         logger.info("Attract total: %d images", len(candidates))
@@ -303,8 +314,11 @@ def compute_slice(
     for cc in attract_controls:
         composite_scores += _score_contrast(adapter, provider, candidates, cc.pole_a, cc.pole_b)
 
-    for pf in proximity_filters:
-        composite_scores += _score_category(adapter, provider, candidates, pf.text) * pf.weight
+    # Use raw scores from the selection pass — not re-scored against the
+    # filtered subset (min-max normalization on a narrow band = noise).
+    if attract_raw_scores:
+        for i, iid in enumerate(candidates):
+            composite_scores[i] += attract_raw_scores.get(iid, 0.0)
 
     scores_dict = {candidates[i]: float(composite_scores[i]) for i in range(len(candidates))}
 
