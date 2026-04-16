@@ -49,8 +49,8 @@ def test_register_images():
         root = Path(tmp)
         img_dir = root / "images"
         img_dir.mkdir()
-        _create_test_image(img_dir / "a.jpg")
-        _create_test_image(img_dir / "b.jpg")
+        _create_test_image(img_dir / "a.jpg", size=(100, 100))
+        _create_test_image(img_dir / "b.jpg", size=(200, 100))
 
         db = CorpusDB(root / "test.db")
         db.initialize_schema()
@@ -60,7 +60,10 @@ def test_register_images():
         count = source.register_images(db, files)
 
         assert count == 2
-        assert db.image_count() == 2
+        # image_count() returns only completed images; registered but
+        # not-yet-processed images are invisible by design (unit of work).
+        total = db._conn.execute("SELECT COUNT(*) FROM images").fetchone()[0]
+        assert total == 2
         db.close()
 
 

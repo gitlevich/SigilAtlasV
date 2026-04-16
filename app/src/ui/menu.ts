@@ -1,19 +1,19 @@
 /**
- * Native application menu — File > Import... with Cmd+I.
+ * Native application menu — File > Import... (Cmd+I), Tools > Nuke the Corpus...
  *
  * Only active in Tauri. In browser dev mode, the Import section
  * in controls.ts serves as fallback.
  */
 
 import * as api from "../api";
-import { startPolling } from "./status-bar";
+import { startImport } from "../import";
 
 export async function initMenu(): Promise<void> {
   try {
     const { Menu, Submenu, MenuItem, PredefinedMenuItem } = await import(
       "@tauri-apps/api/menu"
     );
-    const { open } = await import("@tauri-apps/plugin-dialog");
+    const { open, confirm } = await import("@tauri-apps/plugin-dialog");
 
     const appSubmenu = await Submenu.new({
       text: "Sigil Atlas",
@@ -37,7 +37,12 @@ export async function initMenu(): Promise<void> {
           id: "import",
           text: "Import...",
           accelerator: "CmdOrCtrl+I",
-          action: () => handleImport(open),
+          action: async () => {
+            const selected = await open({ directory: true, title: "Choose source folder" });
+            if (typeof selected === "string") {
+              startImport(selected).catch((e) => console.error("[import]", e));
+            }
+          },
         }),
       ],
     });
@@ -55,27 +60,30 @@ export async function initMenu(): Promise<void> {
       ],
     });
 
+    const toolsSubmenu = await Submenu.new({
+      text: "Tools",
+      items: [
+        await MenuItem.new({
+          id: "nuke-corpus",
+          text: "Nuke the Corpus...",
+          action: async () => {
+            const yes = await confirm(
+              "This will permanently delete all images, embeddings, and metadata from the corpus. This cannot be undone.",
+              { title: "Nuke the Corpus" },
+            );
+            if (yes) {
+              api.nukeCorpus().catch((e) => console.error("[nuke]", e));
+            }
+          },
+        }),
+      ],
+    });
+
     const menu = await Menu.new({
-      items: [appSubmenu, fileSubmenu, editSubmenu],
+      items: [appSubmenu, fileSubmenu, editSubmenu, toolsSubmenu],
     });
     await menu.setAsAppMenu();
   } catch {
-    // Not in Tauri — no native menu, panel fallback is enough
-  }
-}
-
-type DialogOpen = (opts: { directory: boolean; title: string }) => Promise<string | string[] | null>;
-
-async function handleImport(open: DialogOpen): Promise<void> {
-  const selected = await open({ directory: true, title: "Choose source folder" });
-  if (typeof selected !== "string") return;
-
-  try {
-    const res = await api.startImport(selected);
-    if (res.status === "started") {
-      startPolling();
-    }
-  } catch (e) {
-    console.error("Import failed to start:", e);
+    // Not in Tauri — no native menu
   }
 }

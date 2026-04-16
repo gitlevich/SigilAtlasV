@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS images (
     iso INTEGER,
     thumbnail_path TEXT,
     metadata_extracted_at REAL,
-    thumbnail_generated_at REAL
+    thumbnail_generated_at REAL,
+    completed_at REAL
 );
 
 CREATE TABLE IF NOT EXISTS embeddings (
@@ -136,8 +137,59 @@ class CorpusDB:
             self._conn.commit()
             logger.info("Migrated content_hash index to UNIQUE")
 
+        # Add completed_at column if missing.
+        cols = {r[1] for r in self._conn.execute("PRAGMA table_info(images)").fetchall()}
+        if "completed_at" not in cols:
+            self._conn.execute("ALTER TABLE images ADD COLUMN completed_at REAL")
+            # Backfill: mark images that have all artifacts as complete.
+            self._conn.execute("""
+                UPDATE images SET completed_at = metadata_extracted_at
+                WHERE completed_at IS NULL
+                  AND metadata_extracted_at IS NOT NULL
+                  AND thumbnail_generated_at IS NOT NULL
+                  AND id IN (SELECT image_id FROM embeddings)
+            """)
+            self._conn.commit()
+            count = self._conn.execute(
+                "SELECT COUNT(*) FROM images WHERE completed_at IS NOT NULL"
+            ).fetchone()[0]
+            logger.info("Added completed_at column, backfilled %d images", count)
+
+    def nuke(self) -> None:
+        """Purge all corpus state. Irreversible."""
+        self._conn.executescript("""
+            DELETE FROM characterizations;
+            DELETE FROM kmeans_centroids;
+            DELETE FROM kmeans_clusters;
+            DELETE FROM umap_positions;
+            DELETE FROM embeddings;
+            DELETE FROM images;
+        """)
+        logger.info("Corpus nuked")
+
     def close(self) -> None:
         self._conn.close()
+
+    # ── Batched IN queries ──
+
+    _BATCH_SIZE = 900  # SQLite variable limit is 999; leave headroom
+
+    def _query_in_batches(
+        self, sql_template: str, ids: list[str], extra_params: list | None = None,
+    ) -> list[sqlite3.Row]:
+        """Execute a query with IN(...) clause, batching to stay under SQLite's variable limit.
+
+        sql_template must contain {placeholders} where the IN list goes.
+        extra_params are prepended to each batch's parameter list.
+        """
+        extra = extra_params or []
+        results: list[sqlite3.Row] = []
+        for i in range(0, len(ids), self._BATCH_SIZE):
+            chunk = ids[i : i + self._BATCH_SIZE]
+            placeholders = ",".join("?" * len(chunk))
+            sql = sql_template.format(placeholders=placeholders)
+            results.extend(self._conn.execute(sql, extra + chunk).fetchall())
+        return results
 
     # ── Images ──
 
@@ -198,6 +250,22 @@ class CorpusDB:
         )
         self._conn.commit()
 
+    def mark_completed(self) -> int:
+        """Mark images as complete when all artifacts are in place.
+
+        An image's unit of work is done when it has metadata, thumbnail,
+        and at least one embedding. Returns count of newly completed images.
+        """
+        cursor = self._conn.execute("""
+            UPDATE images SET completed_at = ?
+            WHERE completed_at IS NULL
+              AND metadata_extracted_at IS NOT NULL
+              AND thumbnail_generated_at IS NOT NULL
+              AND id IN (SELECT image_id FROM embeddings)
+        """, (time.time(),))
+        self._conn.commit()
+        return cursor.rowcount
+
     def fetch_content_hashes(self) -> set[str]:
         """Return all known content hashes for dedup."""
         rows = self._conn.execute(
@@ -206,20 +274,25 @@ class CorpusDB:
         return {r[0] for r in rows}
 
     def image_count(self) -> int:
-        row = self._conn.execute("SELECT COUNT(*) FROM images").fetchone()
+        """Count of completed (visible) images."""
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM images WHERE completed_at IS NOT NULL"
+        ).fetchone()
         return row[0]
 
     def fetch_image_ids(self) -> list[str]:
-        rows = self._conn.execute("SELECT id FROM images").fetchall()
+        """Return IDs of completed images only — the visible corpus."""
+        rows = self._conn.execute(
+            "SELECT id FROM images WHERE completed_at IS NOT NULL"
+        ).fetchall()
         return [r[0] for r in rows]
 
     def fetch_capture_dates(self, image_ids: list[str]) -> dict[str, float]:
         """Return {image_id: capture_date} for images that have dates."""
-        placeholders = ",".join("?" * len(image_ids))
-        rows = self._conn.execute(
-            f"SELECT id, capture_date FROM images WHERE id IN ({placeholders}) AND capture_date IS NOT NULL",
+        rows = self._query_in_batches(
+            "SELECT id, capture_date FROM images WHERE id IN ({placeholders}) AND capture_date IS NOT NULL",
             image_ids,
-        ).fetchall()
+        )
         return {r[0]: r[1] for r in rows}
 
     def fetch_images_without_thumbnails(self) -> list[tuple[str, str]]:
@@ -375,12 +448,11 @@ class CorpusDB:
         self, model: str, image_ids: list[str]
     ) -> dict[str, tuple[float, float]]:
         """Return {image_id: (x, y)} for the given IDs."""
-        placeholders = ",".join("?" * len(image_ids))
-        rows = self._conn.execute(
-            f"SELECT image_id, x, y FROM umap_positions "
-            f"WHERE model_identifier = ? AND image_id IN ({placeholders})",
-            [model] + image_ids,
-        ).fetchall()
+        rows = self._query_in_batches(
+            "SELECT image_id, x, y FROM umap_positions "
+            "WHERE model_identifier = ? AND image_id IN ({placeholders})",
+            image_ids, extra_params=[model],
+        )
         return {r[0]: (r[1], r[2]) for r in rows}
 
     # ── KMeans clusters ──
@@ -421,12 +493,11 @@ class CorpusDB:
     ) -> dict[str, int]:
         if not image_ids:
             return {}
-        placeholders = ",".join("?" * len(image_ids))
-        rows = self._conn.execute(
-            f"""SELECT image_id, cluster_id FROM kmeans_clusters
-                WHERE model_identifier = ? AND k = ? AND image_id IN ({placeholders})""",
-            [model, k, *image_ids],
-        ).fetchall()
+        rows = self._query_in_batches(
+            "SELECT image_id, cluster_id FROM kmeans_clusters "
+            "WHERE model_identifier = ? AND k = ? AND image_id IN ({placeholders})",
+            image_ids, extra_params=[model, k],
+        )
         return {r[0]: r[1] for r in rows}
 
     def fetch_kmeans_centroids(self, model: str, k: int) -> dict[int, bytes]:

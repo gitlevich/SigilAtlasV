@@ -8,7 +8,6 @@ import exifread
 
 from sigil_atlas.cancel import CancellationToken
 from sigil_atlas.db import CorpusDB
-from sigil_atlas.ingest.source import content_hash
 from sigil_atlas.progress import StageProgress
 
 logger = logging.getLogger(__name__)
@@ -79,8 +78,7 @@ def _extract_one(db: CorpusDB, image_id: str, path: Path) -> None:
 
         updates: dict = {"metadata_extracted_at": time.time()}
 
-        # Content hash
-        updates["content_hash"] = content_hash(path)
+        # content_hash is computed during registration, not here
 
         # Dimensions from EXIF (fallback to Pillow if needed)
         width_tag = tags.get("EXIF ExifImageWidth") or tags.get("Image ImageWidth")

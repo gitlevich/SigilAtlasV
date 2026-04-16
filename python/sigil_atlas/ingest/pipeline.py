@@ -16,7 +16,7 @@ from pathlib import Path
 from sigil_atlas.cancel import CancellationToken
 from sigil_atlas.db import CorpusDB
 from sigil_atlas.ingest.cluster import KMEANS_K_LEVELS, run_clustering_stage
-from sigil_atlas.ingest.embed import CLIPEmbedder, DINOv2Embedder, run_embedding_stage
+from sigil_atlas.ingest.embed import CLIPEmbedder, CLIPLargeEmbedder, DINOv2Embedder, run_embedding_stage
 from sigil_atlas.ingest.metadata import extract_metadata_batch
 from sigil_atlas.ingest.source import FolderSource
 from sigil_atlas.ingest.thumbnail import generate_thumbnails_batch
@@ -122,6 +122,8 @@ class IngestPipeline:
 
             self._run_embedding_stages(db)
 
+            self._mark_completed(db)
+
             if self.token.is_cancelled:
                 return
 
@@ -139,7 +141,14 @@ class IngestPipeline:
             self.reporter.emit_event("pipeline_error")
             raise
         finally:
+            self._mark_completed(db)
             db.close()
+
+    def _mark_completed(self, db: CorpusDB) -> None:
+        """Mark images whose unit of work is done as visible."""
+        completed = db.mark_completed()
+        if completed:
+            logger.info("Marked %d images as complete", completed)
 
     def _run_scan_and_register(self, db: CorpusDB) -> None:
         """Scan source folder and register new images."""
@@ -147,9 +156,15 @@ class IngestPipeline:
 
         files = self.source.scan()
         scan_progress.set_total(len(files))
-
-        registered = self.source.register_images(db, files)
         scan_progress.advance(len(files))
+
+        if self.token.is_cancelled:
+            return
+
+        register_progress = self.reporter.create_stage("register", len(files))
+        registered = self.source.register_images(
+            db, files, progress=register_progress, token=self.token,
+        )
 
         logger.info(
             "Scan complete: %d files found, %d newly registered, %d total in corpus",
@@ -185,11 +200,11 @@ class IngestPipeline:
                 f.result()
 
     def _run_clustering_stage(self, db: CorpusDB) -> None:
-        """Precompute KMeans at multiple k levels for both models."""
+        """Precompute KMeans at multiple k levels for all models."""
         from sigil_atlas.embedding_provider import SqliteEmbeddingProvider
 
         provider = SqliteEmbeddingProvider(db)
-        for model_id in [CLIPEmbedder.MODEL_ID, DINOv2Embedder.MODEL_ID]:
+        for model_id in [CLIPEmbedder.MODEL_ID, CLIPLargeEmbedder.MODEL_ID, DINOv2Embedder.MODEL_ID]:
             if self.token.is_cancelled:
                 return
             cluster_progress = self.reporter.create_stage(
@@ -198,39 +213,30 @@ class IngestPipeline:
             run_clustering_stage(db, provider, model_id, KMEANS_K_LEVELS, cluster_progress, self.token)
 
     def _run_embedding_stages(self, db: CorpusDB) -> None:
-        """Run CLIP and DINOv2 embedding in parallel."""
-        clip_embedder = CLIPEmbedder()
-        dino_embedder = DINOv2Embedder()
+        """Run all embedding models. Each model runs as a separate stage."""
+        embedders = [CLIPEmbedder(), CLIPLargeEmbedder(), DINOv2Embedder()]
 
-        # Count unembedded for progress
-        clip_unembedded = len(db.fetch_unembedded_image_ids(CLIPEmbedder.MODEL_ID))
-        dino_unembedded = len(db.fetch_unembedded_image_ids(DINOv2Embedder.MODEL_ID))
+        stage_info: list[tuple] = []
+        for embedder in embedders:
+            unembedded = len(db.fetch_unembedded_image_ids(embedder.MODEL_ID))
+            progress = self.reporter.create_stage(embedder.MODEL_ID, unembedded)
+            stage_info.append((embedder, unembedded, progress))
 
-        clip_progress = self.reporter.create_stage("clip", clip_unembedded)
-        dino_progress = self.reporter.create_stage("dinov2", dino_unembedded)
-
-        if clip_unembedded == 0 and dino_unembedded == 0:
-            logger.info("All images already embedded with both models")
+        if all(count == 0 for _, count, _ in stage_info):
+            logger.info("All images already embedded with all models")
             return
 
-        # Run both models concurrently.
-        # Each loads its own model, processes independently.
+        # Run models concurrently — each loads its own weights independently.
         with ThreadPoolExecutor(max_workers=2, thread_name_prefix="embed") as pool:
             futures: list[Future] = []
 
-            if clip_unembedded > 0:
-                futures.append(pool.submit(
-                    run_embedding_stage,
-                    db, self.workspace.thumbnails_dir,
-                    clip_embedder, clip_progress, self.token,
-                ))
-
-            if dino_unembedded > 0:
-                futures.append(pool.submit(
-                    run_embedding_stage,
-                    db, self.workspace.thumbnails_dir,
-                    dino_embedder, dino_progress, self.token,
-                ))
+            for embedder, count, progress in stage_info:
+                if count > 0:
+                    futures.append(pool.submit(
+                        run_embedding_stage,
+                        db, self.workspace.thumbnails_dir,
+                        embedder, progress, self.token,
+                    ))
 
             for f in futures:
                 f.result()

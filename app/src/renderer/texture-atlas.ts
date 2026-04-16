@@ -5,13 +5,17 @@
  * Each image is stored at its natural aspect ratio — no stretching,
  * no fixed grid, no black padding.
  *
+ * Concurrency-limited: at most MAX_CONCURRENT fetches in flight.
+ * Excess requests queue and drain as in-flight ones complete.
+ *
  * Invariants enforced:
  * - !gapless: every pixel of every quad is covered by image content
  * - !undistorted: images maintain their original aspect ratio
  */
 
 const ATLAS_SIZE = 4096;
-const MAX_THUMB_H = 96; // Max height for thumbnails in atlas
+const MAX_THUMB_H = 96;
+const MAX_CONCURRENT = 12;
 
 export interface UVRect {
   u0: number;
@@ -20,7 +24,6 @@ export interface UVRect {
   v1: number;
 }
 
-/** A horizontal shelf in the atlas that holds images of similar height. */
 interface Shelf {
   y: number;
   height: number;
@@ -39,6 +42,10 @@ export class TextureAtlas {
   private uvMap: Map<string, { page: number; uv: UVRect }> = new Map();
   private loadingSet: Set<string> = new Set();
 
+  // Concurrency control
+  private inFlight = 0;
+  private queue: Array<{ id: string; url: string }> = [];
+
   placeholderUV: UVRect = { u0: 0, v0: 0, u1: 0, v1: 0 };
   placeholderPage = 0;
 
@@ -52,15 +59,11 @@ export class TextureAtlas {
     const gl = this.gl;
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    // Initialize with a dark gray (not black) to make leaks visible during debug
-    const pixels = new Uint8Array(ATLAS_SIZE * ATLAS_SIZE * 4);
-    for (let i = 0; i < pixels.length; i += 4) {
-      pixels[i] = 40; pixels[i + 1] = 40; pixels[i + 2] = 48; pixels[i + 3] = 255;
-    }
+    // Allocate without filling — dark gray placeholder is the 1x1 init pixel
     gl.texImage2D(
       gl.TEXTURE_2D, 0, gl.RGBA,
       ATLAS_SIZE, ATLAS_SIZE, 0,
-      gl.RGBA, gl.UNSIGNED_BYTE, pixels,
+      gl.RGBA, gl.UNSIGNED_BYTE, null,
     );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -80,16 +83,11 @@ export class TextureAtlas {
     this.placeholderUV = { u0: 0, v0: 0, u1: 1 / ATLAS_SIZE, v1: 1 / ATLAS_SIZE };
   }
 
-  /**
-   * Shelf-based bin packing: find a shelf that fits this image,
-   * or create a new shelf. Returns atlas coordinates for the image.
-   */
   private _allocate(w: number, h: number): { page: number; x: number; y: number } | null {
     for (let p = 0; p < this.pages.length; p++) {
       const result = this._allocateOnPage(p, w, h);
       if (result) return { page: p, ...result };
     }
-    // All pages full — create a new one
     const newPage = this._createPage();
     const p = this.pages.length - 1;
     return { page: p, ...this._allocateOnPage(p, w, h)! };
@@ -97,8 +95,6 @@ export class TextureAtlas {
 
   private _allocateOnPage(pageIdx: number, w: number, h: number): { x: number; y: number } | null {
     const page = this.pages[pageIdx];
-
-    // Try to fit on an existing shelf
     for (const shelf of page.shelves) {
       if (h <= shelf.height && shelf.cursorX + w <= ATLAS_SIZE) {
         const x = shelf.cursorX;
@@ -106,8 +102,6 @@ export class TextureAtlas {
         return { x, y: shelf.y };
       }
     }
-
-    // Create a new shelf if there's vertical room
     if (page.nextShelfY + h <= ATLAS_SIZE) {
       const shelf: Shelf = { y: page.nextShelfY, height: h, cursorX: w };
       page.shelves.push(shelf);
@@ -115,7 +109,6 @@ export class TextureAtlas {
       page.nextShelfY += h;
       return result;
     }
-
     return null;
   }
 
@@ -124,63 +117,85 @@ export class TextureAtlas {
   }
 
   isLoaded(imageId: string): boolean {
-    return this.uvMap.has(imageId);
+    return this.uvMap.has(imageId) || this.loadingSet.has(imageId);
   }
 
   loadThumbnail(imageId: string, url: string): void {
     if (this.uvMap.has(imageId) || this.loadingSet.has(imageId)) return;
     this.loadingSet.add(imageId);
 
+    if (this.inFlight < MAX_CONCURRENT) {
+      this._startFetch(imageId, url);
+    } else {
+      this.queue.push({ id: imageId, url });
+    }
+  }
+
+  private _startFetch(imageId: string, url: string): void {
+    this.inFlight++;
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
-      this.loadingSet.delete(imageId);
-
-      // Scale to fit MAX_THUMB_H, preserving aspect ratio
-      const aspect = img.naturalWidth / img.naturalHeight;
-      const drawH = Math.min(img.naturalHeight, MAX_THUMB_H);
-      const drawW = Math.round(drawH * aspect);
-
-      const slot = this._allocate(drawW, drawH);
-      if (!slot) return;
-
-      // Draw at natural aspect ratio into a temporary canvas
-      const canvas = document.createElement("canvas");
-      canvas.width = drawW;
-      canvas.height = drawH;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, drawW, drawH);
-
-      const gl = this.gl;
-      gl.bindTexture(gl.TEXTURE_2D, this.pages[slot.page].texture);
-      gl.texSubImage2D(
-        gl.TEXTURE_2D, 0,
-        slot.x, slot.y,
-        gl.RGBA, gl.UNSIGNED_BYTE,
-        canvas,
-      );
-
-      // UV covers exactly the image pixels — no padding, no stretch
-      const uv: UVRect = {
-        u0: slot.x / ATLAS_SIZE,
-        v0: (slot.y + drawH) / ATLAS_SIZE,
-        u1: (slot.x + drawW) / ATLAS_SIZE,
-        v1: slot.y / ATLAS_SIZE,
-      };
-      this.uvMap.set(imageId, { page: slot.page, uv });
+      this._onLoaded(imageId, img);
+      this._drainQueue();
     };
     img.onerror = () => {
       this.loadingSet.delete(imageId);
+      this.inFlight--;
+      this._drainQueue();
     };
     img.src = url;
   }
 
-  pageCount(): number {
-    return this.pages.length;
+  private _onLoaded(imageId: string, img: HTMLImageElement): void {
+    this.loadingSet.delete(imageId);
+    this.inFlight--;
+
+    const aspect = img.naturalWidth / img.naturalHeight;
+    const drawH = Math.min(img.naturalHeight, MAX_THUMB_H);
+    const drawW = Math.round(drawH * aspect);
+
+    const slot = this._allocate(drawW, drawH);
+    if (!slot) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = drawW;
+    canvas.height = drawH;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0, drawW, drawH);
+
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.pages[slot.page].texture);
+    gl.texSubImage2D(
+      gl.TEXTURE_2D, 0,
+      slot.x, slot.y,
+      gl.RGBA, gl.UNSIGNED_BYTE,
+      canvas,
+    );
+
+    const uv: UVRect = {
+      u0: slot.x / ATLAS_SIZE,
+      v0: (slot.y + drawH) / ATLAS_SIZE,
+      u1: (slot.x + drawW) / ATLAS_SIZE,
+      v1: slot.y / ATLAS_SIZE,
+    };
+    this.uvMap.set(imageId, { page: slot.page, uv });
   }
 
-  getPage(imageId: string): number {
-    return this.uvMap.get(imageId)?.page ?? 0;
+  private _drainQueue(): void {
+    while (this.inFlight < MAX_CONCURRENT && this.queue.length > 0) {
+      const next = this.queue.shift()!;
+      // Skip if already loaded while queued
+      if (this.uvMap.has(next.id)) {
+        this.loadingSet.delete(next.id);
+        continue;
+      }
+      this._startFetch(next.id, next.url);
+    }
+  }
+
+  pageCount(): number {
+    return this.pages.length;
   }
 
   bindPage(page: number, textureUnit: number): void {

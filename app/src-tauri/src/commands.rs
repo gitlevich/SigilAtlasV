@@ -50,6 +50,7 @@ pub async fn start_sidecar(
     let (child, port) = crate::sidecar::spawn_sidecar(&ws, &py).await?;
     *state.port.lock().await = Some(port);
     *state.process.lock().await = Some(child);
+    *state.workspace.lock().await = Some(ws);
     Ok(port)
 }
 

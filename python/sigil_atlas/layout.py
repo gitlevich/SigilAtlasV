@@ -53,11 +53,10 @@ class StripLayout:
 # ---------------------------------------------------------------------------
 
 def _fetch_image_dimensions(db: CorpusDB, image_ids: list[str]) -> dict[str, tuple[int, int, str | None]]:
-    placeholders = ",".join("?" * len(image_ids))
-    rows = db._conn.execute(
-        f"SELECT id, pixel_width, pixel_height, thumbnail_path FROM images WHERE id IN ({placeholders})",
+    rows = db._query_in_batches(
+        "SELECT id, pixel_width, pixel_height, thumbnail_path FROM images WHERE id IN ({placeholders})",
         image_ids,
-    ).fetchall()
+    )
     return {r[0]: (r[1] or 512, r[2] or 512, r[3]) for r in rows}
 
 
@@ -71,20 +70,20 @@ def _build_embedding_matrix(
 
     extra = []
     if "time" in axes:
-        rows = db._conn.execute(
-            f"SELECT id, capture_date FROM images WHERE id IN ({','.join('?' * len(image_ids))})",
+        rows = db._query_in_batches(
+            "SELECT id, capture_date FROM images WHERE id IN ({placeholders})",
             image_ids,
-        ).fetchall()
+        )
         col = np.array([dict(rows).get(iid, 0.0) or 0.0 for iid in image_ids], dtype=np.float32)
         if col.std() > 0:
             col = (col - col.mean()) / col.std()
         extra.append(col.reshape(-1, 1))
 
     if "location" in axes:
-        rows = db._conn.execute(
-            f"SELECT id, gps_latitude, gps_longitude FROM images WHERE id IN ({','.join('?' * len(image_ids))})",
+        rows = db._query_in_batches(
+            "SELECT id, gps_latitude, gps_longitude FROM images WHERE id IN ({placeholders})",
             image_ids,
-        ).fetchall()
+        )
         lat = np.array([dict([(r[0], r[1] or 0.0) for r in rows]).get(iid, 0.0) for iid in image_ids], dtype=np.float32)
         lon = np.array([dict([(r[0], r[2] or 0.0) for r in rows]).get(iid, 0.0) for iid in image_ids], dtype=np.float32)
         for c in [lat, lon]:

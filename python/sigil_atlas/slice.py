@@ -10,6 +10,11 @@ RelevanceFilter composition (from spec):
   4. Score remaining images against attract-role ContrastControls
   5. Slice = filtered images, ranked by composite score
   6. Order-role ContrastControl determines strip layout ordering
+
+Text operations use the adapter for the active model. Models with
+a text encoder use it directly. Models without one (DINOv2) bridge
+through a CLIP model to find seed images, then search in their own
+embedding space.
 """
 
 import logging
@@ -19,6 +24,7 @@ import numpy as np
 
 from sigil_atlas.db import CorpusDB
 from sigil_atlas.embedding_provider import EmbeddingProvider
+from sigil_atlas.model_registry import ModelAdapter, get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +56,10 @@ class ContrastControl:
       attract — images scored by proximity to direction, soft ranking
       order — determines strip ordering (one at a time)
     """
-    pole_a: str  # text concept for pole A
-    pole_b: str  # text concept for pole B
-    role: str = "filter"  # "filter", "attract", or "order"
-    band_min: float = -1.0  # bandpass range (normalized projection)
+    pole_a: str
+    pole_b: str
+    role: str = "filter"
+    band_min: float = -1.0
     band_max: float = 1.0
 
 
@@ -61,61 +67,32 @@ class ContrastControl:
 class SliceResult:
     """The output of compute_slice."""
     image_ids: list[str]
-    scores: dict[str, float]  # image_id -> composite attract score
-    order_projections: dict[str, float] | None  # image_id -> order axis value
-    capture_dates: dict[str, float]  # image_id -> unix timestamp
+    scores: dict[str, float]
+    order_projections: dict[str, float] | None
+    capture_dates: dict[str, float]
 
 
-def _encode_cached(provider: EmbeddingProvider, text: str, model: str) -> np.ndarray:
-    """Encode text directly — no taxonomy substitution."""
-    from sigil_atlas.things import _encode_prompt
-    return _encode_prompt(text)
-
-
-def _compute_contrast_direction(
-    provider: EmbeddingProvider,
-    pole_a: str,
-    pole_b: str,
-    model: str,
-) -> np.ndarray:
-    """Compute contrast direction = normalize(pole_a - pole_b)."""
-    vec_a = _encode_cached(provider, pole_a, model)
-    vec_b = _encode_cached(provider, pole_b, model)
-    direction = vec_a - vec_b
-    norm = np.linalg.norm(direction)
-    if norm < 1e-8:
-        return direction
-    return direction / norm
-
-
-def _project_images(
+def _resolve_text(
+    adapter: ModelAdapter,
+    text: str,
     provider: EmbeddingProvider,
     image_ids: list[str],
-    direction: np.ndarray,
-    model: str,
 ) -> np.ndarray:
-    """Project images onto a contrast direction. Returns (N,) array of raw projections."""
-    if not image_ids:
-        return np.array([], dtype=np.float32)
-    matrix = provider.fetch_matrix(image_ids, model)
-    return matrix @ direction
+    """Resolve a text query into the adapter's embedding space."""
+    return adapter.resolve_text_vector(text, provider, image_ids)
 
 
 def _score_category(
+    adapter: ModelAdapter,
     provider: EmbeddingProvider,
     image_ids: list[str],
     text: str,
-    model: str,
 ) -> np.ndarray:
-    """Score images against a text concept with min-max normalization to [0, 1].
-
-    Stretches the narrow CLIP cosine similarity range to fill [0, 1],
-    making scores meaningful for ranking and thresholding.
-    """
+    """Score images against a text concept. Normalized to [0, 1]."""
     if not image_ids:
         return np.array([], dtype=np.float32)
-    vec = _encode_cached(provider, text, model)
-    matrix = provider.fetch_matrix(image_ids, model)
+    vec = _resolve_text(adapter, text, provider, image_ids)
+    matrix = provider.fetch_matrix(image_ids, adapter.model_id)
     raw = matrix @ vec
     lo, hi = float(raw.min()), float(raw.max())
     if hi - lo < 1e-9:
@@ -124,22 +101,18 @@ def _score_category(
 
 
 def _score_contrast(
+    adapter: ModelAdapter,
     provider: EmbeddingProvider,
     image_ids: list[str],
     pole_a: str,
     pole_b: str,
-    model: str,
 ) -> np.ndarray:
-    """Score images along a contrast axis with min-max normalization to [-1, 1].
-
-    Computes difference in cosine similarity to each pole, then stretches
-    the narrow CLIP range to fill [-1, 1].
-    """
+    """Score images along a contrast axis. Normalized to [-1, 1]."""
     if not image_ids:
         return np.array([], dtype=np.float32)
-    vec_a = _encode_cached(provider, pole_a, model)
-    vec_b = _encode_cached(provider, pole_b, model)
-    matrix = provider.fetch_matrix(image_ids, model)
+    vec_a = _resolve_text(adapter, pole_a, provider, image_ids)
+    vec_b = _resolve_text(adapter, pole_b, provider, image_ids)
+    matrix = provider.fetch_matrix(image_ids, adapter.model_id)
     raw = matrix @ vec_a - matrix @ vec_b
     lo, hi = float(raw.min()), float(raw.max())
     if hi - lo < 1e-9:
@@ -154,16 +127,7 @@ def _select_above_knee(
     tightness: float = 0.5,
     max_candidates: int = 200,
 ) -> int:
-    """Select images above the knee of the descending score curve.
-
-    The knee is where signal transitions to noise. Tightness controls
-    the roll-off around the knee:
-      0.0 (loose) = take 2x the knee count
-      0.5 (default) = take exactly at the knee
-      1.0 (tight) = take half the knee count
-
-    Returns the number of images added to `selected`.
-    """
+    """Select images above the knee of the descending score curve."""
     n = min(max_candidates, len(scores))
     if n < 3:
         for i in range(n):
@@ -173,7 +137,6 @@ def _select_above_knee(
     order = np.argsort(-scores)
     sorted_scores = scores[order[:n]]
 
-    # Chord from (0, best_score) to (n-1, score_at_n)
     x = np.arange(n, dtype=float)
     y = sorted_scores
     x0, y0 = 0.0, float(y[0])
@@ -186,8 +149,7 @@ def _select_above_knee(
     distances = np.abs(dy * x - dx * y + x1 * y0 - x0 * y1) / length
     knee = int(np.argmax(distances))
 
-    # Roll-off: tightness 0=2x knee, 0.5=knee, 1.0=knee/2
-    scale = 2.0 - 1.5 * tightness  # 2.0 at tight=0, 0.5 at tight=1
+    scale = 2.0 - 1.5 * tightness
     cutoff = max(5, int(knee * scale))
     cutoff = min(cutoff, n)
 
@@ -217,9 +179,6 @@ def filter_by_range(db: CorpusDB, filters: list[RangeFilter]) -> set[str]:
     return result or set()
 
 
-CLIP_MODEL = "clip-vit-l-14"
-
-
 def compute_slice(
     db: CorpusDB,
     provider: EmbeddingProvider,
@@ -231,65 +190,59 @@ def compute_slice(
 ) -> SliceResult:
     """Compute the slice per the spec's RelevanceFilter composition.
 
-    Text-based operations (attract, contrast, proximity) always use CLIP
-    embeddings — only CLIP has a text encoder. The model parameter affects
-    layout (UMAP) only.
-
-    1. Start with all corpus images
-    2. Apply metadata range filters (AND)
-    3. Apply all filter-role ContrastControls as bandpass (AND)
-    4. Score remaining images against attract-role contrasts + proximity filters
-    5. Slice = filtered images, ranked by composite score
-    6. Order-role contrast determines strip ordering
+    The model parameter selects which adapter handles all operations —
+    text encoding, image scoring, and layout. Models without a text
+    encoder bridge through their declared bridge model.
     """
+    adapter = get_adapter(model)
+
     range_filters = range_filters or []
     proximity_filters = proximity_filters or []
     contrast_controls = contrast_controls or []
 
     candidates = db.fetch_image_ids()
 
-    # Step 1: attract selects matching images per term (union) from full corpus
+    # Step 1: attract selects matching images per term (union)
     if proximity_filters:
         selected = set()
         for pf in proximity_filters:
-            vec = _encode_cached(provider, pf.text, CLIP_MODEL)
-            matrix = provider.fetch_matrix(candidates, CLIP_MODEL)
+            vec = _resolve_text(adapter, pf.text, provider, candidates)
+            matrix = provider.fetch_matrix(candidates, adapter.model_id)
             raw = matrix @ vec
             count = _select_above_knee(raw, candidates, selected, tightness=tightness)
-            logger.info("Attract '%s': %d images", pf.text, count)
+            logger.info("Attract '%s' [%s]: %d images", pf.text, adapter.model_id, count)
         candidates = [c for c in candidates if c in selected]
         logger.info("Attract total: %d images", len(candidates))
 
     if not candidates:
         return SliceResult([], {}, None, {})
 
-    # Step 2: contrast bandpass constrains within attract selection
+    # Step 2: contrast bandpass (AND)
     filter_controls = [c for c in contrast_controls if c.role == "filter"]
     for cc in filter_controls:
         if not candidates:
             break
-        normalized = _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, CLIP_MODEL)
+        normalized = _score_contrast(adapter, provider, candidates, cc.pole_a, cc.pole_b)
         mask = (normalized >= cc.band_min) & (normalized <= cc.band_max)
         candidates = [candidates[i] for i in range(len(candidates)) if mask[i]]
-        logger.info("Bandpass %s vs %s: %d remain", cc.pole_a, cc.pole_b, len(candidates))
+        logger.info("Bandpass [%s]: %d remain", adapter.model_id, len(candidates))
 
-    # Step 3: range filters (color/tone) constrain further
+    # Step 3: range filters (color/tone)
     if range_filters:
         range_pass = filter_by_range(db, range_filters)
         candidates = [c for c in candidates if c in range_pass]
         logger.info("Range filters: %d remain", len(candidates))
 
-    # Score remaining images — composite of all attract signals
+    # Score: composite of all attract signals
     attract_controls = [c for c in contrast_controls if c.role == "attract"]
     composite_scores = np.zeros(len(candidates), dtype=np.float32)
 
     for cc in attract_controls:
-        composite_scores += _score_contrast(provider, candidates, cc.pole_a, cc.pole_b, CLIP_MODEL)
+        composite_scores += _score_contrast(adapter, provider, candidates, cc.pole_a, cc.pole_b)
 
     for pf in proximity_filters:
-        composite_scores += _score_category(provider, candidates, pf.text, CLIP_MODEL) * pf.weight
+        composite_scores += _score_category(adapter, provider, candidates, pf.text) * pf.weight
 
-    # Sort by composite score (descending)
     scores_dict = {candidates[i]: float(composite_scores[i]) for i in range(len(candidates))}
 
     if attract_controls or proximity_filters:
@@ -298,17 +251,16 @@ def compute_slice(
     else:
         sorted_ids = candidates
 
-    # Step 6: order-role contrast (for strip ordering), normalized to [-1, 1]
+    # Order axis
     order_controls = [c for c in contrast_controls if c.role == "order"]
     order_projections = None
     if order_controls:
-        oc = order_controls[0]  # single order axis invariant
-        projs = _score_contrast(provider, sorted_ids, oc.pole_a, oc.pole_b, CLIP_MODEL)
+        oc = order_controls[0]
+        projs = _score_contrast(adapter, provider, sorted_ids, oc.pole_a, oc.pole_b)
         order_projections = {sorted_ids[i]: float(projs[i]) for i in range(len(sorted_ids))}
 
-    # Fetch capture dates for default time ordering
     capture_dates = db.fetch_capture_dates(sorted_ids)
 
-    logger.info("Slice: %d images", len(sorted_ids))
+    logger.info("Slice [%s]: %d images", adapter.model_id, len(sorted_ids))
 
     return SliceResult(sorted_ids, scores_dict, order_projections, capture_dates)

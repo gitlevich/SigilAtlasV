@@ -5,7 +5,7 @@
  * Uses a simple listener pattern for reactivity.
  */
 
-import type { StripLayout, PointOfView, RangeFilter, ProximityFilter, ContrastControl } from "./types";
+import type { StripLayout, PointOfView, RangeFilter, ProximityFilter, ContrastControl, ImportProgress } from "./types";
 
 export interface AppState {
   // Slice controls
@@ -36,6 +36,12 @@ export interface AppState {
   torusWidth: number;
   torusHeight: number;
   stripHeight: number;
+
+  // Import
+  importProgress: ImportProgress | null;
+
+  // Last error (shown in status bar, cleared on next successful recompute)
+  lastError: string | null;
 }
 
 type Listener = (state: AppState) => void;
@@ -58,6 +64,8 @@ export const state: AppState = {
   torusWidth: 0,
   torusHeight: 0,
   stripHeight: 100,
+  importProgress: null,
+  lastError: null,
 };
 
 export function subscribe(fn: Listener): () => void {

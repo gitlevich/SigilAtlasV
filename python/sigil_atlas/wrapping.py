@@ -7,22 +7,28 @@ Pick the best match. Descend. The path is the characterization.
 Two paths per image:
   semantic/person/portrait/child_portrait
   visual/light/bright/sunlit
+
+Uses CLIP B-32 adapter for zero-shot classification — declared
+via model_registry, not hardcoded.
 """
 
 import logging
 from dataclasses import dataclass, field
 
 import numpy as np
-import open_clip
-import torch
 
 from sigil_atlas.cancel import CancellationToken
 from sigil_atlas.db import CorpusDB
+from sigil_atlas.model_registry import get_adapter
 from sigil_atlas.ontology import OntologyNode, all_prompts
 from sigil_atlas.progress import StageProgress
 from sigil_atlas.taxonomy import get_taxonomy
 
 logger = logging.getLogger(__name__)
+
+# Wrapping uses B-32 for taxonomy classification.
+# Declared here so it's visible and auditable — not buried in code.
+WRAPPING_MODEL = "clip-vit-b-32"
 
 
 @dataclass
@@ -41,33 +47,29 @@ class ImageCharacterization:
 
 
 class TaxonomyIndex:
-    """Pre-embedded taxonomy prompts for CLIP zero-shot classification."""
+    """Pre-embedded taxonomy prompts for zero-shot classification.
 
-    def __init__(self, model, tokenizer, device: torch.device) -> None:
-        self.device = device
+    Uses the wrapping adapter's text encoder to embed all taxonomy
+    prompts at construction time.
+    """
+
+    def __init__(self) -> None:
         self._embeddings: dict[str, np.ndarray] = {}
+        adapter = get_adapter(WRAPPING_MODEL)
 
         taxonomy = get_taxonomy()
         all_prompt_pairs = []
         for root in taxonomy.values():
             all_prompt_pairs.extend(all_prompts(root))
 
-        self._build(model, tokenizer, all_prompt_pairs)
+        for name, prompt in all_prompt_pairs:
+            vec = adapter.encode_text(prompt)
+            self._embeddings[name] = vec
 
-    @torch.no_grad()
-    def _build(self, model, tokenizer, prompts_list: list[tuple[str, str]]) -> None:
-        prompts = [prompt for _, prompt in prompts_list]
-        names = [name for name, _ in prompts_list]
-        tokens = tokenizer(prompts).to(self.device)
-        text_features = model.encode_text(tokens)
-        text_features = text_features.cpu().numpy().astype(np.float32)
-        norms = np.linalg.norm(text_features, axis=1, keepdims=True)
-        normalized = text_features / np.maximum(norms, 1e-8)
-
-        for i, name in enumerate(names):
-            self._embeddings[name] = normalized[i]
-
-        logger.info("Taxonomy index built: %d prompts embedded", len(prompts))
+        logger.info(
+            "Taxonomy index built: %d prompts embedded via %s",
+            len(all_prompt_pairs), adapter.model_id,
+        )
 
     def similarity(self, image_embedding: np.ndarray, node_name: str) -> float:
         emb = self._embeddings.get(node_name)
@@ -110,7 +112,11 @@ def run_wrapping_stage(
     token: CancellationToken,
     batch_size: int = 64,
 ) -> None:
-    """Characterize all uncharacterized images along both taxonomy sigils."""
+    """Characterize all uncharacterized images along both taxonomy sigils.
+
+    Uses CLIP B-32 for taxonomy classification. Image embeddings are
+    fetched for the wrapping model from the database.
+    """
     uncharacterized = db.fetch_uncharacterized_image_ids()
     progress.set_total(len(uncharacterized))
 
@@ -118,54 +124,36 @@ def run_wrapping_stage(
         logger.info("All images already characterized")
         return
 
-    logger.info("Characterizing %d images along semantic + visual taxonomy", len(uncharacterized))
+    logger.info("Characterizing %d images via %s", len(uncharacterized), WRAPPING_MODEL)
 
-    device = _select_device()
-    model, _, _ = open_clip.create_model_and_transforms("ViT-B-32", pretrained="openai")
-    model = model.to(device).eval()
-    tokenizer = open_clip.get_tokenizer("ViT-B-32")
+    index = TaxonomyIndex()
+    taxonomy = get_taxonomy()
 
-    try:
-        index = TaxonomyIndex(model, tokenizer, device)
-        taxonomy = get_taxonomy()
+    for i in range(0, len(uncharacterized), batch_size):
+        if token.is_cancelled:
+            logger.info("Wrapping cancelled")
+            return
 
-        for i in range(0, len(uncharacterized), batch_size):
-            if token.is_cancelled:
-                logger.info("Wrapping cancelled")
-                return
+        batch_ids = uncharacterized[i : i + batch_size]
+        db_rows = []
 
-            batch_ids = uncharacterized[i : i + batch_size]
-            db_rows = []
+        for image_id in batch_ids:
+            embedding = db.fetch_embedding(image_id, WRAPPING_MODEL)
+            if embedding is None:
+                logger.warning("No %s embedding for %s, skipping", WRAPPING_MODEL, image_id)
+                continue
 
-            for image_id in batch_ids:
-                embedding = db.fetch_embedding(image_id, "clip-vit-l-14")
-                if embedding is None:
-                    logger.warning("No CLIP embedding for %s, skipping", image_id)
-                    continue
+            image_vec = np.array(embedding, dtype=np.float32)
 
-                image_vec = np.array(embedding, dtype=np.float32)
+            for sigil_name, root in taxonomy.items():
+                path = characterize_image(image_vec, index, root)
+                for depth, node_name in enumerate(path):
+                    prefix = sigil_name + "/" + "/".join(path[: depth + 1])
+                    db_rows.append((image_id, prefix, "enum", node_name, None))
 
-                for sigil_name, root in taxonomy.items():
-                    path = characterize_image(image_vec, index, root)
-                    for depth, node_name in enumerate(path):
-                        prefix = sigil_name + "/" + "/".join(path[: depth + 1])
-                        db_rows.append((image_id, prefix, "enum", node_name, None))
+        if db_rows:
+            db.insert_characterizations_batch(db_rows)
 
-            if db_rows:
-                db.insert_characterizations_batch(db_rows)
+        progress.advance(len(batch_ids))
 
-            progress.advance(len(batch_ids))
-
-    finally:
-        del model
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
-        logger.info("Wrapping stage complete")
-
-
-def _select_device() -> torch.device:
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
+    logger.info("Wrapping stage complete")

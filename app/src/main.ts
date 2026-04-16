@@ -6,7 +6,7 @@
  */
 
 import { TorusViewport } from "./renderer/torus-viewport";
-import { state, notify } from "./state";
+import { state, notify, subscribe } from "./state";
 import * as api from "./api";
 import { initControls, setViewport, recomputeSliceAndLayout } from "./ui/controls";
 import { initStatusBar } from "./ui/status-bar";
@@ -58,6 +58,9 @@ async function main(): Promise<void> {
   const t0 = performance.now();
   const mark = (label: string) => console.log(`[startup] ${label}: ${(performance.now() - t0).toFixed(0)}ms`);
 
+  // Status bar subscribes to state — works as soon as state changes, no wiring needed.
+  initStatusBar();
+
   let port: number;
 
   if (isTauri()) {
@@ -97,15 +100,6 @@ async function main(): Promise<void> {
   }
   mark("sidecar healthy");
 
-  // Status bar
-  let statusBar = document.getElementById("status-bar");
-  if (!statusBar) {
-    statusBar = document.createElement("div");
-    statusBar.id = "status-bar";
-    statusBar.classList.add("hidden");
-    document.body.appendChild(statusBar);
-  }
-
   // Init WebGL
   const canvas = document.getElementById("viewport") as HTMLCanvasElement;
   const viewport = new TorusViewport(canvas);
@@ -118,6 +112,10 @@ async function main(): Promise<void> {
     api.getDimensions(),
     api.getModels(),
   ]);
+  // Auto-select first available model if current default isn't available
+  if (models.length > 0 && !models.includes(state.model)) {
+    state.model = models[0];
+  }
   mark("dimensions + models");
 
   // Initial slice: entire corpus
@@ -154,26 +152,32 @@ async function main(): Promise<void> {
 
   // Init controls
   await initControls(dimensions, models);
-  initStatusBar({
-    onComplete: () => {
-      recomputeSliceAndLayout().catch((e) => console.error("Post-import refresh failed:", e));
-    },
-  });
   notify();
   mark("controls ready");
+
+  // Refresh viewport when import completes (or errors — images may already be
+  // marked completed in the DB even if late pipeline stages like wrapping fail).
+  let lastSeenStatus: string | null = null;
+  subscribe((s) => {
+    const p = s.importProgress;
+    if (!p) return;
+    const done = p.status === "completed" || p.status === "error";
+    if (done && lastSeenStatus !== "completed" && lastSeenStatus !== "error") {
+      recomputeSliceAndLayout().catch((e) => console.error("[import] refresh failed:", e));
+    }
+    lastSeenStatus = p.status;
+  });
 
   hideStatus();
 
   // Camera interaction
   setupCameraControls(canvas);
 
-  // Render loop — track first frame with thumbnails
-  let firstThumbLogged = false;
-  const origSetLayout = viewport.setLayout.bind(viewport);
+  // Render loop
+  let firstFrameLogged = false;
   viewport.startRenderLoop(() => {
-    if (!firstThumbLogged && layout.strips.length > 0) {
-      // Check if any thumbnails have loaded by looking at atlas
-      firstThumbLogged = true;
+    if (!firstFrameLogged && state.layout && state.layout.strips.length > 0) {
+      firstFrameLogged = true;
       requestAnimationFrame(() => mark("first frame"));
     }
     return state.pov;

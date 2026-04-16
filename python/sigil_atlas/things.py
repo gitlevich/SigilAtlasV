@@ -9,7 +9,6 @@ The contrast slider places images on a spectrum between the two poles.
 """
 
 import logging
-import struct
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -17,6 +16,7 @@ import numpy as np
 from sigil_atlas.db import CorpusDB
 from sigil_atlas.embedding_provider import EmbeddingProvider
 from sigil_atlas.layout import _fetch_image_dimensions, _greedy_pack_strips, Strip, StripLayout
+from sigil_atlas.model_registry import ModelAdapter, get_adapter
 from sigil_atlas.ontology import OntologyNode
 from sigil_atlas.taxonomy import get_taxonomy
 
@@ -52,50 +52,6 @@ class ThingsLayout:
     torus_width: float
     torus_height: float
     strip_height: float
-
-
-# ── Cached text embeddings ──
-
-_text_cache: dict[str, np.ndarray] = {}
-_clip_model = None
-_clip_tokenizer = None
-
-
-def _get_clip():
-    global _clip_model, _clip_tokenizer
-    if _clip_model is None:
-        import open_clip
-        import torch
-        device = _select_device()
-        model, _, _ = open_clip.create_model_and_transforms("ViT-L-14", pretrained="openai")
-        _clip_model = model.to(device).eval()
-        _clip_tokenizer = open_clip.get_tokenizer("ViT-L-14")
-    return _clip_model, _clip_tokenizer
-
-
-def _encode_prompt(prompt: str) -> np.ndarray:
-    """Encode a text prompt, with caching."""
-    if prompt in _text_cache:
-        return _text_cache[prompt]
-    import torch
-    model, tokenizer = _get_clip()
-    device = next(model.parameters()).device
-    with torch.no_grad():
-        tokens = tokenizer([prompt]).to(device)
-        features = model.encode_text(tokens)
-        vec = features.cpu().numpy().astype(np.float32)[0]
-        vec = vec / max(np.linalg.norm(vec), 1e-8)
-    _text_cache[prompt] = vec
-    return vec
-
-
-def _select_device():
-    import torch
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
 
 
 # ── Taxonomy navigation ──
@@ -153,11 +109,7 @@ def _find_parent_recursive(node: OntologyNode, target_name: str) -> OntologyNode
 
 
 def siblings(term: str) -> list[dict]:
-    """Return sibling terms for contrast autocomplete.
-
-    Siblings share the same parent in the taxonomy tree.
-    The invariant: a contrast's two poles must be siblings.
-    """
+    """Return sibling terms for contrast autocomplete."""
     parent = _find_parent(term)
     if parent is None:
         return []
@@ -171,28 +123,27 @@ def siblings(term: str) -> list[dict]:
 # ── Scoring ──
 
 def score_images(
+    adapter: ModelAdapter,
     provider: EmbeddingProvider,
     image_ids: list[str],
     prompt: str,
-    model: str = "clip-vit-l-14",
 ) -> np.ndarray:
-    """Score all images against a text prompt. Returns (N,) similarity array."""
+    """Score all images against a text prompt using the given adapter."""
     if not image_ids:
         return np.array([], dtype=np.float32)
-    matrix = provider.fetch_matrix(image_ids, model)
-    # Normalize image embeddings
+    matrix = provider.fetch_matrix(image_ids, adapter.model_id)
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
     matrix = matrix / np.maximum(norms, 1e-8)
-    text_vec = _encode_prompt(prompt)
+    text_vec = adapter.resolve_text_vector(prompt, provider, image_ids)
     return matrix @ text_vec
 
 
 def compute_thing(
+    adapter: ModelAdapter,
     provider: EmbeddingProvider,
     db: CorpusDB,
     image_ids: list[str],
     term: str,
-    model: str = "clip-vit-l-14",
     threshold: float | None = None,
 ) -> Thing:
     """Score all images against a term, filter by threshold."""
@@ -200,14 +151,13 @@ def compute_thing(
     if node is None:
         raise ValueError(f"Unknown taxonomy term: {term}")
 
-    scores = score_images(provider, image_ids, node.prompt, model)
+    scores = score_images(adapter, provider, image_ids, node.prompt)
 
     if threshold is not None:
         mask = scores >= threshold
         filtered_ids = [iid for iid, keep in zip(image_ids, mask) if keep]
         filtered_scores = scores[mask].tolist()
     else:
-        # Return all, sorted by score descending
         order = np.argsort(-scores)
         filtered_ids = [image_ids[i] for i in order]
         filtered_scores = scores[order].tolist()
@@ -229,12 +179,7 @@ def _select_by_threshold(
     max_count: int = 300,
     sigma: float = 2.0,
 ) -> tuple[list[str], list[float]]:
-    """Select images above mean + sigma*std, with min/max bounds.
-
-    CLIP scores for any single prompt have narrow spread.
-    Threshold-based selection picks the statistically distinctive
-    images rather than an arbitrary top-k.
-    """
+    """Select images above mean + sigma*std, with min/max bounds."""
     mean = scores.mean()
     std = scores.std()
     threshold = mean + sigma * std
@@ -262,14 +207,11 @@ def compute_things_layout(
     strip_height: float = 100.0,
     top_k: int = 200,
 ) -> ThingsLayout:
-    """Lay out multiple things as neighborhood rectangles.
-
-    Each thing gets images that are statistically above-average
-    for its prompt, packed into a near-square rectangle.
-    """
+    """Lay out multiple things as neighborhood rectangles."""
     if not terms or not image_ids:
         return ThingsLayout([], 0, 0, strip_height)
 
+    adapter = get_adapter(model)
     dims = _fetch_image_dimensions(db, image_ids)
     natural_widths = {iid: strip_height * (dims[iid][0] / dims[iid][1]) for iid in image_ids}
     thumbnails = {iid: dims[iid][2] for iid in image_ids}
@@ -280,18 +222,15 @@ def compute_things_layout(
         node = _find_node(term)
         if node is None:
             continue
-        scores = score_images(provider, image_ids, node.prompt, model)
+        scores = score_images(adapter, provider, image_ids, node.prompt)
         selected, selected_scores = _select_by_threshold(scores, image_ids)
         logger.info(
-            "Thing '%s': %d images selected (threshold at mean+2std, scores %.3f-%.3f)",
-            term, len(selected),
-            selected_scores[-1] if selected_scores else 0,
-            selected_scores[0] if selected_scores else 0,
+            "Thing '%s' [%s]: %d images selected",
+            term, adapter.model_id, len(selected),
         )
         if not selected:
             continue
 
-        # Pack into near-square
         import math
         total_w = sum(natural_widths.get(iid, strip_height) for iid in selected)
         area = total_w * strip_height
@@ -305,14 +244,13 @@ def compute_things_layout(
         neighborhoods.append(ThingNeighborhood(
             term=term,
             prompt=node.prompt,
-            x=0, y=0,  # placed below
+            x=0, y=0,
             width=target_side,
             height=rect_h,
             strips=strips,
             image_count=len(selected),
         ))
 
-    # Place neighborhoods in a row with gaps
     gap = strip_height * 0.5
     x = 0.0
     for nb in neighborhoods:
@@ -322,10 +260,5 @@ def compute_things_layout(
 
     torus_width = x - gap if neighborhoods else 0
     torus_height = max((nb.height for nb in neighborhoods), default=0)
-
-    logger.info(
-        "Things layout: %d neighborhoods, surface=%.0fx%.0f",
-        len(neighborhoods), torus_width, torus_height,
-    )
 
     return ThingsLayout(neighborhoods, torus_width, torus_height, strip_height)

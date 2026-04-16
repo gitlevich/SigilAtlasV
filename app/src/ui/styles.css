@@ -690,6 +690,24 @@ html, body {
   display: none;
 }
 
+.status-spacer {
+  flex: 1;
+}
+
+.status-play-pause {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 24px;
+}
+
+.status-play-pause:hover {
+  color: #c8c8d0;
+}
+
 .status-message {
   color: #888;
 }

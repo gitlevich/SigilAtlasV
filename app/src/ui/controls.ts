@@ -11,7 +11,7 @@ import type { Dimension, ContrastControl } from "../types";
 import type { TorusViewport } from "../renderer/torus-viewport";
 import { createBandpassWidget } from "./bandpass-widget";
 import { createColorWheel, hueRangeToFilter, type HueRange } from "./color-wheel";
-import { startPolling } from "./status-bar";
+import { startImport } from "../import";
 
 let sliceDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 function debouncedRecompute(): void {
@@ -30,59 +30,67 @@ export function setViewport(vp: TorusViewport): void {
 export async function recomputeSliceAndLayout(): Promise<void> {
   // Cancel any pending debounced recompute to avoid stale overwrites
   if (sliceDebounceTimer) { clearTimeout(sliceDebounceTimer); sliceDebounceTimer = null; }
-  console.log("[recompute] proximity:", state.proximityFilters.length, "contrasts:", state.contrastControls.length, "range:", state.rangeFilters.length);
-  const res = await api.computeSlice({
-    range_filters: state.rangeFilters,
-    proximity_filters: state.proximityFilters,
-    contrast_controls: state.contrastControls,
-    model: state.model,
-    tightness: state.tightness,
-  });
-  state.imageIds = res.image_ids;
-  state.orderValues = res.order_values || {};
 
-  let orderValues: Record<string, number> | undefined;
-  let preserveOrder = false;
+  try {
+    const res = await api.computeSlice({
+      range_filters: state.rangeFilters,
+      proximity_filters: state.proximityFilters,
+      contrast_controls: state.contrastControls,
+      model: state.model,
+      tightness: state.tightness,
+    });
+    state.imageIds = res.image_ids;
+    state.orderValues = res.order_values || {};
 
-  if (state.mode === "timelike") {
-    const hasOV = Object.keys(state.orderValues).length > 0;
-    orderValues = hasOV ? state.orderValues : undefined;
-  } else if (state.mode === "tastelike" || state.proximityFilters.length > 0) {
-    preserveOrder = true;
+    let orderValues: Record<string, number> | undefined;
+    let preserveOrder = false;
+
+    if (state.mode === "timelike") {
+      const hasOV = Object.keys(state.orderValues).length > 0;
+      orderValues = hasOV ? state.orderValues : undefined;
+    } else if (state.mode === "tastelike" || state.proximityFilters.length > 0) {
+      preserveOrder = true;
+    }
+
+    const layout = await api.computeLayout({
+      image_ids: state.imageIds,
+      axes: state.selectedAxes.length > 0 ? state.selectedAxes : null,
+      tightness: state.tightness,
+      model: state.model,
+      strip_height: state.stripHeight,
+      preserve_order: preserveOrder,
+      order_values: orderValues,
+    });
+    state.layout = layout;
+
+    const prevArea = state.torusWidth * state.torusHeight;
+    const newArea = layout.torus_width * layout.torus_height;
+    state.torusWidth = layout.torus_width;
+    state.torusHeight = layout.torus_height;
+
+    const canvas = document.getElementById("viewport") as HTMLCanvasElement;
+    const aspect = canvas.clientWidth / canvas.clientHeight;
+    const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
+
+    if (prevArea === 0 || Math.abs(newArea - prevArea) / prevArea > 0.3) {
+      const visibleStrips = 8;
+      const desiredZoom = visibleStrips * layout.strip_height * aspect;
+      state.pov.x = layout.torus_width / 2;
+      state.pov.y = layout.torus_height / 2;
+      state.pov.z = Math.min(desiredZoom, maxZoom);
+    } else {
+      state.pov.z = Math.min(state.pov.z, maxZoom);
+    }
+
+    if (viewport) viewport.setLayout(layout);
+    updateImageCount();
+    state.lastError = null;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[recompute]", msg);
+    state.lastError = msg;
   }
 
-  const layout = await api.computeLayout({
-    image_ids: state.imageIds,
-    axes: state.selectedAxes.length > 0 ? state.selectedAxes : null,
-    tightness: state.tightness,
-    model: state.model,
-    strip_height: state.stripHeight,
-    preserve_order: preserveOrder,
-    order_values: orderValues,
-  });
-  state.layout = layout;
-
-  const prevArea = state.torusWidth * state.torusHeight;
-  const newArea = layout.torus_width * layout.torus_height;
-  state.torusWidth = layout.torus_width;
-  state.torusHeight = layout.torus_height;
-
-  const canvas = document.getElementById("viewport") as HTMLCanvasElement;
-  const aspect = canvas.clientWidth / canvas.clientHeight;
-  const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
-
-  if (prevArea === 0 || Math.abs(newArea - prevArea) / prevArea > 0.3) {
-    const visibleStrips = 8;
-    const desiredZoom = visibleStrips * layout.strip_height * aspect;
-    state.pov.x = layout.torus_width / 2;
-    state.pov.y = layout.torus_height / 2;
-    state.pov.z = Math.min(desiredZoom, maxZoom);
-  } else {
-    state.pov.z = Math.min(state.pov.z, maxZoom);
-  }
-
-  if (viewport) viewport.setLayout(layout);
-  updateImageCount();
   notify();
 }
 
@@ -413,7 +421,7 @@ function buildToneSection(body: HTMLElement, dimensions: Dimension[]): void {
 }
 
 
-// ── Import section ──
+// ── Import section (browser dev mode fallback) ──
 
 function buildImportSection(body: HTMLElement): void {
   const row = document.createElement("div");
@@ -424,94 +432,17 @@ function buildImportSection(body: HTMLElement): void {
   pathInput.className = "import-path";
   pathInput.placeholder = "/path/to/photos...";
 
-  const browseBtn = document.createElement("button");
-  browseBtn.className = "import-browse";
-  browseBtn.textContent = "...";
-  browseBtn.title = "Choose folder";
-  browseBtn.addEventListener("click", async () => {
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selected = await open({ directory: true, title: "Choose source folder" });
-      if (typeof selected === "string") {
-        pathInput.value = selected;
-      }
-    } catch {
-      // Not in Tauri or dialog plugin not available — user types path manually
-    }
+  const btn = document.createElement("button");
+  btn.className = "import-btn";
+  btn.textContent = "Import";
+  btn.addEventListener("click", () => {
+    const source = pathInput.value.trim();
+    if (source) startImport(source).catch((e) => console.error("[import]", e));
   });
 
   row.appendChild(pathInput);
-  row.appendChild(browseBtn);
+  row.appendChild(btn);
   body.appendChild(row);
-
-  const actions = document.createElement("div");
-  actions.className = "import-actions";
-
-  const startBtn = document.createElement("button");
-  startBtn.className = "import-btn";
-  startBtn.textContent = "Start Import";
-
-  const pauseBtn = document.createElement("button");
-  pauseBtn.className = "import-btn import-btn-secondary";
-  pauseBtn.textContent = "Pause";
-  pauseBtn.style.display = "none";
-
-  const resumeBtn = document.createElement("button");
-  resumeBtn.className = "import-btn import-btn-secondary";
-  resumeBtn.textContent = "Resume";
-  resumeBtn.style.display = "none";
-
-  const statusText = document.createElement("span");
-  statusText.className = "import-status";
-
-  startBtn.addEventListener("click", async () => {
-    const source = pathInput.value.trim();
-    if (!source) return;
-    try {
-      statusText.textContent = "Starting...";
-      const res = await api.startImport(source);
-      if (res.status === "started") {
-        statusText.textContent = "Running";
-        startBtn.style.display = "none";
-        pauseBtn.style.display = "";
-        resumeBtn.style.display = "none";
-        startPolling();
-      }
-    } catch (e) {
-      statusText.textContent = `Error: ${e}`;
-    }
-  });
-
-  pauseBtn.addEventListener("click", async () => {
-    try {
-      await api.pauseImport();
-      statusText.textContent = "Paused";
-      pauseBtn.style.display = "none";
-      resumeBtn.style.display = "";
-    } catch (e) {
-      statusText.textContent = `Error: ${e}`;
-    }
-  });
-
-  resumeBtn.addEventListener("click", async () => {
-    try {
-      const res = await api.resumeImport();
-      if (res.status === "started") {
-        statusText.textContent = "Running";
-        resumeBtn.style.display = "none";
-        pauseBtn.style.display = "";
-        startPolling();
-      }
-    } catch (e) {
-      statusText.textContent = `Error: ${e}`;
-    }
-  });
-
-  actions.appendChild(startBtn);
-  actions.appendChild(pauseBtn);
-  actions.appendChild(resumeBtn);
-  actions.appendChild(statusText);
-  body.appendChild(actions);
 }
 
 

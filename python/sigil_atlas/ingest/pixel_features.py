@@ -134,10 +134,10 @@ def run_pixel_features_stage(
     logger.info("Extracting pixel features for %d images", len(pending))
 
     # Get thumbnail paths
-    thumb_rows = db._conn.execute(
-        f"SELECT id, thumbnail_path FROM images WHERE id IN ({','.join('?' * len(pending))})",
+    thumb_rows = db._query_in_batches(
+        "SELECT id, thumbnail_path FROM images WHERE id IN ({placeholders})",
         pending,
-    ).fetchall()
+    )
     thumb_map = {r[0]: r[1] for r in thumb_rows}
 
     batch_rows = []

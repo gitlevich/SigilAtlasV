@@ -20,6 +20,7 @@ from sigil_atlas.embedding_provider import SqliteEmbeddingProvider
 from sigil_atlas.ingest.pipeline import IngestPipeline
 from sigil_atlas.ingest.source import FolderSource
 from sigil_atlas.layout import compute_layout
+from sigil_atlas.model_registry import get_adapter
 from sigil_atlas.progress import BufferedProgressReporter
 from sigil_atlas.slice import RangeFilter, ProximityFilter, ContrastControl, compute_slice
 from sigil_atlas.taxonomy import vocabulary, vocabulary_tree, vocabulary_flat
@@ -74,6 +75,10 @@ class IngestState:
             pipeline.run()
         except Exception:
             logger.error("Ingest pipeline failed", exc_info=True)
+        finally:
+            # Invalidate cached embedding matrices so queries pick up new data
+            if _state is not None:
+                _state.provider.invalidate_cache()
 
     def pause(self) -> str:
         with self._lock:
@@ -159,6 +164,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             image_id = self.path[len("/thumbnail/"):]
             thumb_path = _state.workspace.thumbnails_dir / f"{image_id}.jpg"
             self._send_file(thumb_path)
+        elif self.path.startswith("/preview/"):
+            image_id = self.path[len("/preview/"):]
+            preview_path = _state.workspace.previews_dir / f"{image_id}.jpg"
+            self._send_file(preview_path)
         elif self.path == "/ingest/progress":
             self._send_json(_state.ingest.progress())
         else:
@@ -172,6 +181,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_layout()
             elif self.path == "/things":
                 self._handle_things()
+            elif self.path == "/corpus/nuke":
+                self._handle_corpus_nuke()
             elif self.path == "/ingest/start":
                 self._handle_ingest_start()
             elif self.path == "/ingest/pause":
@@ -183,6 +194,13 @@ class RequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.exception("Error handling %s", self.path)
             self._send_json({"error": str(e)}, 500)
+
+    def _handle_corpus_nuke(self):
+        if _state.ingest.is_running:
+            _state.ingest.pause()
+        _state.db.nuke()
+        _state.provider.invalidate_cache()
+        self._send_json({"status": "nuked"})
 
     def _handle_ingest_start(self):
         data = self._read_json()
@@ -259,6 +277,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         ]
         model = data.get("model", "clip-vit-l-14")
         tightness = data.get("tightness", 0.5)
+
+        # Validate model via registry — fail loudly if unknown
+        try:
+            get_adapter(model)
+        except ValueError as e:
+            self._send_json({"error": str(e)}, 400)
+            return
+
         logger.info("Slice request: model=%s, tightness=%.2f, proximity=%s", model, tightness, [f["text"] for f in data.get("proximity_filters", [])])
 
         result = compute_slice(
@@ -287,6 +313,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         model = data.get("model", "clip-vit-l-14")
         strip_height = data.get("strip_height", 100.0)
         order_values = data.get("order_values")
+
+        try:
+            get_adapter(model)
+        except ValueError as e:
+            self._send_json({"error": str(e)}, 400)
+            return
 
         if not image_ids:
             image_ids = _state.db.fetch_image_ids()

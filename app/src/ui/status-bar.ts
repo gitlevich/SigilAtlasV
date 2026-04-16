@@ -1,119 +1,113 @@
 /**
- * Status bar — shows import progress at the bottom of the window.
+ * Status bar — pure view of state.importProgress.
  *
- * Polls /ingest/progress while an import is active. Displays per-stage
- * progress bars with completed/total and images/sec rate.
+ * Subscribes to app state. Renders when importProgress changes.
+ * No polling, no lifecycle management — that's the import service's job.
  */
 
-import * as api from "../api";
+import { subscribe, type AppState } from "../state";
+import { pauseImport, resumeImport } from "../import";
 import type { ImportProgress, StageProgress } from "../types";
 
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-let statusBarEl: HTMLElement | null = null;
-let onImportComplete: (() => void) | null = null;
+/** Previous snapshot for computing rate between renders. */
+let prevCompleted: Map<string, number> = new Map();
+let prevTime = 0;
 
-/** Previous snapshot for computing rate. */
-let prevSnapshot: { time: number; completed: Map<string, number> } | null = null;
-
-export function initStatusBar(opts: { onComplete: () => void }): void {
-  onImportComplete = opts.onComplete;
-  statusBarEl = document.getElementById("status-bar");
-  if (!statusBarEl) return;
-  statusBarEl.innerHTML = "";
-  statusBarEl.classList.add("hidden");
+export function initStatusBar(): void {
+  subscribe(render);
 }
 
-export function startPolling(): void {
-  if (pollTimer) return;
-  prevSnapshot = null;
-  if (statusBarEl) {
-    statusBarEl.classList.remove("hidden");
-  }
-  pollTimer = setInterval(poll, 500);
-  poll();
-}
+function render(s: AppState): void {
+  const el = document.getElementById("status-bar");
+  if (!el) return;
 
-export function stopPolling(): void {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-}
+  const progress = s.importProgress;
+  const hasError = !!s.lastError;
+  const hasProgress = progress && progress.status !== "idle";
 
-async function poll(): Promise<void> {
-  try {
-    const progress = await api.getImportProgress();
-    render(progress);
-
-    if (progress.status === "completed") {
-      stopPolling();
-      setTimeout(() => {
-        if (statusBarEl) statusBarEl.classList.add("hidden");
-      }, 3000);
-      onImportComplete?.();
-    } else if (progress.status === "error") {
-      stopPolling();
-    } else if (progress.status === "paused") {
-      stopPolling();
-    }
-  } catch {
-    // Sidecar might be busy; skip this tick
-  }
-}
-
-function render(progress: ImportProgress): void {
-  if (!statusBarEl) return;
-
-  const now = performance.now() / 1000;
-  const rates = new Map<string, number>();
-
-  if (prevSnapshot) {
-    const dt = now - prevSnapshot.time;
-    if (dt > 0.1) {
-      for (const stage of progress.stages) {
-        const prev = prevSnapshot.completed.get(stage.name) ?? 0;
-        const delta = stage.completed - prev;
-        if (delta > 0) {
-          rates.set(stage.name, delta / dt);
-        }
-      }
-    }
+  if (!hasError && !hasProgress) {
+    el.classList.add("hidden");
+    prevCompleted = new Map();
+    prevTime = 0;
+    return;
   }
 
-  prevSnapshot = {
-    time: now,
-    completed: new Map(progress.stages.map((s) => [s.name, s.completed])),
-  };
+  el.classList.remove("hidden");
+  el.innerHTML = "";
 
-  statusBarEl.innerHTML = "";
+  if (hasError) {
+    el.appendChild(statusMsg(s.lastError!, true));
+  }
+
+  if (!progress || progress.status === "idle") return;
 
   if (progress.status === "completed") {
-    const msg = document.createElement("span");
-    msg.className = "status-message";
-    msg.textContent = "Import complete";
-    statusBarEl.appendChild(msg);
+    el.appendChild(statusMsg("Import complete"));
     return;
   }
 
   if (progress.status === "error") {
-    const msg = document.createElement("span");
-    msg.className = "status-message status-error";
-    msg.textContent = "Import failed";
-    statusBarEl.appendChild(msg);
+    el.appendChild(statusMsg("Import failed", true));
     return;
   }
 
-  if (progress.status === "paused") {
-    const msg = document.createElement("span");
-    msg.className = "status-message";
-    msg.textContent = "Import paused";
-    statusBarEl.appendChild(msg);
-    return;
+  // Running or paused — show stages
+  if (progress.stages.length === 0) {
+    el.appendChild(statusMsg("Scanning..."));
   }
+
+  const now = performance.now() / 1000;
+  const rates = computeRates(progress, now);
 
   for (const stage of progress.stages) {
-    statusBarEl.appendChild(renderStage(stage, rates.get(stage.name)));
+    el.appendChild(renderStage(stage, rates.get(stage.name)));
   }
+
+  const spacer = document.createElement("div");
+  spacer.style.flex = "1";
+  el.appendChild(spacer);
+
+  if (progress.status === "paused") {
+    el.appendChild(statusMsg("Paused"));
+    el.appendChild(playPauseBtn(true));
+  } else {
+    el.appendChild(playPauseBtn(false));
+  }
+}
+
+function computeRates(progress: ImportProgress, now: number): Map<string, number> {
+  const rates = new Map<string, number>();
+  const dt = now - prevTime;
+  if (dt > 0.2 && prevTime > 0) {
+    for (const stage of progress.stages) {
+      const prev = prevCompleted.get(stage.name) ?? 0;
+      const delta = stage.completed - prev;
+      if (delta > 0) rates.set(stage.name, delta / dt);
+    }
+  }
+  prevCompleted = new Map(progress.stages.map((s) => [s.name, s.completed]));
+  prevTime = now;
+  return rates;
+}
+
+function statusMsg(text: string, error = false): HTMLElement {
+  const span = document.createElement("span");
+  span.className = error ? "status-message status-error" : "status-message";
+  span.textContent = text;
+  return span;
+}
+
+function playPauseBtn(paused: boolean): HTMLElement {
+  const btn = document.createElement("button");
+  btn.className = "status-play-pause";
+  btn.textContent = paused ? "\u25B6" : "\u23F8";
+  btn.title = paused ? "Resume import" : "Pause import";
+  btn.addEventListener("click", () => {
+    (paused ? resumeImport() : pauseImport()).catch((e) =>
+      console.error("[status-bar] pause/resume failed:", e),
+    );
+  });
+  return btn;
 }
 
 function renderStage(stage: StageProgress, rate?: number): HTMLElement {

@@ -1,11 +1,18 @@
 """Source — where images come from."""
 
+from __future__ import annotations
+
 import hashlib
 import logging
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sigil_atlas.db import CorpusDB, ImageRecord
+
+if TYPE_CHECKING:
+    from sigil_atlas.cancel import CancellationToken
+    from sigil_atlas.progress import StageProgress
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +44,12 @@ class FolderSource:
         logger.info("Scanned %d images from %s", len(files), self.path)
         return files
 
-    def register_images(self, db: CorpusDB, files: list[Path], batch_size: int = 500) -> int:
+    def register_images(
+        self, db: CorpusDB, files: list[Path],
+        batch_size: int = 500,
+        progress: StageProgress | None = None,
+        token: CancellationToken | None = None,
+    ) -> int:
         """Register image files in the database. Deduplicates by content hash.
 
         Computes SHA-256 of each file. Images whose hash already exists in the
@@ -52,9 +64,13 @@ class FolderSource:
         batch: list[ImageRecord] = []
 
         for f in files:
+            if token and token.is_cancelled:
+                break
             h = content_hash(f)
             if h in known_hashes:
                 skipped += 1
+                if progress:
+                    progress.advance()
                 continue
             known_hashes.add(h)
 
@@ -67,11 +83,15 @@ class FolderSource:
             if len(batch) >= batch_size:
                 db.insert_images_batch(batch)
                 registered += len(batch)
+                if progress:
+                    progress.advance(len(batch))
                 batch.clear()
 
         if batch:
             db.insert_images_batch(batch)
             registered += len(batch)
+            if progress:
+                progress.advance(len(batch))
 
         if skipped:
             logger.info("Skipped %d duplicate images (by content hash)", skipped)

@@ -11,8 +11,9 @@ from sigil_atlas.progress import StageProgress
 
 logger = logging.getLogger(__name__)
 
-THUMBNAIL_MAX_SIZE = 512
-THUMBNAIL_QUALITY = 85
+THUMB_MAX_SIZE = 512
+PREVIEW_MAX_SIZE = 1024
+JPEG_QUALITY = 85
 
 
 def generate_thumbnails_batch(
@@ -23,7 +24,10 @@ def generate_thumbnails_batch(
     token: CancellationToken,
     batch_size: int = 32,
 ) -> None:
-    """Generate thumbnails for a batch of (image_id, source_path) pairs."""
+    """Generate thumbnails and previews for a batch of (image_id, source_path) pairs."""
+    previews_dir = thumbnails_dir.parent / "previews"
+    previews_dir.mkdir(exist_ok=True)
+
     for i in range(0, len(items), batch_size):
         if token.is_cancelled:
             logger.info("Thumbnail generation cancelled")
@@ -31,26 +35,34 @@ def generate_thumbnails_batch(
 
         batch = items[i : i + batch_size]
         for image_id, source_path in batch:
-            _generate_one(db, image_id, Path(source_path), thumbnails_dir)
+            _generate_one(db, image_id, Path(source_path), thumbnails_dir, previews_dir)
         progress.advance(len(batch))
 
 
 def _generate_one(
-    db: CorpusDB, image_id: str, source_path: Path, thumbnails_dir: Path
+    db: CorpusDB, image_id: str, source_path: Path,
+    thumbnails_dir: Path, previews_dir: Path,
 ) -> None:
-    """Generate a single thumbnail and update the database."""
-    output_path = thumbnails_dir / f"{image_id}.jpg"
+    """Generate thumbnail (512px) and preview (1024px) for a single image."""
+    thumb_path = thumbnails_dir / f"{image_id}.jpg"
+    preview_path = previews_dir / f"{image_id}.jpg"
 
-    if output_path.exists():
-        # Already generated (e.g., from a previous partial run)
+    if thumb_path.exists() and preview_path.exists():
         db.update_thumbnail(image_id, f"{image_id}.jpg")
         return
 
     try:
         with Image.open(source_path) as img:
             img = img.convert("RGB")
-            img.thumbnail((THUMBNAIL_MAX_SIZE, THUMBNAIL_MAX_SIZE), Image.LANCZOS)
-            img.save(output_path, "JPEG", quality=THUMBNAIL_QUALITY)
+
+            if not preview_path.exists():
+                preview = img.copy()
+                preview.thumbnail((PREVIEW_MAX_SIZE, PREVIEW_MAX_SIZE), Image.LANCZOS)
+                preview.save(preview_path, "JPEG", quality=JPEG_QUALITY)
+
+            if not thumb_path.exists():
+                img.thumbnail((THUMB_MAX_SIZE, THUMB_MAX_SIZE), Image.LANCZOS)
+                img.save(thumb_path, "JPEG", quality=JPEG_QUALITY)
 
         db.update_thumbnail(image_id, f"{image_id}.jpg")
 

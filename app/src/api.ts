@@ -27,14 +27,20 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`${path}: ${detail || res.status}`);
+  }
   return res.json();
 }
 
 async function get<T>(path: string): Promise<T> {
   if (!sidecarPort) throw new Error("Sidecar port not set");
   const res = await fetch(`http://127.0.0.1:${sidecarPort}${path}`);
-  if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`${path}: ${detail || res.status}`);
+  }
   return res.json();
 }
 
@@ -92,4 +98,8 @@ export async function pauseImport(): Promise<{ status: string }> {
 
 export async function resumeImport(): Promise<{ status: string }> {
   return post("/ingest/resume", {});
+}
+
+export async function nukeCorpus(): Promise<{ status: string }> {
+  return post("/corpus/nuke", {});
 }
