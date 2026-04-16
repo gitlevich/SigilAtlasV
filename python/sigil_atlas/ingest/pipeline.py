@@ -18,6 +18,7 @@ from sigil_atlas.db import CorpusDB
 from sigil_atlas.ingest.cluster import KMEANS_K_LEVELS, run_clustering_stage
 from sigil_atlas.ingest.embed import CLIPEmbedder, CLIPLargeEmbedder, DINOv2Embedder, run_embedding_stage
 from sigil_atlas.ingest.metadata import extract_metadata_batch
+from sigil_atlas.ingest.pixel_features import run_pixel_features_stage
 from sigil_atlas.ingest.source import FolderSource
 from sigil_atlas.ingest.thumbnail import generate_thumbnails_batch
 from sigil_atlas.progress import ProgressReporter
@@ -120,6 +121,11 @@ class IngestPipeline:
             if self.token.is_cancelled:
                 return
 
+            self._run_pixel_features(db)
+
+            if self.token.is_cancelled:
+                return
+
             self._run_embedding_stages(db)
 
             self._mark_completed(db)
@@ -198,6 +204,14 @@ class IngestPipeline:
             # Wait for both to complete
             for f in futures:
                 f.result()
+
+    def _run_pixel_features(self, db: CorpusDB) -> None:
+        """Extract color/brightness/saturation from thumbnails."""
+        pixel_progress = self.reporter.create_stage("pixel_features", 0)
+        run_pixel_features_stage(
+            db, self.workspace.thumbnails_dir,
+            pixel_progress, self.token,
+        )
 
     def _run_clustering_stage(self, db: CorpusDB) -> None:
         """Precompute KMeans at multiple k levels for all models."""

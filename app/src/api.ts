@@ -103,3 +103,11 @@ export async function resumeImport(): Promise<{ status: string }> {
 export async function nukeCorpus(): Promise<{ status: string }> {
   return post("/corpus/nuke", {});
 }
+
+export async function runPixelFeatures(): Promise<{ status: string }> {
+  return post("/tools/pixel-features", {});
+}
+
+export async function runMissingEmbeddings(): Promise<{ status: string }> {
+  return post("/tools/embed-missing", {});
+}

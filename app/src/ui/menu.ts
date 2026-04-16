@@ -6,7 +6,7 @@
  */
 
 import * as api from "../api";
-import { startImport } from "../import";
+import { startImport, startPolling } from "../import";
 
 export async function initMenu(): Promise<void> {
   try {
@@ -63,6 +63,31 @@ export async function initMenu(): Promise<void> {
     const toolsSubmenu = await Submenu.new({
       text: "Tools",
       items: [
+        await MenuItem.new({
+          id: "embed-missing",
+          text: "Embed Missing Models",
+          action: async () => {
+            try {
+              await api.runMissingEmbeddings();
+              startPolling();
+            } catch (e) {
+              console.error("[embed-missing]", e);
+            }
+          },
+        }),
+        await MenuItem.new({
+          id: "pixel-features",
+          text: "Recompute Pixel Features",
+          action: async () => {
+            try {
+              await api.runPixelFeatures();
+              startPolling();
+            } catch (e) {
+              console.error("[pixel-features]", e);
+            }
+          },
+        }),
+        await PredefinedMenuItem.new({ item: "Separator" }),
         await MenuItem.new({
           id: "nuke-corpus",
           text: "Nuke the Corpus...",

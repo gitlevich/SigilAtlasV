@@ -120,15 +120,49 @@ def _score_contrast(
     return ((raw - lo) / (hi - lo) * 2.0 - 1.0).astype(np.float32)
 
 
-def _select_above_knee(
+# Corpus size threshold: below this, knee detection works well on the
+# smooth falloff curve. Above this, scores compress into a narrow band
+# and the knee becomes too sharp — statistical thresholding scales better.
+_SMALL_CORPUS = 1000
+
+
+def _select_relevant(
     scores: np.ndarray,
     candidates: list[str],
     selected: set[str],
     tightness: float = 0.5,
-    max_candidates: int = 200,
 ) -> int:
-    """Select images above the knee of the descending score curve."""
-    n = min(max_candidates, len(scores))
+    """Select images relevant to a text query.
+
+    Automatically picks the right strategy:
+      Small corpus (<1000): knee detection on the descending score curve.
+        Works well when the falloff is smooth and distinct.
+      Large corpus (>=1000): sigma thresholding above the mean.
+        CLIP scores compress into a narrow range at scale; statistical
+        selection scales correctly.
+
+    Tightness controls selectivity in both strategies:
+      0.0 (loose) → more results
+      0.5 (default) → balanced
+      1.0 (tight) → fewer, more specific results
+    """
+    n = len(scores)
+    if n == 0:
+        return 0
+
+    if n < _SMALL_CORPUS:
+        return _select_by_knee(scores, candidates, selected, tightness)
+    return _select_by_sigma(scores, candidates, selected, tightness)
+
+
+def _select_by_knee(
+    scores: np.ndarray,
+    candidates: list[str],
+    selected: set[str],
+    tightness: float = 0.5,
+) -> int:
+    """Knee detection on the descending score curve. Good for small corpora."""
+    n = min(200, len(scores))
     if n < 3:
         for i in range(n):
             selected.add(candidates[int(np.argmax(scores))])
@@ -157,6 +191,35 @@ def _select_above_knee(
     for i in range(cutoff):
         selected.add(candidates[order[i]])
         count += 1
+    return count
+
+
+def _select_by_sigma(
+    scores: np.ndarray,
+    candidates: list[str],
+    selected: set[str],
+    tightness: float = 0.5,
+) -> int:
+    """Sigma thresholding above the mean. Good for large corpora.
+
+    Tightness maps to sigma:
+      0.0 → mean + 1.0 sigma (~16% of corpus)
+      0.5 → mean + 2.0 sigma (~2-5%)
+      1.0 → mean + 3.0 sigma (<1%)
+    """
+    mean = float(scores.mean())
+    std = float(scores.std())
+    if std < 1e-9:
+        return 0
+
+    sigma = 1.0 + 2.0 * tightness
+    threshold = mean + sigma * std
+
+    count = 0
+    for i in range(len(scores)):
+        if scores[i] >= threshold:
+            selected.add(candidates[i])
+            count += 1
     return count
 
 
@@ -209,7 +272,7 @@ def compute_slice(
             vec = _resolve_text(adapter, pf.text, provider, candidates)
             matrix = provider.fetch_matrix(candidates, adapter.model_id)
             raw = matrix @ vec
-            count = _select_above_knee(raw, candidates, selected, tightness=tightness)
+            count = _select_relevant(raw, candidates, selected, tightness=tightness)
             logger.info("Attract '%s' [%s]: %d images", pf.text, adapter.model_id, count)
         candidates = [c for c in candidates if c in selected]
         logger.info("Attract total: %d images", len(candidates))

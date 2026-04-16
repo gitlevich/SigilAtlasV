@@ -33,7 +33,7 @@ export async function resumeImport(): Promise<void> {
   }
 }
 
-function startPolling(): void {
+export function startPolling(): void {
   if (pollTimer) return;
   pollTimer = setInterval(poll, 500);
   poll();

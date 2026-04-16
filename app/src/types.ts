@@ -62,6 +62,7 @@ export interface LayoutRequest {
   strip_height: number;
   preserve_order?: boolean;
   order_values?: Record<string, number>;
+  layout_mode?: "auto" | "strips" | "treemap";
 }
 
 export interface Dimension {

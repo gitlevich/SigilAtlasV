@@ -8,7 +8,7 @@
 import { TorusViewport } from "./renderer/torus-viewport";
 import { state, notify, subscribe } from "./state";
 import * as api from "./api";
-import { initControls, setViewport, recomputeSliceAndLayout } from "./ui/controls";
+import { initControls, setViewport, recomputeSliceAndLayout, refreshControls } from "./ui/controls";
 import { initStatusBar } from "./ui/status-bar";
 import { initMenu } from "./ui/menu";
 import type { PointOfView } from "./types";
@@ -163,7 +163,10 @@ async function main(): Promise<void> {
     if (!p) return;
     const done = p.status === "completed" || p.status === "error";
     if (done && lastSeenStatus !== "completed" && lastSeenStatus !== "error") {
-      recomputeSliceAndLayout().catch((e) => console.error("[import] refresh failed:", e));
+      // Rebuild controls (new dimensions may have appeared) then recompute layout
+      refreshControls()
+        .then(() => recomputeSliceAndLayout())
+        .catch((e) => console.error("[import] refresh failed:", e));
     }
     lastSeenStatus = p.status;
   });
@@ -171,11 +174,12 @@ async function main(): Promise<void> {
   hideStatus();
 
   // Camera interaction
-  setupCameraControls(canvas);
+  const tickCamera = setupCameraControls(canvas);
 
   // Render loop
   let firstFrameLogged = false;
   viewport.startRenderLoop(() => {
+    tickCamera();
     if (!firstFrameLogged && state.layout && state.layout.strips.length > 0) {
       firstFrameLogged = true;
       requestAnimationFrame(() => mark("first frame"));
@@ -184,47 +188,117 @@ async function main(): Promise<void> {
   });
 }
 
-function setupCameraControls(canvas: HTMLCanvasElement): void {
+/** Set up camera controls. Returns a tick function to call each frame for inertia. */
+function setupCameraControls(canvas: HTMLCanvasElement): () => void {
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+  let lastT = 0;
+
+  // Velocity in world-space units per second
+  let vx = 0;
+  let vy = 0;
+
+  const FRICTION = 0.985; // per-frame decay — heavy, long coast (~7s to stop)
+  const V_EPSILON = 0.1;  // stop threshold (world units/s)
 
   canvas.addEventListener("mousedown", (e) => {
     dragging = true;
     lastX = e.clientX;
     lastY = e.clientY;
+    lastT = performance.now();
+    // Don't zero velocity — grab adds drag, not a hard stop.
+    // The pointer tracking in mousemove will blend new motion
+    // into the existing momentum.
   });
 
   window.addEventListener("mousemove", (e) => {
     if (!dragging) return;
+    const now = performance.now();
+    const dt = Math.max(now - lastT, 1) / 1000;
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     lastX = e.clientX;
     lastY = e.clientY;
+    lastT = now;
 
     const pixelsPerUnit = canvas.clientWidth / state.pov.z;
-    state.pov.x -= dx / pixelsPerUnit;
-    state.pov.y += dy / pixelsPerUnit;
+    const worldDx = -dx / pixelsPerUnit;
+    const worldDy = dy / pixelsPerUnit;
 
-    const tw = state.torusWidth || 1;
-    const th = state.torusHeight || 1;
-    state.pov.x = ((state.pov.x % tw) + tw) % tw;
-    state.pov.y = ((state.pov.y % th) + th) % th;
+    state.pov.x += worldDx;
+    state.pov.y += worldDy;
+    wrapPov();
+
+    // Exponential smoothing avoids jitter on release
+    vx = 0.6 * (worldDx / dt) + 0.4 * vx;
+    vy = 0.6 * (worldDy / dt) + 0.4 * vy;
   });
 
   window.addEventListener("mouseup", () => { dragging = false; });
 
-  canvas.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const zoomFactor = 1 + e.deltaY * 0.001;
-    // Clamp zoom so you never see more than one copy of the torus.
-    // pov.z = visible width, pov.z/aspect = visible height.
+  function applyZoom(factor: number): void {
     const aspect = canvas.clientWidth / canvas.clientHeight;
     const tw = state.torusWidth || 10000;
     const th = state.torusHeight || 10000;
     const maxZoom = Math.min(tw, th * aspect);
-    state.pov.z = Math.max(50, Math.min(maxZoom, state.pov.z * zoomFactor));
+    state.pov.z = Math.max(50, Math.min(maxZoom, state.pov.z * factor));
+  }
+
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    if (e.ctrlKey) {
+      // Pinch-to-zoom (trackpad sends wheel+ctrlKey for pinch)
+      applyZoom(1 + e.deltaY * 0.005);
+    } else {
+      // Two-finger swipe → pan with inertia (heavy, slow)
+      // Content follows fingers: positive deltaX = finger moved right = content moves right
+      const pixelsPerUnit = canvas.clientWidth / state.pov.z;
+      const mass = 0.25; // <1 = heavier feel
+      const worldDx = -e.deltaX / pixelsPerUnit * mass;
+      const worldDy = e.deltaY / pixelsPerUnit * mass;
+      state.pov.x += worldDx;
+      state.pov.y += worldDy;
+      wrapPov();
+      // Feed into velocity so releasing fingers coasts
+      vx = vx * 0.5 + worldDx * 60 * 0.5;
+      vy = vy * 0.5 + worldDy * 60 * 0.5;
+    }
   }, { passive: false });
+
+  // Cmd+/Cmd- keyboard zoom
+  window.addEventListener("keydown", (e) => {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if (e.key === "=" || e.key === "+") {
+      e.preventDefault();
+      applyZoom(0.85); // zoom in
+    } else if (e.key === "-") {
+      e.preventDefault();
+      applyZoom(1.18); // zoom out
+    }
+  });
+
+  function wrapPov(): void {
+    const tw = state.torusWidth || 1;
+    const th = state.torusHeight || 1;
+    state.pov.x = ((state.pov.x % tw) + tw) % tw;
+    state.pov.y = ((state.pov.y % th) + th) % th;
+  }
+
+  // Return the per-frame inertia tick
+  return () => {
+    if (dragging) return;
+    if (Math.abs(vx) < V_EPSILON && Math.abs(vy) < V_EPSILON) {
+      vx = 0;
+      vy = 0;
+      return;
+    }
+    state.pov.x += vx / 60;
+    state.pov.y += vy / 60;
+    wrapPov();
+    vx *= FRICTION;
+    vy *= FRICTION;
+  };
 }
 
 main();

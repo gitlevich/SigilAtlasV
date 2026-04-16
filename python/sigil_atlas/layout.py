@@ -1,10 +1,8 @@
-"""SpaceLike layout — arranges images on a rectangle by visual similarity.
+"""Layout — arranges images on a rectangle.
 
-Pipeline:
-  1. UMAP projects image embeddings to 2D positions
-  2. Hilbert curve traversal linearises 2D positions preserving locality
-  3. Greedy strip packing fills rows; per-strip proportional scaling
-     absorbs the small residual so every strip tiles exactly to torus_width
+Two modes:
+  SpaceLike (strips): UMAP → Hilbert → strip packing. For CLIP models.
+  Treemap: hierarchical KMeans clusters → squarified rectangles. For DINOv2.
 
 Invariants:
   - Similar images cluster locally as patches (!local-neighborhoods)
@@ -15,6 +13,8 @@ Invariants:
 """
 
 import logging
+import math
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -234,7 +234,290 @@ def _greedy_pack_strips(
 
 
 # ---------------------------------------------------------------------------
-# Main entry point
+# Treemap layout — hierarchical KMeans → squarified rectangles
+# ---------------------------------------------------------------------------
+
+TREEMAP_K_LEVELS = [10, 50, 200, 500, 1000]
+TREEMAP_GAPS = [0.5, 0.25, 0.1, 0.0, 0.0]  # gap as fraction of strip_height per level
+
+
+@dataclass
+class _TreeNode:
+    """Node in the cluster hierarchy."""
+    cluster_id: int
+    level: int
+    image_ids: list[str] = field(default_factory=list)
+    children: list["_TreeNode"] = field(default_factory=list)
+
+
+def _build_hierarchy(
+    db: CorpusDB,
+    image_ids: list[str],
+    model: str,
+    k_levels: list[int],
+) -> _TreeNode:
+    """Build a cluster tree from precomputed KMeans at multiple k-levels.
+
+    For each pair of adjacent levels (coarse, fine), assign each fine cluster
+    to whichever coarse cluster contains the majority of its members.
+    """
+    # Filter to k-levels that actually exist in DB
+    available = [k for k in k_levels if db.has_kmeans(model, k)]
+    if not available:
+        # No clustering — single root with all images
+        return _TreeNode(cluster_id=0, level=0, image_ids=image_ids)
+
+    # Fetch assignments at all levels
+    assignments: dict[int, dict[str, int]] = {}
+    for k in available:
+        assignments[k] = db.fetch_kmeans_assignments_for_ids(model, k, image_ids)
+
+    # Build leaf nodes from finest level
+    finest_k = available[-1]
+    finest = assignments[finest_k]
+    leaf_groups: dict[int, list[str]] = defaultdict(list)
+    for iid in image_ids:
+        cid = finest.get(iid, 0)
+        leaf_groups[cid].append(iid)
+
+    leaves = {
+        cid: _TreeNode(cluster_id=cid, level=len(available) - 1, image_ids=ids)
+        for cid, ids in leaf_groups.items()
+    }
+
+    # Build upward: for each level pair, group fine clusters into coarse ones
+    current_nodes = leaves
+    for level_idx in range(len(available) - 2, -1, -1):
+        coarse_k = available[level_idx]
+        coarse_assignments = assignments[coarse_k]
+
+        # For each current node, vote on which coarse cluster it belongs to
+        parent_groups: dict[int, list[_TreeNode]] = defaultdict(list)
+        for node in current_nodes.values():
+            votes: Counter = Counter()
+            for iid in node.image_ids:
+                votes[coarse_assignments.get(iid, 0)] += 1
+            parent_cid = votes.most_common(1)[0][0]
+            parent_groups[parent_cid].append(node)
+
+        # Create parent nodes
+        current_nodes = {}
+        for cid, children in parent_groups.items():
+            all_ids = []
+            for child in children:
+                all_ids.extend(child.image_ids)
+            parent = _TreeNode(
+                cluster_id=cid, level=level_idx,
+                image_ids=all_ids, children=children,
+            )
+            current_nodes[cid] = parent
+
+    # Root
+    root = _TreeNode(
+        cluster_id=-1, level=-1,
+        image_ids=image_ids,
+        children=list(current_nodes.values()),
+    )
+    return root
+
+
+def _squarify(
+    children: list[tuple[float, any]],
+    x: float, y: float, w: float, h: float,
+) -> list[tuple[any, float, float, float, float]]:
+    """Squarified treemap layout (Bruls et al. 2000).
+
+    Input: [(area, data), ...] sorted by area descending.
+    Output: [(data, x, y, w, h), ...]
+    """
+    if not children:
+        return []
+
+    total_area = sum(a for a, _ in children)
+    if total_area <= 0:
+        return [(d, x, y, w / len(children), h) for _, d in children]
+
+    # Normalize areas to fill the rectangle
+    scale = (w * h) / total_area
+    items = [(a * scale, d) for a, d in children]
+
+    result = []
+    _squarify_recursive(items, x, y, w, h, result)
+    return result
+
+
+def _squarify_recursive(
+    items: list[tuple[float, any]],
+    x: float, y: float, w: float, h: float,
+    result: list,
+) -> None:
+    if not items:
+        return
+    if len(items) == 1:
+        result.append((items[0][1], x, y, w, h))
+        return
+
+    # Lay out along the shorter side
+    if w >= h:
+        _layout_row(items, x, y, w, h, True, result)
+    else:
+        _layout_row(items, x, y, w, h, False, result)
+
+
+def _layout_row(
+    items: list[tuple[float, any]],
+    x: float, y: float, w: float, h: float,
+    horizontal: bool,
+    result: list,
+) -> None:
+    """Lay items in a row along the shorter side, optimizing aspect ratios."""
+    side = h if horizontal else w
+
+    row = [items[0]]
+    row_area = items[0][0]
+    best_worst = _worst_ratio(row, row_area, side)
+
+    for i in range(1, len(items)):
+        new_row = row + [items[i]]
+        new_area = row_area + items[i][0]
+        new_worst = _worst_ratio(new_row, new_area, side)
+
+        if new_worst <= best_worst:
+            row = new_row
+            row_area = new_area
+            best_worst = new_worst
+        else:
+            break
+
+    # Place this row
+    consumed = len(row)
+    row_span = row_area / side if side > 0 else 0
+
+    pos = 0.0
+    for area, data in row:
+        frac = area / row_area if row_area > 0 else 1.0 / len(row)
+        if horizontal:
+            result.append((data, x, y + pos * side, row_span, frac * side))
+            pos += frac
+        else:
+            result.append((data, x + pos * side, y, frac * side, row_span))
+            pos += frac
+
+    # Recurse on remaining items in the leftover rectangle
+    remaining = items[consumed:]
+    if remaining:
+        if horizontal:
+            _squarify_recursive(remaining, x + row_span, y, w - row_span, h, result)
+        else:
+            _squarify_recursive(remaining, x, y + row_span, w, h - row_span, result)
+
+
+def _worst_ratio(row: list[tuple[float, any]], total: float, side: float) -> float:
+    """Worst aspect ratio in a row. Lower is better (closer to square)."""
+    if side <= 0 or total <= 0:
+        return float("inf")
+    s2 = side * side
+    rmax = max(a for a, _ in row)
+    rmin = min(a for a, _ in row)
+    return max(s2 * rmax / (total * total), total * total / (s2 * rmin))
+
+
+def _treemap_to_strips(
+    node: _TreeNode,
+    rx: float, ry: float, rw: float, rh: float,
+    strip_height: float,
+    natural_widths: dict[str, float],
+    thumbnails: dict[str, str | None],
+    gap_fractions: list[float],
+    strips: list[Strip],
+) -> None:
+    """Recursively lay out tree nodes as squarified rectangles, packing strips at leaves."""
+    if not node.children:
+        # Leaf: pack images into strips within this rectangle
+        if not node.image_ids or rw <= 0 or rh <= 0:
+            return
+        leaf_strips = _greedy_pack_strips(
+            node.image_ids, natural_widths, thumbnails,
+            strip_height, rw,
+        )
+        # Position strips within the rectangle
+        for s in leaf_strips:
+            s.y += ry
+            for img in s.images:
+                img.x += rx
+            strips.append(s)
+        return
+
+    # Interior node: subdivide rectangle among children
+    level = max(0, node.level + 1)
+    gap = strip_height * (gap_fractions[level] if level < len(gap_fractions) else 0.0)
+
+    # Sort children by image count descending (squarify works best this way)
+    sorted_children = sorted(node.children, key=lambda c: len(c.image_ids), reverse=True)
+    child_areas = [(float(len(c.image_ids)), c) for c in sorted_children]
+
+    placements = _squarify(child_areas, rx, ry, rw, rh)
+
+    for child, cx, cy, cw, ch in placements:
+        # Inset by gap
+        inset_x = cx + gap
+        inset_y = cy + gap
+        inset_w = cw - 2 * gap
+        inset_h = ch - 2 * gap
+        if inset_w <= 0 or inset_h <= 0:
+            inset_x, inset_y, inset_w, inset_h = cx, cy, cw, ch
+        _treemap_to_strips(
+            child, inset_x, inset_y, inset_w, inset_h,
+            strip_height, natural_widths, thumbnails, gap_fractions, strips,
+        )
+
+
+def compute_treemap_layout(
+    provider: EmbeddingProvider, db: CorpusDB, image_ids: list[str],
+    model: str = "dinov2-vitb14", strip_height: float = 100.0,
+    k_levels: list[int] | None = None,
+) -> StripLayout:
+    """Treemap layout: hierarchical KMeans → squarified rectangles → strip-packed leaves."""
+    k_levels = k_levels or TREEMAP_K_LEVELS
+    n = len(image_ids)
+    if n == 0:
+        return StripLayout([], 0, 0, strip_height)
+
+    dims = _fetch_image_dimensions(db, image_ids)
+    natural_widths = {iid: strip_height * (dims[iid][0] / dims[iid][1]) for iid in image_ids}
+    thumbnails = {iid: dims[iid][2] for iid in image_ids}
+
+    # Total area at nominal strip height
+    total_width = sum(natural_widths.values())
+    total_area = total_width * strip_height
+    side = math.sqrt(total_area)
+    # Aim for a roughly square torus
+    torus_width = side * 1.2  # slightly wider than tall
+    torus_height = total_area / torus_width
+
+    logger.info("Treemap: %d images, %d k-levels, surface %.0f x %.0f", n, len(k_levels), torus_width, torus_height)
+
+    # Build hierarchy
+    root = _build_hierarchy(db, image_ids, model, k_levels)
+
+    # Lay out into strips
+    strips: list[Strip] = []
+    _treemap_to_strips(
+        root, 0, 0, torus_width, torus_height,
+        strip_height, natural_widths, thumbnails, TREEMAP_GAPS, strips,
+    )
+
+    # Sort strips by y for binary search in the renderer
+    strips.sort(key=lambda s: s.y)
+
+    actual_height = max((s.y + s.height for s in strips), default=0)
+    logger.info("Treemap: %d strips, %.0f x %.0f", len(strips), torus_width, actual_height)
+
+    return StripLayout(strips, torus_width, actual_height, strip_height)
+
+
+# ---------------------------------------------------------------------------
+# UMAP + Hilbert layout (for CLIP models)
 # ---------------------------------------------------------------------------
 
 def _ensure_umap_cached(
@@ -269,10 +552,24 @@ def compute_layout(
     model: str = "clip-vit-l-14", strip_height: float = 100.0,
     preserve_order: bool = False,
     order_values: dict[str, float] | None = None,
+    layout_mode: str = "auto",
 ) -> StripLayout:
+    # Auto-select treemap for models without a text encoder (DINOv2)
+    use_treemap = layout_mode == "treemap"
+    if layout_mode == "auto":
+        from sigil_atlas.model_registry import get_adapter
+        try:
+            adapter = get_adapter(model)
+            use_treemap = not adapter.supports_text
+        except ValueError:
+            pass
+
     n = len(image_ids)
     if n == 0:
         return StripLayout([], 0, 0, strip_height)
+
+    if use_treemap and n > 1 and not preserve_order and not order_values:
+        return compute_treemap_layout(provider, db, image_ids, model, strip_height)
 
     dims = _fetch_image_dimensions(db, image_ids)
 

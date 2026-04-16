@@ -27,6 +27,19 @@ export function setViewport(vp: TorusViewport): void {
   viewport = vp;
 }
 
+/** Re-fetch dimensions and models from the server and rebuild the control panels. */
+export async function refreshControls(): Promise<void> {
+  const [dimensions, models] = await Promise.all([
+    api.getDimensions(),
+    api.getModels(),
+  ]);
+  if (models.length > 0 && !models.includes(state.model)) {
+    state.model = models[0];
+  }
+  await initControls(dimensions, models);
+  notify();
+}
+
 export async function recomputeSliceAndLayout(): Promise<void> {
   // Cancel any pending debounced recompute to avoid stale overwrites
   if (sliceDebounceTimer) { clearTimeout(sliceDebounceTimer); sliceDebounceTimer = null; }
@@ -571,15 +584,15 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   buildContrastsSection(contrasts.body);
   panel.appendChild(contrasts.section);
 
-  // Color section
+  // Color section — only shown if hue dimension exists
   const color = createSection("Color");
   buildColorSection(color.body, dimensions);
-  panel.appendChild(color.section);
+  if (color.body.childElementCount > 0) panel.appendChild(color.section);
 
-  // Tone section
+  // Tone section — only shown if tone dimensions exist
   const tone = createSection("Tone");
   buildToneSection(tone.body, dimensions);
-  panel.appendChild(tone.section);
+  if (tone.body.childElementCount > 0) panel.appendChild(tone.section);
 
   // Settings section (collapsed by default)
   const settings = createSection("Settings", true);
@@ -643,7 +656,7 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   for (const m of models) {
     const opt = document.createElement("option");
     opt.value = m;
-    opt.textContent = m === "clip-vit-b-32" ? "Semantic" : m === "clip-vit-l-14" ? "Semantic LG" : m === "dinov2-vitb14" ? "Visual" : m;
+    opt.textContent = m === "clip-vit-b-32" ? "Semantic" : m === "clip-vit-l-14" ? "Semantic XR" : m === "dinov2-vitb14" ? "Visual" : m;
     modelSelect.appendChild(opt);
   }
   modelSelect.value = state.model;

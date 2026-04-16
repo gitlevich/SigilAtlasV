@@ -189,6 +189,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_ingest_pause()
             elif self.path == "/ingest/resume":
                 self._handle_ingest_resume()
+            elif self.path == "/tools/pixel-features":
+                self._handle_pixel_features()
+            elif self.path == "/tools/embed-missing":
+                self._handle_embed_missing()
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as e:
@@ -232,6 +236,74 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "import already running"}, 409)
             return
         self._send_json({"status": result})
+
+    def _handle_pixel_features(self):
+        """Run pixel feature extraction in the ingest thread."""
+        if _state.ingest.is_running:
+            self._send_json({"error": "import already running"}, 409)
+            return
+
+        import threading
+        from sigil_atlas.cancel import CancellationToken
+        from sigil_atlas.ingest.pixel_features import run_pixel_features_stage
+
+        _state.ingest.token = CancellationToken()
+        _state.ingest.reporter = BufferedProgressReporter()
+        _state.ingest.reporter.emit_event("pipeline_started", source="pixel_features")
+
+        def run():
+            try:
+                db = _state.workspace.open_db()
+                progress = _state.ingest.reporter.create_stage("pixel_features", 0)
+                run_pixel_features_stage(db, _state.workspace.thumbnails_dir, progress, _state.ingest.token)
+                _state.ingest.reporter.emit_event("pipeline_completed")
+            except Exception:
+                logger.error("Pixel features failed", exc_info=True)
+                _state.ingest.reporter.emit_event("pipeline_error")
+            finally:
+                db.close()
+
+        _state.ingest.thread = threading.Thread(target=run, daemon=True, name="pixel-features")
+        _state.ingest.thread.start()
+        self._send_json({"status": "started"})
+
+    def _handle_embed_missing(self):
+        """Run embedding for all models that have missing images."""
+        if _state.ingest.is_running:
+            self._send_json({"error": "import already running"}, 409)
+            return
+
+        import threading
+        from sigil_atlas.cancel import CancellationToken
+        from sigil_atlas.ingest.embed import CLIPEmbedder, CLIPLargeEmbedder, DINOv2Embedder, run_embedding_stage
+
+        _state.ingest.token = CancellationToken()
+        _state.ingest.reporter = BufferedProgressReporter()
+        _state.ingest.reporter.emit_event("pipeline_started", source="embed_missing")
+
+        def run():
+            try:
+                db = _state.workspace.open_db()
+                for embedder_cls in [CLIPEmbedder, CLIPLargeEmbedder, DINOv2Embedder]:
+                    if _state.ingest.token.is_cancelled:
+                        break
+                    embedder = embedder_cls()
+                    count = len(db.fetch_unembedded_image_ids(embedder.MODEL_ID))
+                    if count == 0:
+                        continue
+                    progress = _state.ingest.reporter.create_stage(embedder.MODEL_ID, count)
+                    run_embedding_stage(db, _state.workspace.thumbnails_dir, embedder, progress, _state.ingest.token)
+                _state.ingest.reporter.emit_event("pipeline_completed")
+            except Exception:
+                logger.error("Embedding failed", exc_info=True)
+                _state.ingest.reporter.emit_event("pipeline_error")
+            finally:
+                _state.provider.invalidate_cache()
+                db.close()
+
+        _state.ingest.thread = threading.Thread(target=run, daemon=True, name="embed-missing")
+        _state.ingest.thread.start()
+        self._send_json({"status": "started"})
 
     def _handle_dimensions(self):
         """Return range characterization dimensions with their min/max.
@@ -324,11 +396,12 @@ class RequestHandler(BaseHTTPRequestHandler):
             image_ids = _state.db.fetch_image_ids()
 
         preserve_order = data.get("preserve_order", False)
+        layout_mode = data.get("layout_mode", "auto")
         layout = compute_layout(
             _state.provider, _state.db, image_ids,
             axes=axes, tightness=tightness, model=model,
             strip_height=strip_height, preserve_order=preserve_order,
-            order_values=order_values,
+            order_values=order_values, layout_mode=layout_mode,
         )
 
         strips_json = []
