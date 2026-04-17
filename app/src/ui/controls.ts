@@ -30,18 +30,23 @@ export function setViewport(vp: TorusViewport): void {
 
 /** Re-fetch dimensions and models from the server and rebuild the control panels. */
 export async function refreshControls(): Promise<void> {
-  const [dimensions, models] = await Promise.all([
+  const [dimensions, modelsRes] = await Promise.all([
     api.getDimensions(),
     api.getModels(),
   ]);
-  if (models.length > 0 && !models.includes(state.model)) {
-    state.model = models[0];
+  const complete = modelsRes.models.filter(
+    (m) => (modelsRes.counts[m] ?? 0) >= modelsRes.total,
+  );
+  if (complete.length > 0 && !complete.includes(state.model)) {
+    state.model = complete[0];
+  } else if (modelsRes.models.length > 0 && !modelsRes.models.includes(state.model)) {
+    state.model = modelsRes.models[0];
   }
-  await initControls(dimensions, models);
+  await initControls(dimensions, modelsRes);
   notify();
 }
 
-export async function recomputeSliceAndLayout(): Promise<void> {
+export async function recomputeSliceAndLayout(opts?: { anchorImageId?: string }): Promise<void> {
   // Cancel any pending debounced recompute to avoid stale overwrites
   if (sliceDebounceTimer) { clearTimeout(sliceDebounceTimer); sliceDebounceTimer = null; }
 
@@ -60,7 +65,9 @@ export async function recomputeSliceAndLayout(): Promise<void> {
     // keep this same image at screen centre after the recompute, regardless
     // of mode switch or slice change.
     const prevLayout = state.layout;
-    const anchorImageId = prevLayout ? imageAtPov(prevLayout, state.pov) : null;
+    // Explicit anchor (e.g. shift-click target) overrides the
+    // "whatever is at screen centre" auto-anchor.
+    const anchorImageId = opts?.anchorImageId ?? (prevLayout ? imageAtPov(prevLayout, state.pov) : null);
     const isFirstLoad = state.torusWidth === 0;
 
     const canvas = document.getElementById("viewport") as HTMLCanvasElement;
@@ -73,6 +80,7 @@ export async function recomputeSliceAndLayout(): Promise<void> {
       const layout = await api.computeSpacelike({
         image_ids: state.imageIds,
         attractors: state.attractors,
+        contrasts: state.contrastControls.map((c) => ({ pole_a: c.pole_a, pole_b: c.pole_b })),
         model: state.model,
         feathering: state.feathering,
         cell_size: state.cellSize,
@@ -171,12 +179,44 @@ function updateImageCount(): void {
 // recomputes, mode switches, and slice changes. Pan/zoom follow the image,
 // not the geometry.
 
-function imageAtPov(layout: AnyLayout, pov: PointOfView): string | null {
+/** World centre of the cell/image under a world position, or null if the
+ *  position falls outside any cell. Used by double-click to snap-centre on
+ *  the clicked image rather than the literal clicked pixel.
+ */
+export function cellCenterAtWorld(layout: AnyLayout, worldX: number, worldY: number): { x: number; y: number } | null {
   if (isSpaceLikeLayout(layout)) {
     if (layout.cols === 0 || layout.rows === 0) return null;
-    // Wrap pov into the torus range, then find the cell it falls in.
-    const wx = ((pov.x % layout.torus_width) + layout.torus_width) % layout.torus_width;
-    const wy = ((pov.y % layout.torus_height) + layout.torus_height) % layout.torus_height;
+    const wx = ((worldX % layout.torus_width) + layout.torus_width) % layout.torus_width;
+    const wy = ((worldY % layout.torus_height) + layout.torus_height) % layout.torus_height;
+    const col = Math.min(layout.cols - 1, Math.max(0, Math.floor(wx / layout.cell_size)));
+    const row = Math.min(layout.rows - 1, Math.max(0, Math.floor(wy / layout.cell_size)));
+    return {
+      x: (col + 0.5) * layout.cell_size,
+      y: (row + 0.5) * layout.cell_size,
+    };
+  }
+  const tw = layout.torus_width, th = layout.torus_height;
+  if (tw === 0 || th === 0) return null;
+  const wx = ((worldX % tw) + tw) % tw;
+  const wy = ((worldY % th) + th) % th;
+  for (const strip of layout.strips) {
+    if (wy >= strip.y && wy < strip.y + strip.height) {
+      for (const img of strip.images) {
+        if (wx >= img.x && wx < img.x + img.width) {
+          return { x: img.x + img.width / 2, y: strip.y + strip.height / 2 };
+        }
+      }
+      break;
+    }
+  }
+  return null;
+}
+
+export function imageAtWorld(layout: AnyLayout, worldX: number, worldY: number): string | null {
+  if (isSpaceLikeLayout(layout)) {
+    if (layout.cols === 0 || layout.rows === 0) return null;
+    const wx = ((worldX % layout.torus_width) + layout.torus_width) % layout.torus_width;
+    const wy = ((worldY % layout.torus_height) + layout.torus_height) % layout.torus_height;
     const col = Math.min(layout.cols - 1, Math.max(0, Math.floor(wx / layout.cell_size)));
     const row = Math.min(layout.rows - 1, Math.max(0, Math.floor(wy / layout.cell_size)));
     for (const p of layout.positions) {
@@ -184,11 +224,10 @@ function imageAtPov(layout: AnyLayout, pov: PointOfView): string | null {
     }
     return null;
   }
-  // Strip layout.
   const tw = layout.torus_width, th = layout.torus_height;
   if (tw === 0 || th === 0) return null;
-  const wx = ((pov.x % tw) + tw) % tw;
-  const wy = ((pov.y % th) + th) % th;
+  const wx = ((worldX % tw) + tw) % tw;
+  const wy = ((worldY % th) + th) % th;
   for (const strip of layout.strips) {
     if (wy >= strip.y && wy < strip.y + strip.height) {
       for (const img of strip.images) {
@@ -198,6 +237,10 @@ function imageAtPov(layout: AnyLayout, pov: PointOfView): string | null {
     }
   }
   return null;
+}
+
+function imageAtPov(layout: AnyLayout, pov: PointOfView): string | null {
+  return imageAtWorld(layout, pov.x, pov.y);
 }
 
 function worldCenterOfImage(layout: AnyLayout, id: string): { x: number; y: number } | null {
@@ -325,7 +368,8 @@ function buildAttractSection(body: HTMLElement): void {
       const att = state.attractors[i];
       const pill = document.createElement("span");
       pill.className = "pill";
-      pill.textContent = att.ref;
+      pill.textContent = att.kind === "target_image" ? "\u25CE image" : att.ref;
+      if (att.kind === "target_image") pill.title = att.ref;
       const remove = document.createElement("span");
       remove.className = "pill-remove";
       remove.textContent = "\u00d7";
@@ -623,7 +667,10 @@ function buildImportSection(body: HTMLElement): void {
 
 // ── Main init ──
 
-export async function initControls(dimensions: Dimension[], models: string[]): Promise<void> {
+export async function initControls(dimensions: Dimension[], modelsRes: api.ModelsResponse): Promise<void> {
+  const models = modelsRes.models;
+  const counts = modelsRes.counts;
+  const total = modelsRes.total;
 
   // --- Left panel: start folded, keep dimension sliders for advanced use ---
   const slicePanel = document.getElementById("slice-panel")!;
@@ -811,24 +858,37 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   settings.body.appendChild(timeDirGroup);
   timeSection = timeDirGroup;
 
-  // Model
+  // Model — advanced: which embedding space the attractors and contrasts
+  // resolve in. Similarity is defined by named Contrasts; this picks the
+  // raw space those Contrasts project out of.
   const modelGroup = document.createElement("div");
   modelGroup.className = "control-group";
   const modelLabel = document.createElement("label");
-  modelLabel.textContent = "Model";
+  modelLabel.textContent = "Embedding space";
   modelGroup.appendChild(modelLabel);
-
   const modelSelect = document.createElement("select");
   for (const m of models) {
     const opt = document.createElement("option");
     opt.value = m;
-    opt.textContent = m === "clip-vit-b-32" ? "Semantic" : m === "clip-vit-l-14" ? "Semantic XR" : m === "dinov2-vitb14" ? "Visual" : m;
+    const coverage = counts[m] ?? 0;
+    const complete = coverage >= total;
+    const base = m === "clip-vit-b-32" ? "CLIP B-32 (semantic)"
+      : m === "clip-vit-l-14" ? "CLIP L-14 (semantic, fine)"
+      : m === "dinov2-vitb14" ? "DINOv2 (visual form)"
+      : m;
+    if (!complete) {
+      const pct = Math.round(100 * coverage / Math.max(1, total));
+      opt.textContent = `${base} — ${pct}% embedded`;
+      opt.disabled = true;
+    } else {
+      opt.textContent = base;
+    }
     modelSelect.appendChild(opt);
   }
   modelSelect.value = state.model;
   modelSelect.addEventListener("change", () => {
     state.model = modelSelect.value;
-    recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
+    recomputeSliceAndLayout().catch((e) => console.error("Model switch failed:", e));
   });
   modelGroup.appendChild(modelSelect);
   settings.body.appendChild(modelGroup);

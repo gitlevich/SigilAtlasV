@@ -8,7 +8,7 @@
 import { TorusViewport } from "./renderer/torus-viewport";
 import { state, notify, subscribe } from "./state";
 import * as api from "./api";
-import { initControls, setViewport, recomputeSliceAndLayout, refreshControls } from "./ui/controls";
+import { initControls, setViewport, recomputeSliceAndLayout, refreshControls, imageAtWorld, cellCenterAtWorld } from "./ui/controls";
 import { initStatusBar } from "./ui/status-bar";
 import { initMenu } from "./ui/menu";
 import type { PointOfView } from "./types";
@@ -87,6 +87,15 @@ async function main(): Promise<void> {
 
   api.setSidecarPort(port);
 
+  // If the sidecar dies (OOM, crash), the next api.* call will hit a network
+  // error. Register a revive path so it respawns transparently.
+  if (isTauri()) {
+    api.setReviveFn(async () => {
+      console.warn("[sidecar] dead; respawning");
+      return await startSidecarViaTauri();
+    });
+  }
+
   // Wait for sidecar health
   let healthy = false;
   for (let i = 0; i < 30; i++) {
@@ -112,14 +121,20 @@ async function main(): Promise<void> {
   viewport.loadOverview().then(() => mark("overview atlas ready"));
   viewport.loadMidAtlas().then(() => mark("mid-atlas ready"));
 
-  // Load dimensions and models
-  const [dimensions, models] = await Promise.all([
+  // Load dimensions and models (with coverage counts for disabling incomplete)
+  const [dimensions, modelsRes] = await Promise.all([
     api.getDimensions(),
     api.getModels(),
   ]);
-  // Auto-select first available model if current default isn't available
-  if (models.length > 0 && !models.includes(state.model)) {
-    state.model = models[0];
+  // Prefer a model whose embeddings are complete. Fall back to the first
+  // available if the current default isn't present.
+  const completeModels = modelsRes.models.filter(
+    (m) => (modelsRes.counts[m] ?? 0) >= modelsRes.total,
+  );
+  if (completeModels.length > 0 && !completeModels.includes(state.model)) {
+    state.model = completeModels[0];
+  } else if (modelsRes.models.length > 0 && !modelsRes.models.includes(state.model)) {
+    state.model = modelsRes.models[0];
   }
   mark("dimensions + models");
 
@@ -139,6 +154,7 @@ async function main(): Promise<void> {
   const layout = await api.computeSpacelike({
     image_ids: state.imageIds,
     attractors: state.attractors,
+    contrasts: state.contrastControls.map((c) => ({ pole_a: c.pole_a, pole_b: c.pole_b })),
     model: state.model,
     feathering: state.feathering,
     cell_size: state.cellSize,
@@ -162,7 +178,7 @@ async function main(): Promise<void> {
   };
 
   // Init controls
-  await initControls(dimensions, models);
+  await initControls(dimensions, modelsRes);
   notify();
   mark("controls ready");
 
@@ -243,28 +259,81 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
   let animStart = 0;
   const ANIM_MS = 450;
 
+  // Shift+click on a photo makes it a @TargetImage attractor. Replaces any
+  // existing target image; leaves Thing attractors intact.
+  canvas.addEventListener("click", (e) => {
+    if (!e.shiftKey) return;
+    if (!state.layout) return;
+    const rect = canvas.getBoundingClientRect();
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
+    const dxPx = (e.clientX - rect.left) - cw / 2;
+    const dyPx = (e.clientY - rect.top) - ch / 2;
+    // Same Y-flip as dblclick: world-y is inverted on screen.
+    const worldPerPx = state.pov.z / cw;
+    const worldX = state.pov.x + dxPx * worldPerPx;
+    const worldY = state.pov.y - dyPx * worldPerPx;
+    const id = imageAtWorld(state.layout, worldX, worldY);
+    if (!id) return;
+    state.attractors = state.attractors.filter((a) => a.kind !== "target_image");
+    state.attractors.push({ kind: "target_image", ref: id });
+    // Anchor on the clicked image so it lands at screen centre after the
+    // field rearranges — "what I pointed at is what I'm now looking at".
+    recomputeSliceAndLayout({ anchorImageId: id }).catch((err) => console.error("[attract]", err));
+  });
+
   canvas.addEventListener("dblclick", (e) => {
     const rect = canvas.getBoundingClientRect();
     const cw = canvas.clientWidth;
     const ch = canvas.clientHeight;
     const dxPx = (e.clientX - rect.left) - cw / 2;
     const dyPx = (e.clientY - rect.top) - ch / 2;
-    const ppu = cw / state.pov.z;
-    const aspect = cw / ch;
-    const targetX = state.pov.x + dxPx / ppu;
-    const targetY = state.pov.y + dyPx / (ppu * aspect);
+    // World-per-pixel is the same on both axes under square ortho projection.
+    // World-per-pixel is the same on both axes under square ortho projection.
+    // Y sign is flipped because the renderer's MVP maps larger world-y to
+    // NDC +y (top of screen), so clicking above centre means "go to a LARGER
+    // world-y", i.e. pov.y - dyPx * wpp (dyPx negative above centre).
+    const worldPerPx = state.pov.z / cw;
+    const rawX = state.pov.x + dxPx * worldPerPx;
+    const rawY = state.pov.y - dyPx * worldPerPx;
+    // Snap to the centre of the cell under the click, so the clicked image —
+    // not the clicked pixel — becomes the centre of the screen.
+    const snap = state.layout ? cellCenterAtWorld(state.layout, rawX, rawY) : null;
+    const targetX = snap?.x ?? rawX;
+    const targetY = snap?.y ?? rawY;
 
     // Alt/Option held: zoom out 2x. Plain double-click: zoom in 2x.
     const zoomingOut = e.altKey;
     const factor = zoomingOut ? 2 : 0.5;
     const tw = state.torusWidth || 10000;
     const th = state.torusHeight || 10000;
+    const aspect = cw / ch;
     const maxZ = Math.min(tw, th * aspect);
     const newZ = Math.max(100, Math.min(maxZ, state.pov.z * factor));
 
+    // Short-wrap the target: if the straight-line path from animFrom to animTo
+    // is longer than half the torus, go the other way around. Otherwise the
+    // camera sweeps across the full torus when the click is near a seam.
+    const tw2 = state.torusWidth || 0;
+    const th2 = state.torusHeight || 0;
+    let dX = targetX - state.pov.x;
+    let dY = targetY - state.pov.y;
+    if (tw2 > 0) {
+      if (dX > tw2 / 2) dX -= tw2;
+      else if (dX < -tw2 / 2) dX += tw2;
+    }
+    if (th2 > 0) {
+      if (dY > th2 / 2) dY -= th2;
+      else if (dY < -th2 / 2) dY += th2;
+    }
     animFrom = { x: state.pov.x, y: state.pov.y, z: state.pov.z };
-    animTo = { x: targetX, y: targetY, z: newZ };
+    animTo = { x: state.pov.x + dX, y: state.pov.y + dY, z: newZ };
     animStart = performance.now();
+    // Kill any residual inertia velocity that would otherwise fling the
+    // camera after the animation completes — micro-motions between the two
+    // clicks of a double-click leave vx/vy non-zero.
+    vx = 0; vy = 0;
+    trail.length = 0;
   });
 
   canvas.addEventListener("mousedown", (e) => {

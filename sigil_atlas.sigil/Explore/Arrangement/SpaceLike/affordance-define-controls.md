@@ -1,1 +1,1 @@
-@Controls
+@Control

@@ -25,7 +25,7 @@ from sigil_atlas.overview import (
     mid_atlas_page_path,
     overview_paths,
 )
-from sigil_atlas.spacelike import Attractor, compute_spacelike, compute_wireframe_edges
+from sigil_atlas.spacelike import Attractor, ContrastAxis, compute_spacelike, compute_wireframe_edges
 from sigil_atlas.taxonomy import vocabulary, vocabulary_tree, vocabulary_flat
 from sigil_atlas.things import siblings, compute_things_layout
 from sigil_atlas.workspace import Workspace
@@ -141,7 +141,12 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def _send_file(self, file_path: Path):
         if not file_path.is_file():
-            self._send_json({"error": "not found"}, 404)
+            # 204 instead of 404 so the browser doesn't spam the console with
+            # failed-resource errors for previews/thumbnails that haven't been
+            # generated yet. The client just gets an empty response.
+            self.send_response(204)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
             return
         mime = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
         data = file_path.read_bytes()
@@ -351,7 +356,17 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def _handle_models(self):
         models = _state.provider.available_models()
-        self._send_json({"models": models})
+        total = _state.db.image_count()
+        # Count embeddings per model so the UI can disable incomplete ones.
+        rows = _state.db._conn.execute(
+            "SELECT model_identifier, COUNT(*) FROM embeddings GROUP BY model_identifier"
+        ).fetchall()
+        counts = {r[0]: r[1] for r in rows}
+        self._send_json({
+            "models": models,
+            "total": total,
+            "counts": counts,
+        })
 
     def _handle_slice(self):
         data = self._read_json()
@@ -454,6 +469,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             Attractor(kind=a["kind"], ref=a["ref"])
             for a in data.get("attractors", [])
         ]
+        contrasts = [
+            ContrastAxis(pole_a=c.get("pole_a", ""), pole_b=c.get("pole_b", ""))
+            for c in data.get("contrasts", [])
+        ]
 
         try:
             get_adapter(model)
@@ -463,7 +482,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         layout = compute_spacelike(
             _state.provider, _state.db, image_ids,
-            attractors=attractors, model=model,
+            attractors=attractors, contrasts=contrasts, model=model,
             feathering=feathering, cell_size=cell_size,
         )
 

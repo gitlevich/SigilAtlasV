@@ -18,32 +18,97 @@ import type {
 
 let sidecarPort: number | null = null;
 
+// Caller registers a revive callback that spawns a fresh sidecar (through
+// Tauri) and returns its port. Invoked when fetch fails with a network error,
+// implying the sidecar has died.
+type ReviveFn = () => Promise<number>;
+let reviveSidecar: ReviveFn | null = null;
+let reviveInFlight: Promise<number> | null = null;
+
 export function setSidecarPort(port: number): void {
   sidecarPort = port;
 }
 
+export function setReviveFn(fn: ReviveFn | null): void {
+  reviveSidecar = fn;
+}
+
+function isNetworkError(err: unknown): boolean {
+  // fetch() throws TypeError on connection-refused / ECONNREFUSED.
+  return err instanceof TypeError && /fetch|network|refused|load/i.test(err.message);
+}
+
+async function tryRevive(): Promise<number | null> {
+  if (!reviveSidecar) return null;
+  if (!reviveInFlight) {
+    reviveInFlight = reviveSidecar()
+      .then((port) => {
+        sidecarPort = port;
+        return port;
+      })
+      .finally(() => {
+        reviveInFlight = null;
+      });
+  }
+  try {
+    return await reviveInFlight;
+  } catch {
+    return null;
+  }
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   if (!sidecarPort) throw new Error("Sidecar port not set");
-  const res = await fetch(`http://127.0.0.1:${sidecarPort}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`${path}: ${detail || res.status}`);
+  const url = () => `http://127.0.0.1:${sidecarPort}${path}`;
+  try {
+    const res = await fetch(url(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`${path}: ${detail || res.status}`);
+    }
+    return res.json();
+  } catch (err) {
+    if (isNetworkError(err)) {
+      const p = await tryRevive();
+      if (p) {
+        const res = await fetch(url(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`${path}: ${res.status}`);
+        return res.json();
+      }
+    }
+    throw err;
   }
-  return res.json();
 }
 
 async function get<T>(path: string): Promise<T> {
   if (!sidecarPort) throw new Error("Sidecar port not set");
-  const res = await fetch(`http://127.0.0.1:${sidecarPort}${path}`);
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`${path}: ${detail || res.status}`);
+  const url = () => `http://127.0.0.1:${sidecarPort}${path}`;
+  try {
+    const res = await fetch(url());
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`${path}: ${detail || res.status}`);
+    }
+    return res.json();
+  } catch (err) {
+    if (isNetworkError(err)) {
+      const p = await tryRevive();
+      if (p) {
+        const res = await fetch(url());
+        if (!res.ok) throw new Error(`${path}: ${res.status}`);
+        return res.json();
+      }
+    }
+    throw err;
   }
-  return res.json();
 }
 
 export async function health(): Promise<boolean> {
@@ -60,9 +125,14 @@ export async function getDimensions(): Promise<Dimension[]> {
   return data.dimensions;
 }
 
-export async function getModels(): Promise<string[]> {
-  const data = await get<{ models: string[] }>("/models");
-  return data.models;
+export interface ModelsResponse {
+  models: string[];
+  total: number;
+  counts: Record<string, number>;
+}
+
+export async function getModels(): Promise<ModelsResponse> {
+  return get("/models");
 }
 
 export async function getVocabularyTree(): Promise<VocabularyTree> {

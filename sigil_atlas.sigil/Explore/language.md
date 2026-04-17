@@ -18,6 +18,6 @@ I use @navigation to change my @PointOfView over the surface on which @images ar
 
 Different @arrangements can make the same @slice meaningful in different ways. For example, one @arrangement can make it readable as @time. Another can make it readable as @similarity.
 
-@Controls let me change the @RelevanceFilter and the @arrangement. The result is visible immediately.
+@Control let me change the @RelevanceFilter and the @arrangement. The result is visible immediately.
 
 @Explore lets me #change-mode between @SpaceLike and @TimeLike.

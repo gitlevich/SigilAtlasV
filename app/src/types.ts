@@ -55,9 +55,15 @@ export interface Attractor {
   ref: string;
 }
 
+export interface ContrastAxis {
+  pole_a: string;
+  pole_b: string;
+}
+
 export interface SpaceLikeRequest {
   image_ids: string[];
   attractors: Attractor[];
+  contrasts: ContrastAxis[];
   model: string;
   feathering: number;
   cell_size: number;

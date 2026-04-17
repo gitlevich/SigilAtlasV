@@ -38,12 +38,23 @@ def main() -> None:
         "--workspace", type=Path, required=True, help="Workspace directory"
     )
 
+    embed_parser = sub.add_parser("embed-missing", help="Embed images missing from any model (detached from the app)")
+    embed_parser.add_argument(
+        "--workspace", type=Path, required=True, help="Workspace directory"
+    )
+    embed_parser.add_argument(
+        "--model", choices=["clip-vit-b-32", "clip-vit-l-14", "dinov2-vitb14"],
+        help="Run just this model; omit for all models with gaps",
+    )
+
     args = parser.parse_args()
 
     if args.command == "ingest":
         _run_ingest(args.workspace, args.source)
     elif args.command == "backfill-hashes":
         _run_backfill_hashes(args.workspace)
+    elif args.command == "embed-missing":
+        _run_embed_missing(args.workspace, args.model)
 
 
 def _run_ingest(workspace_path: Path, source_path: Path) -> None:
@@ -114,6 +125,54 @@ def _run_backfill_hashes(workspace_path: Path) -> None:
     db._conn.commit()
     logger.info("Backfilled %d content hashes", updated)
     db.close()
+
+
+def _run_embed_missing(workspace_path: Path, only_model: str | None) -> None:
+    """Detached-from-app embedding. Streams unembedded images through each
+    missing model and writes results to the workspace DB.
+    """
+    from sigil_atlas.ingest.embed import (
+        CLIPEmbedder, CLIPLargeEmbedder, DINOv2Embedder, run_embedding_stage,
+    )
+    from sigil_atlas.progress import ProgressReporter
+
+    token = CancellationToken()
+
+    def _handle_signal(signum, frame):
+        logger.info("Received signal %d, cancelling embedding...", signum)
+        token.cancel()
+
+    signal.signal(signal.SIGINT, _handle_signal)
+    signal.signal(signal.SIGTERM, _handle_signal)
+
+    workspace = Workspace(workspace_path)
+    workspace.initialize()
+    db = workspace.open_db()
+    reporter = ProgressReporter()
+
+    embedders: list = []
+    if only_model is None or only_model == CLIPEmbedder.MODEL_ID:
+        embedders.append(CLIPEmbedder())
+    if only_model is None or only_model == CLIPLargeEmbedder.MODEL_ID:
+        embedders.append(CLIPLargeEmbedder())
+    if only_model is None or only_model == DINOv2Embedder.MODEL_ID:
+        embedders.append(DINOv2Embedder())
+
+    for embedder in embedders:
+        if token.is_cancelled:
+            break
+        unembedded = db.fetch_unembedded_image_ids(embedder.MODEL_ID)
+        if not unembedded:
+            logger.info("%s: already complete", embedder.MODEL_ID)
+            continue
+        progress = reporter.create_stage(embedder.MODEL_ID, len(unembedded))
+        logger.info("%s: embedding %d missing images", embedder.MODEL_ID, len(unembedded))
+        try:
+            run_embedding_stage(db, workspace.thumbnails_dir, embedder, progress, token)
+        except Exception:
+            logger.error("Failed to embed %s", embedder.MODEL_ID, exc_info=True)
+    db.close()
+    logger.info("Embed-missing complete")
 
 
 if __name__ == "__main__":
