@@ -1,0 +1,11 @@
+{
+  "name": "hide-self-reference",
+  "situation": "Misfit where a sigil is referenced inside its own definition file — @AttractorControl inside Explore/Controls/AttractorControl/language.md. Definitional, not anomalous; the file IS the sigil. Suppress.",
+  "match": {
+    "kind": "curate-misfits",
+    "selfReference": true
+  },
+  "actions": [
+    { "type": "suppress" }
+  ]
+}

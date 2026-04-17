@@ -14,3 +14,4 @@ K+J held together: #step-backward. One small step back.
 Space: toggle between #play-forward at last speed and #stop.
 
 During playback, the @torus scrolls horizontally — @time advances across all @strips in sync. The @pointOfView stays fixed; the surface moves under it.
+

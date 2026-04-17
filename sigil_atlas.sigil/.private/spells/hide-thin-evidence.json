@@ -1,0 +1,13 @@
+{
+  "name": "hide-thin-evidence",
+  "situation": "Misfit whose detector reason lists fewer than three usual companions — '@X' or '@X, @Y'. Below three established companions the statistical signal is too thin to be reliable anomaly; suppress.",
+  "match": {
+    "kind": "curate-misfits",
+    "payload": {
+      "reason": { "matches": "usually appears with @\\w+(?:, @\\w+)?, not these\\.?$" }
+    }
+  },
+  "actions": [
+    { "type": "suppress" }
+  ]
+}

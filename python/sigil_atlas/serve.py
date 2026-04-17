@@ -19,7 +19,13 @@ from sigil_atlas.embedding_provider import SqliteEmbeddingProvider
 from sigil_atlas.layout import compute_layout
 from sigil_atlas.model_registry import get_adapter
 from sigil_atlas.slice import RangeFilter, ProximityFilter, ContrastControl, compute_slice
-from sigil_atlas.spacelike import Attractor, compute_spacelike
+from sigil_atlas.overview import (
+    generate_mid_atlas,
+    generate_overview,
+    mid_atlas_page_path,
+    overview_paths,
+)
+from sigil_atlas.spacelike import Attractor, compute_spacelike, compute_wireframe_edges
 from sigil_atlas.taxonomy import vocabulary, vocabulary_tree, vocabulary_flat
 from sigil_atlas.things import siblings, compute_things_layout
 from sigil_atlas.workspace import Workspace
@@ -173,6 +179,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._send_file(preview_path)
         elif self.path == "/ingest/progress":
             self._send_json(_state.ingest.progress())
+        elif self.path == "/overview/index":
+            self._handle_overview_index()
+        elif self.path == "/overview/atlas":
+            self._handle_overview_atlas()
+        elif self.path == "/midatlas/index":
+            self._handle_midatlas_index()
+        elif self.path.startswith("/midatlas/page/"):
+            self._handle_midatlas_page()
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -184,6 +198,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_layout()
             elif self.path == "/spacelike":
                 self._handle_spacelike()
+            elif self.path == "/wireframe":
+                self._handle_wireframe()
+            elif self.path == "/neighborhoods":
+                self._handle_neighborhoods()
             elif self.path == "/things":
                 self._handle_things()
             elif self.path == "/corpus/nuke":
@@ -451,8 +469,12 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         self._send_json({
             "positions": [
-                {"id": p.id, "col": p.col, "row": p.row}
+                {"id": p.id, "col": p.col, "row": p.row, "elevation": p.elevation}
                 for p in layout.positions
+            ],
+            "attractor_positions": [
+                {"kind": a.kind, "ref": a.ref, "col": a.col, "row": a.row}
+                for a in layout.attractor_positions
             ],
             "cell_size": layout.cell_size,
             "cols": layout.cols,
@@ -460,6 +482,83 @@ class RequestHandler(BaseHTTPRequestHandler):
             "torus_width": layout.torus_width,
             "torus_height": layout.torus_height,
         })
+
+    def _handle_overview_index(self):
+        idx = generate_overview(_state.workspace, _state.db)
+        self._send_json({
+            "tile_size": idx.tile_size,
+            "cols": idx.cols,
+            "rows": idx.rows,
+            "atlas_width": idx.atlas_width,
+            "atlas_height": idx.atlas_height,
+            "mapping": idx.mapping,
+        })
+
+    def _handle_overview_atlas(self):
+        png_path, _ = overview_paths(_state.workspace)
+        if not png_path.exists():
+            generate_overview(_state.workspace, _state.db)
+        self._send_file(png_path)
+
+    def _handle_midatlas_index(self):
+        idx = generate_mid_atlas(_state.workspace, _state.db)
+        self._send_json({
+            "tile_size": idx.tile_size,
+            "cols_per_page": idx.cols_per_page,
+            "rows_per_page": idx.rows_per_page,
+            "atlas_width": idx.atlas_width,
+            "atlas_height": idx.atlas_height,
+            "pages": idx.pages,
+            "mapping": idx.mapping,
+        })
+
+    def _handle_midatlas_page(self):
+        # URL: /midatlas/page/<n>
+        try:
+            page = int(self.path.rsplit("/", 1)[-1])
+        except ValueError:
+            self._send_json({"error": "bad page number"}, 400)
+            return
+        page_path = mid_atlas_page_path(_state.workspace, page)
+        if not page_path.exists():
+            generate_mid_atlas(_state.workspace, _state.db)
+        self._send_file(page_path)
+
+    def _handle_wireframe(self):
+        data = self._read_json()
+        image_ids = data.get("image_ids") or _state.db.fetch_image_ids()
+        model = data.get("model", "clip-vit-l-14")
+        k = int(data.get("k", 6))
+
+        try:
+            get_adapter(model)
+        except ValueError as e:
+            self._send_json({"error": str(e)}, 400)
+            return
+
+        edges = compute_wireframe_edges(_state.provider, image_ids, model, k)
+        logger.info("Wireframe: %d edges over %d images (k=%d)", len(edges), len(image_ids), k)
+        self._send_json({"edges": edges})
+
+    def _handle_neighborhoods(self):
+        """Per-image cluster ids from the precomputed KMeans at the chosen k.
+
+        Used by the Neighborhoods overlay: each image carries its cluster id;
+        the frontend renders boundary lines where adjacent cells on the grid
+        disagree.
+        """
+        data = self._read_json()
+        image_ids = data.get("image_ids") or _state.db.fetch_image_ids()
+        model = data.get("model", "clip-vit-l-14")
+        k = int(data.get("k", 50))
+        try:
+            get_adapter(model)
+        except ValueError as e:
+            self._send_json({"error": str(e)}, 400)
+            return
+        cluster_ids = _state.db.fetch_kmeans_assignments_for_ids(model, k, image_ids)
+        logger.info("Neighborhoods: k=%d, %d/%d assigned", k, len(cluster_ids), len(image_ids))
+        self._send_json({"k": k, "cluster_ids": cluster_ids})
 
     def _handle_things(self):
         data = self._read_json()

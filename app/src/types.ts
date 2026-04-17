@@ -24,10 +24,19 @@ export interface CellPosition {
   id: string;
   col: number;
   row: number;
+  elevation: number; // [0, 1]; density peak of the continuous target field
+}
+
+export interface AttractorPosition {
+  kind: "thing" | "target_image";
+  ref: string;
+  col: number;
+  row: number;
 }
 
 export interface SpaceLikeLayout {
   positions: CellPosition[];
+  attractor_positions: AttractorPosition[];
   cell_size: number;
   cols: number;
   rows: number;
@@ -110,7 +119,14 @@ export interface Dimension {
 export interface PointOfView {
   x: number;
   y: number;
-  z: number; // 0 = one image fills frame, higher = zoomed out
+  z: number; // world-space distance covered by the horizontal view (zoom)
+  pitch: number; // radians; 0 = top-down, PI/2 = horizon
+  yaw: number; // radians; rotation around the vertical axis
+}
+
+export interface LayerToggles {
+  photos: boolean;
+  neighborhoods: boolean;
 }
 
 export interface VocabularyTree {

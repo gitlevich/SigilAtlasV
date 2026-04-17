@@ -107,6 +107,11 @@ async function main(): Promise<void> {
   viewport.setThumbnailBaseUrl(`http://127.0.0.1:${port}`);
   mark("webgl init");
 
+  // Start loading the baked atlases in the background. First call on a fresh
+  // workspace triggers generation (~1min overview, ~3min mid); cached after.
+  viewport.loadOverview().then(() => mark("overview atlas ready"));
+  viewport.loadMidAtlas().then(() => mark("mid-atlas ready"));
+
   // Load dimensions and models
   const [dimensions, models] = await Promise.all([
     api.getDimensions(),
@@ -144,11 +149,17 @@ async function main(): Promise<void> {
   viewport.setLayout(layout);
   mark("layout");
 
-  // Center camera
+  // Initial splash: frame the entire torus so the user sees the whole field
+  // at once. Zoom-in happens via scroll/attractors.
   const aspect = canvas.clientWidth / canvas.clientHeight;
   const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
-  const desiredZoom = 8 * layout.cell_size * aspect;
-  state.pov = { x: layout.torus_width / 2, y: layout.torus_height / 2, z: Math.min(desiredZoom, maxZoom) };
+  state.pov = {
+    x: layout.torus_width / 2,
+    y: layout.torus_height / 2,
+    z: maxZoom,
+    pitch: 0,
+    yaw: 0,
+  };
 
   // Init controls
   await initControls(dimensions, models);
@@ -176,10 +187,12 @@ async function main(): Promise<void> {
   // Camera interaction
   const tickCamera = setupCameraControls(canvas);
 
-  // Render loop
+  // Render loop — push layer + relief state each frame (cheap)
   let firstFrameLogged = false;
   viewport.startRenderLoop(() => {
     tickCamera();
+    viewport.setLayers(state.layers);
+    viewport.setReliefScale(state.reliefScale);
     if (!firstFrameLogged && state.layout) {
       firstFrameLogged = true;
       requestAnimationFrame(() => mark("first frame"));
@@ -221,8 +234,42 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     return canvas.clientWidth / state.pov.z;
   }
 
+  // Orbit drag mode: alt/option held on grab
+  let orbiting = false;
+
+  // Camera easing target — double-click sets this, tick interpolates.
+  let animFrom: { x: number; y: number; z: number } | null = null;
+  let animTo: { x: number; y: number; z: number } | null = null;
+  let animStart = 0;
+  const ANIM_MS = 450;
+
+  canvas.addEventListener("dblclick", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
+    const dxPx = (e.clientX - rect.left) - cw / 2;
+    const dyPx = (e.clientY - rect.top) - ch / 2;
+    const ppu = cw / state.pov.z;
+    const aspect = cw / ch;
+    const targetX = state.pov.x + dxPx / ppu;
+    const targetY = state.pov.y + dyPx / (ppu * aspect);
+
+    // Alt/Option held: zoom out 2x. Plain double-click: zoom in 2x.
+    const zoomingOut = e.altKey;
+    const factor = zoomingOut ? 2 : 0.5;
+    const tw = state.torusWidth || 10000;
+    const th = state.torusHeight || 10000;
+    const maxZ = Math.min(tw, th * aspect);
+    const newZ = Math.max(100, Math.min(maxZ, state.pov.z * factor));
+
+    animFrom = { x: state.pov.x, y: state.pov.y, z: state.pov.z };
+    animTo = { x: targetX, y: targetY, z: newZ };
+    animStart = performance.now();
+  });
+
   canvas.addEventListener("mousedown", (e) => {
     dragging = true;
+    orbiting = e.altKey;
     lastX = e.clientX;
     lastY = e.clientY;
     // Grab kills momentum — this is what users expect
@@ -238,6 +285,16 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     const dy = e.clientY - lastY;
     lastX = e.clientX;
     lastY = e.clientY;
+
+    if (orbiting) {
+      // Orbit: horizontal drag rotates yaw, vertical drag tilts pitch.
+      // Only meaningful when relief is on, but always live.
+      const YAW_PER_PX = 0.006;
+      const PITCH_PER_PX = 0.006;
+      state.pov.yaw += dx * YAW_PER_PX;
+      state.pov.pitch = Math.max(0, Math.min(Math.PI / 2 - 0.02, state.pov.pitch + dy * PITCH_PER_PX));
+      return;
+    }
 
     const ppu = pixelsPerUnit();
     const worldDx = -dx / ppu;
@@ -258,6 +315,7 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
   window.addEventListener("mouseup", () => {
     if (!dragging) return;
     dragging = false;
+    if (orbiting) { orbiting = false; return; }
 
     // Estimate release velocity from trailing window
     const now = performance.now();
@@ -330,6 +388,18 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     const now = performance.now();
     const dt = Math.min((now - lastFrameT) / 1000, 0.05); // cap at 50ms to avoid jumps
     lastFrameT = now;
+
+    // Double-click zoom animation takes priority over inertia.
+    if (animFrom && animTo) {
+      const t = Math.min(1, (now - animStart) / ANIM_MS);
+      const eased = 0.5 - 0.5 * Math.cos(t * Math.PI);
+      state.pov.x = animFrom.x + (animTo.x - animFrom.x) * eased;
+      state.pov.y = animFrom.y + (animTo.y - animFrom.y) * eased;
+      state.pov.z = animFrom.z + (animTo.z - animFrom.z) * eased;
+      wrapPov();
+      if (t >= 1) { animFrom = null; animTo = null; }
+      return;
+    }
 
     if (dragging) return;
     if (Math.abs(vx) < V_EPSILON && Math.abs(vy) < V_EPSILON) {

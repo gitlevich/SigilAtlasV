@@ -1,0 +1,1 @@
+Open a local search field and filter the pills by substring of @thing name. The search affordance is revealed by a search icon; clicking it shows a text input. Typing narrows the visible pills in real time. Closing the search clears the filter.

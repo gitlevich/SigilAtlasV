@@ -5,7 +5,7 @@
   "identifier": "com.sigilatlas.desktop",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:1520",
+    "devUrl": "http://localhost:1522",
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build"
   },

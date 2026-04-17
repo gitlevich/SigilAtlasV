@@ -526,6 +526,35 @@ html, body {
   background: #2a2a4a;
 }
 
+.layer-toggles {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.layer-toggle {
+  flex: 1;
+  padding: 6px 0;
+  background: #1a1a28;
+  border: 1px solid #333;
+  border-radius: 3px;
+  color: #888;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.layer-toggle:hover {
+  color: #c8c8d0;
+  background: #222238;
+}
+
+.layer-toggle.on {
+  color: #eaeaf2;
+  background: #2a2a4a;
+  border-color: #4a5a7a;
+}
+
 /* ── Collapsible sections ── */
 
 .section {

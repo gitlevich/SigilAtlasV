@@ -1,0 +1,1 @@
+Collapse the library to a thin horizontal bar to save vertical space. Folded state shows only the section header and the count of @things. Expanding restores the full pill grid. Folded/unfolded state is !persistent across sessions.

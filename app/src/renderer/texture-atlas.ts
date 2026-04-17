@@ -15,7 +15,7 @@
 
 const ATLAS_SIZE = 4096;
 const MAX_THUMB_H = 96;
-const MAX_CONCURRENT = 12;
+const MAX_CONCURRENT = 64;
 
 export interface UVRect {
   u0: number;
@@ -114,6 +114,10 @@ export class TextureAtlas {
 
   getUV(imageId: string): { page: number; uv: UVRect } {
     return this.uvMap.get(imageId) ?? { page: this.placeholderPage, uv: this.placeholderUV };
+  }
+
+  hasReal(imageId: string): boolean {
+    return this.uvMap.has(imageId);
   }
 
   isLoaded(imageId: string): boolean {

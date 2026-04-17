@@ -1,0 +1,13 @@
+{
+  "name": "greeting",
+  "situation": "User says a simple greeting or acknowledgement that needs no articulation from me — hi, hello, hey, thanks, ok, okay, yep, yeah, sure.",
+  "match": {
+    "kind": "user-chat",
+    "payload": {
+      "message": { "matches": "^\\s*(hi|hello|hey|thanks|thank you|ok|okay|yep|yeah|sure)[\\s.!]*$" }
+    }
+  },
+  "actions": [
+    { "type": "reply", "content": "Here. What are we working on?" }
+  ]
+}

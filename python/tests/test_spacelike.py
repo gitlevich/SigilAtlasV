@@ -10,6 +10,7 @@ from sigil_atlas.spacelike import (
     Attractor,
     SpaceLikeLayout,
     _feathering_to_temperature,
+    _local_density,
     _pick_grid,
     _recursive_split,
     compute_spacelike,
@@ -251,6 +252,37 @@ class TestComputeSpacelike:
             return sorted((p.id, p.col, p.row) for p in layout.positions)
 
         assert key(r1) == key(r2)
+
+
+class TestLocalDensity:
+    def test_isolated_points_have_low_density(self):
+        # 4 widely-separated points
+        targets = np.array([[0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]], dtype=np.float32)
+        elev = _local_density(targets, radius=0.05)
+        assert elev.max() <= 1.0 and elev.min() >= 0.0
+        # All equally isolated -> uniform
+        assert elev.std() < 1e-6
+
+    def test_clustered_points_peak_at_cluster(self):
+        rng = np.random.default_rng(0)
+        # 20 points clustered tightly at (0.3, 0.3), 5 scattered
+        cluster = rng.normal(loc=(0.3, 0.3), scale=0.02, size=(20, 2)).astype(np.float32)
+        scattered = np.array([[0.8, 0.8], [0.7, 0.2], [0.2, 0.8], [0.9, 0.5], [0.5, 0.9]], dtype=np.float32)
+        targets = np.vstack([cluster, scattered])
+        elev = _local_density(targets, radius=0.08)
+        # Cluster points should have higher elevation than scattered ones
+        assert elev[:20].mean() > elev[20:].mean()
+        assert elev.max() == 1.0  # normalized
+
+    def test_elevation_attached_to_positions(self, db):
+        n = 64
+        ids = _seed(db, n)
+        provider = FakeEmbeddingProvider(_clustered_embeddings(n))
+        layout = compute_spacelike(
+            provider, db, ids, model="clip-vit-b-32", cell_size=1.0,
+        )
+        for p in layout.positions:
+            assert 0.0 <= p.elevation <= 1.0
 
 
 class TestPerformance:

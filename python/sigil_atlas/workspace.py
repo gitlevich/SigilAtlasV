@@ -25,6 +25,7 @@ class Workspace:
         self.image_cache_dir = root / "image_cache"
         self.thumbnails_dir = self.image_cache_dir / "thumbnails"
         self.previews_dir = self.image_cache_dir / "previews"
+        self.cache_dir = root / "cache"
         self.db_path = self.datastore_dir / "corpus.db"
 
     def initialize(self) -> "Workspace":
@@ -32,6 +33,7 @@ class Workspace:
         self.datastore_dir.mkdir(parents=True, exist_ok=True)
         self.thumbnails_dir.mkdir(parents=True, exist_ok=True)
         self.previews_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Workspace initialized at %s", self.root)
         self.open_db().close()
         return self

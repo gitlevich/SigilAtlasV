@@ -8,6 +8,7 @@
 import type {
   AnyLayout,
   Attractor,
+  LayerToggles,
   PointOfView,
   RangeFilter,
   ProximityFilter,
@@ -49,6 +50,12 @@ export interface AppState {
   stripHeight: number;
   cellSize: number;
 
+  // Layer toggles — three independent layers (photos, wireframe, relief)
+  layers: LayerToggles;
+
+  // Relief height scaling in world units
+  reliefScale: number;
+
   // Import
   importProgress: ImportProgress | null;
 
@@ -73,11 +80,13 @@ export const state: AppState = {
   orderValues: {},
   mode: "spacelike",
   timeDirection: "capture_date",
-  pov: { x: 0, y: 0, z: 1000 },
+  pov: { x: 0, y: 0, z: 1000, pitch: 0, yaw: 0 },
   torusWidth: 0,
   torusHeight: 0,
   stripHeight: 100,
   cellSize: 100,
+  layers: { photos: true, neighborhoods: false },
+  reliefScale: 600,
   importProgress: null,
   lastError: null,
 };

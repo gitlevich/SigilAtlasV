@@ -7,7 +7,8 @@
 
 import { state, notify } from "../state";
 import * as api from "../api";
-import type { Dimension, ContrastControl } from "../types";
+import type { AnyLayout, Dimension, ContrastControl, PointOfView } from "../types";
+import { isSpaceLikeLayout } from "../types";
 import type { TorusViewport } from "../renderer/torus-viewport";
 import { createBandpassWidget } from "./bandpass-widget";
 import { createColorWheel, hueRangeToFilter, type HueRange } from "./color-wheel";
@@ -55,9 +56,18 @@ export async function recomputeSliceAndLayout(): Promise<void> {
     state.imageIds = res.image_ids;
     state.orderValues = res.order_values || {};
 
-    const prevArea = state.torusWidth * state.torusHeight;
+    // Anchor: the image at screen centre in the current layout. We'll try to
+    // keep this same image at screen centre after the recompute, regardless
+    // of mode switch or slice change.
+    const prevLayout = state.layout;
+    const anchorImageId = prevLayout ? imageAtPov(prevLayout, state.pov) : null;
+    const isFirstLoad = state.torusWidth === 0;
+
     const canvas = document.getElementById("viewport") as HTMLCanvasElement;
     const aspect = canvas.clientWidth / canvas.clientHeight;
+
+    let newLayout: AnyLayout;
+    let attractorCell: { col: number; row: number; cell_size: number } | null = null;
 
     if (state.mode === "spacelike") {
       const layout = await api.computeSpacelike({
@@ -67,27 +77,15 @@ export async function recomputeSliceAndLayout(): Promise<void> {
         feathering: state.feathering,
         cell_size: state.cellSize,
       });
-      state.layout = layout;
-      state.torusWidth = layout.torus_width;
-      state.torusHeight = layout.torus_height;
-
-      const newArea = layout.torus_width * layout.torus_height;
-      const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
-      if (prevArea === 0 || Math.abs(newArea - prevArea) / Math.max(prevArea, 1) > 0.3) {
-        const visibleCells = 8;
-        const desiredZoom = visibleCells * layout.cell_size * aspect;
-        state.pov.x = layout.torus_width / 2;
-        state.pov.y = layout.torus_height / 2;
-        state.pov.z = Math.min(desiredZoom, maxZoom);
-      } else {
-        state.pov.z = Math.min(state.pov.z, maxZoom);
+      newLayout = layout;
+      if (layout.attractor_positions.length > 0) {
+        const a = layout.attractor_positions[0];
+        attractorCell = { col: a.col, row: a.row, cell_size: layout.cell_size };
       }
-      if (viewport) viewport.setLayout(layout);
     } else {
       const hasOV = Object.keys(state.orderValues).length > 0;
       const orderValues = hasOV ? state.orderValues : undefined;
-
-      const layout = await api.computeLayout({
+      newLayout = await api.computeLayout({
         image_ids: state.imageIds,
         axes: state.selectedAxes.length > 0 ? state.selectedAxes : null,
         feathering: state.feathering,
@@ -96,26 +94,64 @@ export async function recomputeSliceAndLayout(): Promise<void> {
         preserve_order: false,
         order_values: orderValues,
       });
-      state.layout = layout;
-      state.torusWidth = layout.torus_width;
-      state.torusHeight = layout.torus_height;
+    }
 
-      const newArea = layout.torus_width * layout.torus_height;
-      const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
-      if (prevArea === 0 || Math.abs(newArea - prevArea) / Math.max(prevArea, 1) > 0.3) {
-        const visibleStrips = 8;
-        const desiredZoom = visibleStrips * layout.strip_height * aspect;
-        state.pov.x = layout.torus_width / 2;
-        state.pov.y = layout.torus_height / 2;
+    state.layout = newLayout;
+    state.torusWidth = newLayout.torus_width;
+    state.torusHeight = newLayout.torus_height;
+    const maxZoom = Math.min(newLayout.torus_width, newLayout.torus_height * aspect);
+
+    // Framing priority, high to low:
+    //  1. Attractor just added: snap to the attractor peak cell, tight zoom.
+    //  2. Anchor image from before still exists: centre on its new world pos,
+    //     preserving zoom (clamped to new maxZoom).
+    //  3. First ever load: full-torus splash.
+    //  4. Fallback (rare): geometric centre.
+    if (attractorCell && !anchorImageId) {
+      // New attractor with no prior anchor: zoom in on it.
+      const visibleCells = 16;
+      const desiredZoom = visibleCells * attractorCell.cell_size * aspect;
+      state.pov.x = (attractorCell.col + 0.5) * attractorCell.cell_size;
+      state.pov.y = (attractorCell.row + 0.5) * attractorCell.cell_size;
+      state.pov.z = Math.min(desiredZoom, maxZoom);
+    } else if (anchorImageId) {
+      const newCentre = worldCenterOfImage(newLayout, anchorImageId);
+      if (newCentre) {
+        state.pov.x = newCentre.x;
+        state.pov.y = newCentre.y;
+        state.pov.z = Math.min(state.pov.z, maxZoom);
+      } else if (attractorCell) {
+        // Anchor fell out of slice; fall back to attractor framing.
+        const visibleCells = 16;
+        const desiredZoom = visibleCells * attractorCell.cell_size * aspect;
+        state.pov.x = (attractorCell.col + 0.5) * attractorCell.cell_size;
+        state.pov.y = (attractorCell.row + 0.5) * attractorCell.cell_size;
         state.pov.z = Math.min(desiredZoom, maxZoom);
       } else {
+        state.pov.x = newLayout.torus_width / 2;
+        state.pov.y = newLayout.torus_height / 2;
         state.pov.z = Math.min(state.pov.z, maxZoom);
       }
-      if (viewport) viewport.setLayout(layout);
+    } else if (isFirstLoad) {
+      state.pov.x = newLayout.torus_width / 2;
+      state.pov.y = newLayout.torus_height / 2;
+      state.pov.z = maxZoom;
+    } else {
+      state.pov.x = newLayout.torus_width / 2;
+      state.pov.y = newLayout.torus_height / 2;
+      state.pov.z = Math.min(state.pov.z, maxZoom);
     }
+
+    if (viewport) viewport.setLayout(newLayout);
 
     updateImageCount();
     state.lastError = null;
+
+    // Wireframe survives re-layouts but its edges must be recomputed
+    // against the new slice. Refresh in the background.
+    if (state.mode === "spacelike" && state.layers.neighborhoods) {
+      fetchAndSetNeighborhoods().catch((err) => console.error("[neighborhoods]", err));
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[recompute]", msg);
@@ -128,6 +164,62 @@ export async function recomputeSliceAndLayout(): Promise<void> {
 function updateImageCount(): void {
   const el = document.getElementById("image-count");
   if (el) el.textContent = `${state.imageIds.length} images`;
+}
+
+
+// ── Camera anchoring: the image under screen centre stays put across
+// recomputes, mode switches, and slice changes. Pan/zoom follow the image,
+// not the geometry.
+
+function imageAtPov(layout: AnyLayout, pov: PointOfView): string | null {
+  if (isSpaceLikeLayout(layout)) {
+    if (layout.cols === 0 || layout.rows === 0) return null;
+    // Wrap pov into the torus range, then find the cell it falls in.
+    const wx = ((pov.x % layout.torus_width) + layout.torus_width) % layout.torus_width;
+    const wy = ((pov.y % layout.torus_height) + layout.torus_height) % layout.torus_height;
+    const col = Math.min(layout.cols - 1, Math.max(0, Math.floor(wx / layout.cell_size)));
+    const row = Math.min(layout.rows - 1, Math.max(0, Math.floor(wy / layout.cell_size)));
+    for (const p of layout.positions) {
+      if (p.col === col && p.row === row) return p.id;
+    }
+    return null;
+  }
+  // Strip layout.
+  const tw = layout.torus_width, th = layout.torus_height;
+  if (tw === 0 || th === 0) return null;
+  const wx = ((pov.x % tw) + tw) % tw;
+  const wy = ((pov.y % th) + th) % th;
+  for (const strip of layout.strips) {
+    if (wy >= strip.y && wy < strip.y + strip.height) {
+      for (const img of strip.images) {
+        if (wx >= img.x && wx < img.x + img.width) return img.id;
+      }
+      break;
+    }
+  }
+  return null;
+}
+
+function worldCenterOfImage(layout: AnyLayout, id: string): { x: number; y: number } | null {
+  if (isSpaceLikeLayout(layout)) {
+    for (const p of layout.positions) {
+      if (p.id === id) {
+        return {
+          x: (p.col + 0.5) * layout.cell_size,
+          y: (p.row + 0.5) * layout.cell_size,
+        };
+      }
+    }
+    return null;
+  }
+  for (const strip of layout.strips) {
+    for (const img of strip.images) {
+      if (img.id === id) {
+        return { x: img.x + img.width / 2, y: strip.y + strip.height / 2 };
+      }
+    }
+  }
+  return null;
 }
 
 
@@ -166,9 +258,62 @@ function removeRangeFilter(dimension: string): void {
 }
 
 
-// ── Things (proximity filters) ──
+async function fetchAndSetNeighborhoods(): Promise<void> {
+  if (!viewport || state.imageIds.length === 0) return;
+  const btn = [...document.querySelectorAll(".layer-toggle")].find(
+    (b) => b.textContent === "Neighborhoods" || b.textContent === "Neighborhoods\u2026",
+  ) as HTMLButtonElement | undefined;
+  if (btn) btn.textContent = "Neighborhoods\u2026";
+  try {
+    const res = await api.computeNeighborhoods({
+      image_ids: state.imageIds,
+      model: state.model,
+      k: 50,
+    });
+    viewport.setNeighborhoodClusters(res.cluster_ids);
+  } finally {
+    if (btn) btn.textContent = "Neighborhoods";
+  }
+}
 
-const thingNames: string[] = [];
+
+// ── Layers (Photos / Wireframe / Relief) ──
+
+function buildLayersSection(body: HTMLElement): void {
+  const row = document.createElement("div");
+  row.className = "layer-toggles";
+
+  const defs: Array<{ key: keyof typeof state.layers; label: string; hint: string }> = [
+    { key: "photos", label: "Photos", hint: "image tiles" },
+    { key: "neighborhoods", label: "Neighborhoods", hint: "KMeans cluster boundaries" },
+  ];
+
+  for (const def of defs) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "layer-toggle" + (state.layers[def.key] ? " on" : "");
+    btn.textContent = def.label;
+    btn.title = def.hint;
+    btn.addEventListener("click", () => {
+      state.layers[def.key] = !state.layers[def.key];
+      btn.classList.toggle("on", state.layers[def.key]);
+      if (def.key === "neighborhoods" && state.layers.neighborhoods) {
+        fetchAndSetNeighborhoods().catch((err) => console.error("[neighborhoods]", err));
+      }
+    });
+    row.appendChild(btn);
+  }
+
+  body.appendChild(row);
+
+  const hint = document.createElement("div");
+  hint.className = "section-hint";
+  hint.textContent = "";
+  body.appendChild(hint);
+}
+
+
+// ── Attractors (things that bend the SpaceLike gravity field) ──
 
 function buildAttractSection(body: HTMLElement): void {
   const holder = document.createElement("div");
@@ -176,20 +321,19 @@ function buildAttractSection(body: HTMLElement): void {
 
   const renderPills = () => {
     holder.querySelectorAll(".pill").forEach((el) => el.remove());
-    for (let i = 0; i < thingNames.length; i++) {
-      const name = thingNames[i];
+    for (let i = 0; i < state.attractors.length; i++) {
+      const att = state.attractors[i];
       const pill = document.createElement("span");
       pill.className = "pill";
-      pill.textContent = name;
+      pill.textContent = att.ref;
       const remove = document.createElement("span");
       remove.className = "pill-remove";
       remove.textContent = "\u00d7";
       const idx = i;
       remove.addEventListener("click", () => {
-        state.proximityFilters.splice(idx, 1);
-        thingNames.splice(idx, 1);
+        state.attractors.splice(idx, 1);
         renderPills();
-        recomputeSliceAndLayout().catch((e) => console.error("Slice failed:", e));
+        recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
       });
       pill.appendChild(remove);
       holder.insertBefore(pill, holder.lastElementChild);
@@ -205,16 +349,16 @@ function buildAttractSection(body: HTMLElement): void {
       e.preventDefault();
       const text = input.value.trim();
       if (!text) return;
-      state.proximityFilters.push({ text: `a photograph of ${text}`, weight: 1.0 });
-      thingNames.push(text);
+      state.attractors.push({ kind: "thing", ref: text });
       input.value = "";
       renderPills();
-      recomputeSliceAndLayout().catch((e) => console.error("Slice failed:", e));
+      recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
     }
   });
 
   holder.appendChild(input);
   body.appendChild(holder);
+  renderPills();
 }
 
 
@@ -590,6 +734,11 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
     modeTabs.appendChild(tab);
   }
   panel.appendChild(modeTabs);
+
+  // Layers section — three independent toggles per spec
+  const layers = createSection("Layers");
+  buildLayersSection(layers.body);
+  panel.appendChild(layers.section);
 
   // Attract section
   const attract = createSection("Attract");

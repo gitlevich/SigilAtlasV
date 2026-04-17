@@ -9,7 +9,7 @@
  */
 
 const MAX_ENTRIES = 50;
-const MAX_CONCURRENT = 6;
+const MAX_CONCURRENT = 16;
 
 interface CacheEntry {
   texture: WebGLTexture;

@@ -1,0 +1,1 @@
+Click a @thing pill in the library to move it into @AttractorControl. The @slice recomputes as if I had just typed the @thing. Activation does not remove it from the library — a @thing can be moved freely between the two panels without loss.

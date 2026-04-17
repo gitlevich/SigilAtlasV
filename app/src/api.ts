@@ -90,6 +90,14 @@ export async function computeSpacelike(req: SpaceLikeRequest): Promise<SpaceLike
   return post("/spacelike", req);
 }
 
+export async function computeWireframe(req: { image_ids: string[]; model: string; k?: number }): Promise<{ edges: [string, string][] }> {
+  return post("/wireframe", req);
+}
+
+export async function computeNeighborhoods(req: { image_ids: string[]; model: string; k?: number }): Promise<{ k: number; cluster_ids: Record<string, number> }> {
+  return post("/neighborhoods", req);
+}
+
 export async function startImport(source: string): Promise<{ status: string }> {
   return post("/ingest/start", { source });
 }

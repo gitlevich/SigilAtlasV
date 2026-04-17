@@ -1,0 +1,13 @@
+{
+  "name": "hide-first-pairings",
+  "situation": "Misfit flagged with 'never appeared with these sigils before' — the detector's signal when a ref has no established companions outside the current line. Usually a legitimate first-time co-occurrence, not a real misplacement. Suppress.",
+  "match": {
+    "kind": "curate-misfits",
+    "payload": {
+      "reason": { "matches": "never appeared with these sigils before" }
+    }
+  },
+  "actions": [
+    { "type": "suppress" }
+  ]
+}
