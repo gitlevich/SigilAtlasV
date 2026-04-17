@@ -61,7 +61,7 @@ export async function recomputeSliceAndLayout(): Promise<void> {
     if (state.mode === "timelike") {
       const hasOV = Object.keys(state.orderValues).length > 0;
       orderValues = hasOV ? state.orderValues : undefined;
-    } else if (state.mode === "tastelike" || state.proximityFilters.length > 0) {
+    } else if (state.proximityFilters.length > 0) {
       preserveOrder = true;
     }
 
@@ -554,10 +554,9 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   const modeTabs = document.createElement("div");
   modeTabs.className = "mode-tabs";
   let timeSection: HTMLElement;
-  const modes: Array<{ value: "spacelike" | "timelike" | "tastelike"; label: string }> = [
+  const modes: Array<{ value: "spacelike" | "timelike"; label: string }> = [
     { value: "spacelike", label: "Spacelike" },
     { value: "timelike", label: "Timelike" },
-    { value: "tastelike", label: "Tastelike" },
   ];
   for (const m of modes) {
     const tab = document.createElement("button");

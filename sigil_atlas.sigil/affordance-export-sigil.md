@@ -1,1 +1,1 @@
-save a @sigil — structure and narrative together — from the current @workspace, to share with someone else.
+save a @sigil as a compressed `.sigil` directory — a unit of experience carrying structure, narrative, and any assets attached to its language (images embedded in its pages, for example). One archive, self-contained, to share with someone else.

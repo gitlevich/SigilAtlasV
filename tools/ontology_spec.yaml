@@ -47,8 +47,6 @@ spec:
           prompt: chronological timeline temporal order left to right
         spacelike:
           prompt: spatial arrangement by visual similarity clustering
-        tastelike:
-          prompt: arranged by personal preference taste relevance
 
     filter:
       prompt: filtering selecting which images to show

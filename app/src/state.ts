@@ -24,7 +24,7 @@ export interface AppState {
   orderValues: Record<string, number>;
 
   // Mode: how images arrange on the torus
-  mode: "timelike" | "spacelike" | "tastelike";
+  mode: "timelike" | "spacelike";
 
   // Time direction (timelike mode): "capture_date" or a contrast index
   timeDirection: string;
