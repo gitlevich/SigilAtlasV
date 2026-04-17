@@ -1,0 +1,1 @@
+in @spacelike, @images are center-cropped to squares. Aspect ratio is sacrificed for contiguous tiling and free 2D placement — proximity in @contrastspace matters more than the original frame. This invariant does not apply in @TimeLike, where @images keep their native aspect ratio inside @strips.

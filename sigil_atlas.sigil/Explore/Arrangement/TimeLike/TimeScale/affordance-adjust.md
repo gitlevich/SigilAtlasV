@@ -1,0 +1,1 @@
+drag the @timeScale slider to change the gap threshold that groups @images into @stories. Minutes, hours, days, weeks, months. Changes take effect in real time; @stories recompute and the @strip layout reflows.
