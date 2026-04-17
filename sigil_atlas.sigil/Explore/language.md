@@ -4,14 +4,20 @@ status: idea
 
 # Explore
 
-The primary experience. I view my @images on a @torus surface through a @screen.
+Explore is where I move through my @corpus by looking.
 
-I choose a @mode that determines how @images are ordered on the @torus:
-- @mode@timelike: @stories arranged as film strips
-- @mode@spacelike: arranged as @similarity @neighborhoods. 
-- @mode@tastelike: arranged as a single @Similarity @Neighborhood based on the @DistanceMetric I dedine. 
+I can limit the @images I see to a @slice.
 
-The @corpus responds to a @RelevanceFilter with a @slice — the set of matched @images. The @slice is laid out on the @torus as @strips. I navigate by moving my @PointOfView along the surface.
+A @RelevanceFilter defines the @slice. It says which @images belong.
 
-Switching @mode recomputes the @strip layout from the current @slice. The @slice determines which @images are present; the @mode determines how they are arranged.
+An @arrangement makes the @slice legible. It gives the @images a shape I can move through and understand.
 
+Every @arrangement lives on a @surface. The @surface is continuous and wraps.
+
+I use @navigation to change my @PointOfView over the surface on which @images are arranged. By moving and zooming, I see different parts of the same @slice.
+
+Different @arrangements can make the same @slice meaningful in different ways. For example, one @arrangement can make it readable as @time. Another can make it readable as @similarity.
+
+@Controls let me change the @RelevanceFilter and the @arrangement. The result is visible immediately.
+
+@Explore lets me #change-mode between @SpaceLike and @TimeLike.

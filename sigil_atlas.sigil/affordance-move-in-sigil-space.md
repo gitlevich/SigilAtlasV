@@ -1,0 +1,1 @@
+entering a user-authored @sigil activates its scope. @contrasts, @things, and @attractors defined inside a @sigil resolve within that scope — the same name can mean different things in different @sigils. My attention is always inside exactly one @sigil; the app itself is the outermost one. I move between sigils to switch contexts for different kinds of work.

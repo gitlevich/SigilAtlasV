@@ -1,1 +1,0 @@
-Similar images cluster locally on the surface. Neighborhoods are patches, not strips or axes.

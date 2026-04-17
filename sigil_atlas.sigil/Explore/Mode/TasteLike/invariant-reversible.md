@@ -1,1 +1,0 @@
-Every like, dislike, and find action can be undone. Cancelling a like restores the previous @attractor state.

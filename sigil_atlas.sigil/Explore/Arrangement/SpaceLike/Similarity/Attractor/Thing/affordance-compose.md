@@ -1,0 +1,1 @@
+drop one @thing into another to make it a constituent. A compound @thing is satisfied by any of its constituents — union semantics. Because a @thing is a @sigil, composition is sigil nesting: recursive, and precision grows as I drop finer constituents toward the leaves.

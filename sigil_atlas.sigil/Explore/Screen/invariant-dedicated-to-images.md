@@ -1,1 +1,0 @@
-the @screen is dedicated to experiencing my images in various modes, like @spacelike and @timelike

@@ -1,1 +1,0 @@
-In @timelike mode: choose what "forward in time" means. Default is capture date ascending. Can also be: capture date descending, or ordered by proximity to/from a specific @image or @contrast direction.

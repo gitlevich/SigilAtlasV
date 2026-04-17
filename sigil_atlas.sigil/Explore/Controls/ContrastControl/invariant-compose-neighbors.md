@@ -1,0 +1,1 @@
+only @sigils of the same scale can compose. Constituents of a compound @contrast must be neighbors — at the same level of abstraction as each other. A primitive cannot be composed alongside a compound.

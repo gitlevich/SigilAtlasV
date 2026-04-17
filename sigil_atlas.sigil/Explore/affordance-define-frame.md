@@ -1,1 +1,0 @@
-Set @frame aspect ratio and @resolution at startup. Immutable after creation.

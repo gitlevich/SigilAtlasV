@@ -1,0 +1,1 @@
+something I can recognize on an image, like a flower or a bird

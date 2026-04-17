@@ -1,1 +1,0 @@
-when i open the application, i would like to see it just like when i closed it: what was open remains open, the atlas is on the same frame. 
