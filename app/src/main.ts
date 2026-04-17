@@ -124,19 +124,19 @@ async function main(): Promise<void> {
     proximity_filters: [],
     contrast_controls: [],
     model: state.model,
-    tightness: state.tightness,
+    feathering: state.feathering,
   });
   state.imageIds = sliceRes.image_ids;
   state.orderValues = sliceRes.order_values || {};
   mark("slice");
 
-  // Initial layout — spacelike by default
-  const layout = await api.computeLayout({
+  // Initial layout — spacelike by default (gravity field over square-crop cells)
+  const layout = await api.computeSpacelike({
     image_ids: state.imageIds,
-    axes: null,
-    tightness: state.tightness,
+    attractors: state.attractors,
     model: state.model,
-    strip_height: state.stripHeight,
+    feathering: state.feathering,
+    cell_size: state.cellSize,
   });
   state.layout = layout;
   state.torusWidth = layout.torus_width;
@@ -147,7 +147,7 @@ async function main(): Promise<void> {
   // Center camera
   const aspect = canvas.clientWidth / canvas.clientHeight;
   const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
-  const desiredZoom = 8 * layout.strip_height * aspect;
+  const desiredZoom = 8 * layout.cell_size * aspect;
   state.pov = { x: layout.torus_width / 2, y: layout.torus_height / 2, z: Math.min(desiredZoom, maxZoom) };
 
   // Init controls
@@ -180,7 +180,7 @@ async function main(): Promise<void> {
   let firstFrameLogged = false;
   viewport.startRenderLoop(() => {
     tickCamera();
-    if (!firstFrameLogged && state.layout && state.layout.strips.length > 0) {
+    if (!firstFrameLogged && state.layout) {
       firstFrameLogged = true;
       requestAnimationFrame(() => mark("first frame"));
     }

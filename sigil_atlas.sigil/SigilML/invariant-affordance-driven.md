@@ -1,0 +1,1 @@
+The only legal next token after any @sigil in an expression is one of its #affordances. There is no separate syntax table; the tree is the grammar. An expression is valid exactly when every transition between adjacent tokens is an affordance of the left one.

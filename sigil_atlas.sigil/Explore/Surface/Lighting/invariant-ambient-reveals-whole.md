@@ -1,0 +1,1 @@
+Ambient light illuminates every point of the @surface equally, at once. No region is privileged, no sequence is implied. Under pure ambient light the sigil is grasped whole; this IS the @spacelike shape of attention made visible.

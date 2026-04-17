@@ -1,0 +1,1 @@
+A Directional light reveals a subset of the @surface at any moment — the regions oriented toward it. Moving the light through space traces a sequence of revealings; this IS a narrating attention over the terrain. The user operating a directional light is reading the sigil frame by frame with light.

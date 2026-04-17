@@ -130,7 +130,7 @@ def _select_relevant(
     scores: np.ndarray,
     candidates: list[str],
     selected: set[str],
-    tightness: float = 0.5,
+    feathering: float = 0.5,
 ) -> int:
     """Select images relevant to a text query.
 
@@ -141,7 +141,7 @@ def _select_relevant(
         CLIP scores compress into a narrow range at scale; statistical
         selection scales correctly.
 
-    Tightness controls selectivity in both strategies:
+    Feathering controls selectivity in both strategies:
       0.0 (loose) → more results
       0.5 (default) → balanced
       1.0 (tight) → fewer, more specific results
@@ -151,15 +151,15 @@ def _select_relevant(
         return 0
 
     if n < _SMALL_CORPUS:
-        return _select_by_knee(scores, candidates, selected, tightness)
-    return _select_by_sigma(scores, candidates, selected, tightness)
+        return _select_by_knee(scores, candidates, selected, feathering)
+    return _select_by_sigma(scores, candidates, selected, feathering)
 
 
 def _select_by_knee(
     scores: np.ndarray,
     candidates: list[str],
     selected: set[str],
-    tightness: float = 0.5,
+    feathering: float = 0.5,
 ) -> int:
     """Knee detection on the descending score curve. Good for small corpora."""
     n = min(200, len(scores))
@@ -184,7 +184,7 @@ def _select_by_knee(
     knee = int(np.argmax(distances))
 
     # 0 = strict (knee/2), 1 = permissive (2x knee)
-    scale = 0.5 + 1.5 * tightness
+    scale = 0.5 + 1.5 * feathering
     cutoff = max(5, int(knee * scale))
     cutoff = min(cutoff, n)
 
@@ -199,7 +199,7 @@ def _select_by_sigma(
     scores: np.ndarray,
     candidates: list[str],
     selected: set[str],
-    tightness: float = 0.5,
+    feathering: float = 0.5,
 ) -> int:
     """Sigma thresholding above the mean. Good for large corpora.
 
@@ -215,7 +215,7 @@ def _select_by_sigma(
 
     # Slider: 0 = strict (few results), 1 = permissive (many results)
     # Sigma: high = strict, low = permissive
-    sigma = 3.0 - 2.0 * tightness
+    sigma = 3.0 - 2.0 * feathering
     threshold = mean + sigma * std
 
     count = 0
@@ -252,7 +252,7 @@ def compute_slice(
     proximity_filters: list[ProximityFilter] | None = None,
     contrast_controls: list[ContrastControl] | None = None,
     model: str = "clip-vit-l-14",
-    tightness: float = 0.5,
+    feathering: float = 0.5,
 ) -> SliceResult:
     """Compute the slice per the spec's RelevanceFilter composition.
 
@@ -278,7 +278,7 @@ def compute_slice(
             vec = _resolve_text(adapter, pf.text, provider, candidates)
             matrix = provider.fetch_matrix(candidates, adapter.model_id)
             raw = matrix @ vec
-            count = _select_relevant(raw, candidates, selected, tightness=tightness)
+            count = _select_relevant(raw, candidates, selected, feathering=feathering)
             # Preserve raw scores for ordering
             for i, iid in enumerate(candidates):
                 if iid in selected:

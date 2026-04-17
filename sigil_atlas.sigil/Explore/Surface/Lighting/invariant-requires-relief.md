@@ -1,0 +1,1 @@
+@Lighting is only observable when @Relief is on. On a flat @surface, all normals are uniform; no shading distinguishes cells under any light. Turning on @Lighting without @Relief has no visible effect.

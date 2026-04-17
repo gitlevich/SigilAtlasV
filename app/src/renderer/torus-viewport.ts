@@ -1,26 +1,35 @@
 /**
  * WebGL torus viewport renderer.
  *
- * Two-tier resolution:
- *  - Zoomed out: 96px thumbnails packed in a texture atlas (batched draw calls)
- *  - Zoomed in: 1024px previews as individual textures (per-image draw calls)
+ * Two layout modes:
+ *  - Strip mode (@TimeLike): binary-search packed strips, native aspect ratios.
+ *  - Grid mode (@SpaceLike): uniform square cells, per-image gravity tweening.
  *
- * Transition threshold: when an image's rendered height exceeds PREVIEW_THRESHOLD
- * CSS pixels, the preview is loaded. The thumbnail stays visible until the
- * preview arrives, then the preview draws on top.
+ * Two-tier resolution in both modes:
+ *  - Zoomed out: 96px thumbnails packed in a texture atlas (batched draw calls).
+ *  - Zoomed in: 1024px previews as individual textures (per-image draw calls).
  *
- * Performance for 70k+ images:
- *  - Binary search on sorted strips/images for visibility
- *  - Thumbnails loaded on demand, concurrency-capped
- *  - Previews: LRU cache, max 50, evicted when scrolled away
+ * In @SpaceLike, every image is rendered as a center-cropped square — the UV
+ * rect is narrowed on the longer axis so the shader samples only the central
+ * square of the thumbnail. No image re-encoding.
  */
 
-import type { StripLayout, PointOfView, Strip } from "../types";
-import { TextureAtlas } from "./texture-atlas";
+import type {
+  AnyLayout,
+  StripLayout,
+  SpaceLikeLayout,
+  PointOfView,
+  Strip,
+} from "../types";
+import { isSpaceLikeLayout } from "../types";
+import { TextureAtlas, type UVRect } from "./texture-atlas";
 import { PreviewCache } from "./preview-cache";
 
 // When an image renders taller than this in CSS pixels, load its preview
 const PREVIEW_THRESHOLD = 150;
+
+// Tween duration for @SpaceLike gravity-field settling
+const TWEEN_MS = 500;
 
 const VERT_SRC = `
 attribute vec2 a_position;
@@ -64,6 +73,18 @@ interface PreviewQuad {
   wy: number;
   width: number;
   height: number;
+  uvU0: number;
+  uvV0: number;
+  uvU1: number;
+  uvV1: number;
+}
+
+interface SpriteTween {
+  startCol: number;
+  startRow: number;
+  targetCol: number;
+  targetRow: number;
+  tweenStart: number;
 }
 
 export class TorusViewport {
@@ -73,29 +94,33 @@ export class TorusViewport {
   private atlas: TextureAtlas;
   private previews: PreviewCache;
 
-  // Buffers
   private quadBuf: WebGLBuffer;
   private offsetBuf: WebGLBuffer;
   private sizeBuf: WebGLBuffer;
   private uvBuf: WebGLBuffer;
 
-  // Attribute locations
   private aPosition: number;
   private aOffset: number;
   private aSize: number;
   private aUV: number;
 
-  // Uniform locations
   private uCamera: WebGLUniformLocation;
   private uZoom: WebGLUniformLocation;
   private uViewport: WebGLUniformLocation;
   private uAtlas: WebGLUniformLocation;
 
-  // State
-  private layout: StripLayout | null = null;
+  // Layout state: at most one is non-null at a time
+  private stripLayout: StripLayout | null = null;
+  private gridLayout: SpaceLikeLayout | null = null;
+
+  // @SpaceLike per-image tween state — persists across layout changes
+  private tweens: Map<string, SpriteTween> = new Map();
+
+  // Strip mode: sorted y-coords for binary search
+  private stripYs: Float64Array = new Float64Array(0);
+
   private thumbnailBaseUrl = "";
   private animFrameId = 0;
-  private stripYs: Float64Array = new Float64Array(0);
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -137,19 +162,79 @@ export class TorusViewport {
     this.thumbnailBaseUrl = url;
   }
 
-  setLayout(layout: StripLayout): void {
-    this.layout = layout;
-    const ys = new Float64Array(layout.strips.length);
-    for (let i = 0; i < layout.strips.length; i++) {
-      ys[i] = layout.strips[i].y;
+  setLayout(layout: AnyLayout): void {
+    if (isSpaceLikeLayout(layout)) {
+      this._setGridLayout(layout);
+    } else {
+      this._setStripLayout(layout);
     }
+  }
+
+  private _setStripLayout(layout: StripLayout): void {
+    this.gridLayout = null;
+    this.tweens.clear();
+    this.stripLayout = layout;
+    const ys = new Float64Array(layout.strips.length);
+    for (let i = 0; i < layout.strips.length; i++) ys[i] = layout.strips[i].y;
     this.stripYs = ys;
   }
 
-  // ── Visibility: binary search on sorted strips/images ──
+  private _setGridLayout(layout: SpaceLikeLayout): void {
+    this.stripLayout = null;
+    this.gridLayout = layout;
+    const now = performance.now();
+
+    // First occurrence of each id becomes the "primary" animated sprite.
+    // Duplicates (pad cells) draw statically at their cell with no tween.
+    const primaries = new Map<string, { col: number; row: number }>();
+    for (const p of layout.positions) {
+      if (!primaries.has(p.id)) primaries.set(p.id, { col: p.col, row: p.row });
+    }
+
+    const cols = layout.cols;
+    const rows = layout.rows;
+
+    const next: Map<string, SpriteTween> = new Map();
+    for (const [id, { col, row }] of primaries) {
+      const prev = this.tweens.get(id);
+      let sCol: number;
+      let sRow: number;
+      if (prev) {
+        // Continue from current interpolated position
+        const t = Math.min(1, (now - prev.tweenStart) / TWEEN_MS);
+        const eased = 0.5 - 0.5 * Math.cos(t * Math.PI);
+        sCol = prev.startCol + (prev.targetCol - prev.startCol) * eased;
+        sRow = prev.startRow + (prev.targetRow - prev.startRow) * eased;
+      } else {
+        // New sprite — appear at target instantly (no tween)
+        sCol = col;
+        sRow = row;
+      }
+
+      // Choose the short path across torus wrap
+      let dCol = col - sCol;
+      if (dCol > cols * 0.5) dCol -= cols;
+      else if (dCol < -cols * 0.5) dCol += cols;
+      let dRow = row - sRow;
+      if (dRow > rows * 0.5) dRow -= rows;
+      else if (dRow < -rows * 0.5) dRow += rows;
+
+      next.set(id, {
+        startCol: sCol,
+        startRow: sRow,
+        targetCol: sCol + dCol,
+        targetRow: sRow + dRow,
+        tweenStart: now,
+      });
+    }
+
+    this.tweens = next;
+  }
+
+  // ── Strip mode (TimeLike) ──
 
   private _firstVisibleStrip(viewTop: number): number {
-    const strips = this.layout!.strips;
+    const strips = this.stripLayout!.strips;
     let lo = 0, hi = strips.length;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
@@ -170,38 +255,28 @@ export class TorusViewport {
     return lo;
   }
 
-  /**
-   * Collect visible images, split into atlas quads and preview quads.
-   * An image qualifies for preview when its rendered height exceeds
-   * PREVIEW_THRESHOLD CSS pixels.
-   */
-  private _collectVisible(pov: PointOfView): {
-    atlasPages: Map<number, { offsets: number[]; sizes: number[]; uvs: number[]; count: number }>;
+  private _collectStripVisible(pov: PointOfView): {
+    atlasPages: Map<number, VertexBucket>;
     previewQuads: PreviewQuad[];
   } {
-    const atlasPages = new Map<number, { offsets: number[]; sizes: number[]; uvs: number[]; count: number }>();
+    const atlasPages = new Map<number, VertexBucket>();
     const previewQuads: PreviewQuad[] = [];
 
-    if (!this.layout) return { atlasPages, previewQuads };
-
-    const { strips, torus_width, torus_height } = this.layout;
+    const layout = this.stripLayout;
+    if (!layout) return { atlasPages, previewQuads };
+    const { strips, torus_width, torus_height } = layout;
     if (strips.length === 0 || torus_width === 0 || torus_height === 0) return { atlasPages, previewQuads };
 
     const aspect = this.canvas.width / this.canvas.height;
     const visW = pov.z;
     const visH = pov.z / aspect;
+    const cssPixelsPerUnit = this.canvas.clientHeight / visH;
 
-    // How many CSS pixels does one world unit occupy?
-    const cssPixelsPerUnit = (this.canvas.clientHeight) / visH;
-
-    // Draw bounds: exact viewport
     const viewLeft = pov.x - visW * 0.5;
     const viewRight = pov.x + visW * 0.5;
     const viewTop = pov.y - visH * 0.5;
     const viewBottom = pov.y + visH * 0.5;
 
-    // Prefetch margin: 50% of viewport in each direction — pre-load
-    // thumbnails before they scroll into view. Scales with zoom.
     const marginX = visW * 0.5;
     const marginY = visH * 0.5;
     const fetchLeft = viewLeft - marginX;
@@ -211,8 +286,6 @@ export class TorusViewport {
 
     const baseUrl = this.thumbnailBaseUrl;
 
-    // Scan the fetch region (viewport + margin). Images in the margin
-    // get their thumbnails loaded but aren't drawn.
     for (let dy = -torus_height; dy <= torus_height; dy += torus_height) {
       const si0 = this._firstVisibleStrip(fetchTop - dy);
 
@@ -225,8 +298,6 @@ export class TorusViewport {
         const sh = strip.height;
         const renderedH = sh * cssPixelsPerUnit;
         const needsPreview = renderedH > PREVIEW_THRESHOLD;
-
-        // Is this strip within the draw region (not just fetch)?
         const stripVisible = wy + sh >= viewTop && wy <= viewBottom;
 
         for (let dx = -torus_width; dx <= torus_width; dx += torus_width) {
@@ -241,12 +312,10 @@ export class TorusViewport {
 
             const wx = img.x + dx;
 
-            // Prefetch thumbnail for everything in fetch region
             if (!this.atlas.isLoaded(img.id) && baseUrl) {
               this.atlas.loadThumbnail(img.id, `${baseUrl}/thumbnail/${img.id}`);
             }
 
-            // Only draw if within the actual viewport
             const inView = stripVisible && wx + img.width >= viewLeft && wx <= viewRight;
             if (!inView) continue;
 
@@ -255,33 +324,179 @@ export class TorusViewport {
                 this.previews.load(img.id, `${baseUrl}/preview/${img.id}`);
               }
               if (this.previews.has(img.id)) {
-                previewQuads.push({ id: img.id, wx, wy, width: img.width, height: sh });
+                previewQuads.push({
+                  id: img.id, wx, wy, width: img.width, height: sh,
+                  uvU0: 0, uvV0: 1, uvU1: 1, uvV1: 0,
+                });
                 continue;
               }
             }
 
             const entry = this.atlas.getUV(img.id);
-            const { uv } = entry;
-            const page = entry.page;
-
-            let bucket = atlasPages.get(page);
-            if (!bucket) {
-              bucket = { offsets: [], sizes: [], uvs: [], count: 0 };
-              atlasPages.set(page, bucket);
-            }
-
-            for (let v = 0; v < 6; v++) {
-              bucket.offsets.push(wx, wy);
-              bucket.sizes.push(img.width, sh);
-              bucket.uvs.push(uv.u0, uv.v0, uv.u1, uv.v1);
-            }
-            bucket.count += 6;
+            this._pushQuad(atlasPages, entry.page, wx, wy, img.width, sh,
+              entry.uv.u0, entry.uv.v0, entry.uv.u1, entry.uv.v1);
           }
         }
       }
     }
 
     return { atlasPages, previewQuads };
+  }
+
+  // ── Grid mode (SpaceLike) ──
+
+  private _squareCropUV(full: UVRect): UVRect {
+    // full spans the image at its native aspect. Atlas convention: u1 > u0,
+    // v0 > v1 (flipped). Shrink the longer axis symmetrically around center
+    // to produce a square-cropped UV, so the sprite samples the center square.
+    const du = full.u1 - full.u0;
+    const dvAbs = Math.abs(full.v0 - full.v1);
+    if (du <= 0 || dvAbs <= 0) return full;
+
+    if (du > dvAbs) {
+      const uMid = (full.u0 + full.u1) * 0.5;
+      const half = dvAbs * 0.5;
+      return { u0: uMid - half, v0: full.v0, u1: uMid + half, v1: full.v1 };
+    } else if (dvAbs > du) {
+      const vMid = (full.v0 + full.v1) * 0.5;
+      const halfSigned = du * 0.5 * (full.v0 >= full.v1 ? 1 : -1);
+      return { u0: full.u0, v0: vMid + halfSigned, u1: full.u1, v1: vMid - halfSigned };
+    }
+    return full;
+  }
+
+  private _spriteCurrentPos(id: string, now: number): { col: number; row: number } {
+    const tw = this.tweens.get(id);
+    if (!tw) return { col: 0, row: 0 };
+    const t = Math.min(1, (now - tw.tweenStart) / TWEEN_MS);
+    const eased = 0.5 - 0.5 * Math.cos(t * Math.PI);
+    return {
+      col: tw.startCol + (tw.targetCol - tw.startCol) * eased,
+      row: tw.startRow + (tw.targetRow - tw.startRow) * eased,
+    };
+  }
+
+  private _collectGridVisible(pov: PointOfView): {
+    atlasPages: Map<number, VertexBucket>;
+    previewQuads: PreviewQuad[];
+  } {
+    const atlasPages = new Map<number, VertexBucket>();
+    const previewQuads: PreviewQuad[] = [];
+
+    const layout = this.gridLayout;
+    if (!layout) return { atlasPages, previewQuads };
+    const { positions, cell_size, cols, rows, torus_width, torus_height } = layout;
+    if (positions.length === 0) return { atlasPages, previewQuads };
+
+    const aspect = this.canvas.width / this.canvas.height;
+    const visW = pov.z;
+    const visH = pov.z / aspect;
+    const cssPixelsPerUnit = this.canvas.clientHeight / visH;
+    const renderedH = cell_size * cssPixelsPerUnit;
+    const needsPreview = renderedH > PREVIEW_THRESHOLD;
+
+    const viewLeft = pov.x - visW * 0.5;
+    const viewRight = pov.x + visW * 0.5;
+    const viewTop = pov.y - visH * 0.5;
+    const viewBottom = pov.y + visH * 0.5;
+
+    const marginX = visW * 0.5;
+    const marginY = visH * 0.5;
+    const fetchLeft = viewLeft - marginX;
+    const fetchRight = viewRight + marginX;
+    const fetchTop = viewTop - marginY;
+    const fetchBottom = viewBottom + marginY;
+
+    const baseUrl = this.thumbnailBaseUrl;
+    const now = performance.now();
+
+    // Track which ids have already been rendered as the tweened primary —
+    // later duplicates draw statically at their target cell.
+    const seenIds = new Set<string>();
+
+    for (const pos of positions) {
+      const isPrimary = !seenIds.has(pos.id);
+      seenIds.add(pos.id);
+
+      let curCol: number;
+      let curRow: number;
+      if (isPrimary) {
+        const cp = this._spriteCurrentPos(pos.id, now);
+        curCol = cp.col;
+        curRow = cp.row;
+      } else {
+        curCol = pos.col;
+        curRow = pos.row;
+      }
+
+      // Wrap current position into [0, cols) / [0, rows)
+      curCol = ((curCol % cols) + cols) % cols;
+      curRow = ((curRow % rows) + rows) % rows;
+
+      const baseWx = curCol * cell_size;
+      const baseWy = curRow * cell_size;
+
+      // Render tiled across torus wraps
+      let requested = false;
+      for (let dy = -torus_height; dy <= torus_height; dy += torus_height) {
+        const wy = baseWy + dy;
+        if (wy + cell_size < fetchTop || wy > fetchBottom) continue;
+        for (let dx = -torus_width; dx <= torus_width; dx += torus_width) {
+          const wx = baseWx + dx;
+          if (wx + cell_size < fetchLeft || wx > fetchRight) continue;
+
+          if (!requested && !this.atlas.isLoaded(pos.id) && baseUrl) {
+            this.atlas.loadThumbnail(pos.id, `${baseUrl}/thumbnail/${pos.id}`);
+            requested = true;
+          }
+
+          const inView = wx + cell_size >= viewLeft && wx <= viewRight
+            && wy + cell_size >= viewTop && wy <= viewBottom;
+          if (!inView) continue;
+
+          if (needsPreview) {
+            if (!this.previews.isRequested(pos.id) && baseUrl) {
+              this.previews.load(pos.id, `${baseUrl}/preview/${pos.id}`);
+            }
+            if (this.previews.has(pos.id)) {
+              // Square-crop preview: full texture UV [0,1] x [1,0], crop to center
+              const cropped = this._squareCropUV({ u0: 0, v0: 1, u1: 1, v1: 0 });
+              previewQuads.push({
+                id: pos.id, wx, wy, width: cell_size, height: cell_size,
+                uvU0: cropped.u0, uvV0: cropped.v0,
+                uvU1: cropped.u1, uvV1: cropped.v1,
+              });
+              continue;
+            }
+          }
+
+          const entry = this.atlas.getUV(pos.id);
+          const cropped = this._squareCropUV(entry.uv);
+          this._pushQuad(atlasPages, entry.page, wx, wy, cell_size, cell_size,
+            cropped.u0, cropped.v0, cropped.u1, cropped.v1);
+        }
+      }
+    }
+
+    return { atlasPages, previewQuads };
+  }
+
+  private _pushQuad(
+    atlasPages: Map<number, VertexBucket>, page: number,
+    wx: number, wy: number, w: number, h: number,
+    u0: number, v0: number, u1: number, v1: number,
+  ): void {
+    let bucket = atlasPages.get(page);
+    if (!bucket) {
+      bucket = { offsets: [], sizes: [], uvs: [], count: 0 };
+      atlasPages.set(page, bucket);
+    }
+    for (let v = 0; v < 6; v++) {
+      bucket.offsets.push(wx, wy);
+      bucket.sizes.push(w, h);
+      bucket.uvs.push(u0, v0, u1, v1);
+    }
+    bucket.count += 6;
   }
 
   render(pov: PointOfView): void {
@@ -298,53 +513,26 @@ export class TorusViewport {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    if (!this.layout) return;
+    if (!this.stripLayout && !this.gridLayout) return;
 
-    const { atlasPages, previewQuads } = this._collectVisible(pov);
+    const { atlasPages, previewQuads } = this.stripLayout
+      ? this._collectStripVisible(pov)
+      : this._collectGridVisible(pov);
 
     gl.useProgram(this.program);
     gl.uniform2f(this.uCamera, pov.x, pov.y);
     gl.uniform1f(this.uZoom, pov.z);
     gl.uniform2f(this.uViewport, canvas.width, canvas.height);
 
-    // Pass 1: Atlas thumbnails (batched per page)
+    // Pass 1: atlas thumbnails (batched per page)
     for (const [page, bucket] of atlasPages) {
       if (bucket.count === 0) continue;
-
       this.atlas.bindPage(page, 0);
       gl.uniform1i(this.uAtlas, 0);
-
-      const posData = new Float32Array(bucket.count * 2);
-      for (let i = 0; i < bucket.count; i++) {
-        const vi = i % 6;
-        posData[i * 2] = QUAD[vi * 2];
-        posData[i * 2 + 1] = QUAD[vi * 2 + 1];
-      }
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, posData, gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(this.aPosition);
-      gl.vertexAttribPointer(this.aPosition, 2, gl.FLOAT, false, 0, 0);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.offsetBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bucket.offsets), gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(this.aOffset);
-      gl.vertexAttribPointer(this.aOffset, 2, gl.FLOAT, false, 0, 0);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.sizeBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bucket.sizes), gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(this.aSize);
-      gl.vertexAttribPointer(this.aSize, 2, gl.FLOAT, false, 0, 0);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bucket.uvs), gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(this.aUV);
-      gl.vertexAttribPointer(this.aUV, 4, gl.FLOAT, false, 0, 0);
-
-      gl.drawArrays(gl.TRIANGLES, 0, bucket.count);
+      this._uploadAndDraw(bucket);
     }
 
-    // Pass 2: Preview textures (individual draw calls, drawn on top)
+    // Pass 2: previews (individual draw calls, on top)
     for (const pq of previewQuads) {
       const entry = this.previews.get(pq.id);
       if (!entry) continue;
@@ -353,45 +541,47 @@ export class TorusViewport {
       gl.bindTexture(gl.TEXTURE_2D, entry.texture);
       gl.uniform1i(this.uAtlas, 0);
 
-      // Full-texture UVs: [0,1] x [0,1]
-      const posData = new Float32Array(QUAD);
-      const offData = new Float32Array(12);
-      const szData = new Float32Array(12);
-      const uvData = new Float32Array(24);
-
+      const bucket: VertexBucket = { offsets: [], sizes: [], uvs: [], count: 0 };
       for (let v = 0; v < 6; v++) {
-        offData[v * 2] = pq.wx;
-        offData[v * 2 + 1] = pq.wy;
-        szData[v * 2] = pq.width;
-        szData[v * 2 + 1] = pq.height;
-        uvData[v * 4] = 0;     // u0
-        uvData[v * 4 + 1] = 1; // v0 (bottom)
-        uvData[v * 4 + 2] = 1; // u1
-        uvData[v * 4 + 3] = 0; // v1 (top)
+        bucket.offsets.push(pq.wx, pq.wy);
+        bucket.sizes.push(pq.width, pq.height);
+        bucket.uvs.push(pq.uvU0, pq.uvV0, pq.uvU1, pq.uvV1);
       }
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, posData, gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(this.aPosition);
-      gl.vertexAttribPointer(this.aPosition, 2, gl.FLOAT, false, 0, 0);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.offsetBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, offData, gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(this.aOffset);
-      gl.vertexAttribPointer(this.aOffset, 2, gl.FLOAT, false, 0, 0);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.sizeBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, szData, gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(this.aSize);
-      gl.vertexAttribPointer(this.aSize, 2, gl.FLOAT, false, 0, 0);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, uvData, gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(this.aUV);
-      gl.vertexAttribPointer(this.aUV, 4, gl.FLOAT, false, 0, 0);
-
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      bucket.count = 6;
+      this._uploadAndDraw(bucket);
     }
+  }
+
+  private _uploadAndDraw(bucket: VertexBucket): void {
+    const gl = this.gl;
+    const posData = new Float32Array(bucket.count * 2);
+    for (let i = 0; i < bucket.count; i++) {
+      const vi = i % 6;
+      posData[i * 2] = QUAD[vi * 2];
+      posData[i * 2 + 1] = QUAD[vi * 2 + 1];
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, posData, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(this.aPosition);
+    gl.vertexAttribPointer(this.aPosition, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.offsetBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bucket.offsets), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(this.aOffset);
+    gl.vertexAttribPointer(this.aOffset, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.sizeBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bucket.sizes), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(this.aSize);
+    gl.vertexAttribPointer(this.aSize, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bucket.uvs), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(this.aUV);
+    gl.vertexAttribPointer(this.aUV, 4, gl.FLOAT, false, 0, 0);
+
+    gl.drawArrays(gl.TRIANGLES, 0, bucket.count);
   }
 
   startRenderLoop(getPov: () => PointOfView): void {
@@ -430,4 +620,11 @@ export class TorusViewport {
     }
     return s;
   }
+}
+
+interface VertexBucket {
+  offsets: number[];
+  sizes: number[];
+  uvs: number[];
+  count: number;
 }

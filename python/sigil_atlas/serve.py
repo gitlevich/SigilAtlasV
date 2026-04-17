@@ -19,8 +19,9 @@ from sigil_atlas.embedding_provider import SqliteEmbeddingProvider
 from sigil_atlas.layout import compute_layout
 from sigil_atlas.model_registry import get_adapter
 from sigil_atlas.slice import RangeFilter, ProximityFilter, ContrastControl, compute_slice
+from sigil_atlas.spacelike import Attractor, compute_spacelike
 from sigil_atlas.taxonomy import vocabulary, vocabulary_tree, vocabulary_flat
-from sigil_atlas.things import siblings
+from sigil_atlas.things import siblings, compute_things_layout
 from sigil_atlas.workspace import Workspace
 
 logger = logging.getLogger(__name__)
@@ -181,6 +182,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_slice()
             elif self.path == "/layout":
                 self._handle_layout()
+            elif self.path == "/spacelike":
+                self._handle_spacelike()
             elif self.path == "/things":
                 self._handle_things()
             elif self.path == "/corpus/nuke":
@@ -352,7 +355,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             for c in data.get("contrast_controls", [])
         ]
         model = data.get("model", "clip-vit-l-14")
-        tightness = data.get("tightness", 0.5)
+        feathering = data.get("feathering", 0.5)
 
         # Validate model via registry — fail loudly if unknown
         try:
@@ -361,12 +364,12 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._send_json({"error": str(e)}, 400)
             return
 
-        logger.info("Slice request: model=%s, tightness=%.2f, proximity=%s", model, tightness, [f["text"] for f in data.get("proximity_filters", [])])
+        logger.info("Slice request: model=%s, feathering=%.2f, proximity=%s", model, feathering, [f["text"] for f in data.get("proximity_filters", [])])
 
         result = compute_slice(
             _state.db, _state.provider,
             range_filters, proximity_filters, contrast_controls, model,
-            tightness=tightness,
+            feathering=feathering,
         )
         # Return order values: contrast projections if order axis active, else capture dates
         if result.order_projections is not None:
@@ -385,7 +388,6 @@ class RequestHandler(BaseHTTPRequestHandler):
         data = self._read_json()
         image_ids = data.get("image_ids", [])
         axes = data.get("axes")
-        tightness = data.get("tightness", 0.5)
         model = data.get("model", "clip-vit-l-14")
         strip_height = data.get("strip_height", 100.0)
         order_values = data.get("order_values")
@@ -403,7 +405,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         layout_mode = data.get("layout_mode", "auto")
         layout = compute_layout(
             _state.provider, _state.db, image_ids,
-            axes=axes, tightness=tightness, model=model,
+            axes=axes, model=model,
             strip_height=strip_height, preserve_order=preserve_order,
             order_values=order_values, layout_mode=layout_mode,
         )
@@ -423,6 +425,41 @@ class RequestHandler(BaseHTTPRequestHandler):
             "strip_height": layout.strip_height,
         })
 
+
+    def _handle_spacelike(self):
+        data = self._read_json()
+        image_ids = data.get("image_ids") or _state.db.fetch_image_ids()
+        model = data.get("model", "clip-vit-l-14")
+        feathering = data.get("feathering", 0.5)
+        cell_size = data.get("cell_size", 100.0)
+        attractors = [
+            Attractor(kind=a["kind"], ref=a["ref"])
+            for a in data.get("attractors", [])
+        ]
+
+        try:
+            get_adapter(model)
+        except ValueError as e:
+            self._send_json({"error": str(e)}, 400)
+            return
+
+        layout = compute_spacelike(
+            _state.provider, _state.db, image_ids,
+            attractors=attractors, model=model,
+            feathering=feathering, cell_size=cell_size,
+        )
+
+        self._send_json({
+            "positions": [
+                {"id": p.id, "col": p.col, "row": p.row}
+                for p in layout.positions
+            ],
+            "cell_size": layout.cell_size,
+            "cols": layout.cols,
+            "rows": layout.rows,
+            "torus_width": layout.torus_width,
+            "torus_height": layout.torus_height,
+        })
 
     def _handle_things(self):
         data = self._read_json()

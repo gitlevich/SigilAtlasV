@@ -185,6 +185,14 @@
     {
       "role": "assistant",
       "content": "\n\n*Using tool: write_sigil*\nDone. I created desiredTools and put the current wish list there.\n\nI’ll keep treating it as a living scratch sigil and add to it when new missing tools become obvious."
+    },
+    {
+      "role": "user",
+      "content": "What feels now out of place?"
+    },
+    {
+      "role": "assistant",
+      "content": "The things that now feel most out of place are the ones whose language still describes the old ontology. RelevanceFilter still wants to be Query, AttractorControl still mixes slice selection with arrangement gravity, and Torus still carries mode-specific layout claims that really belong lower in TimeLike and SpaceLike.\n\nA second cluster of mismatch is presentation residue. Frame, MultiResolution, StatusBar, and maybe ImageCache-adjacent references are partly about implementation and partly about experience, so they still feel unsettled rather than false.\n\nAnd there is one deeper tension still alive: whether attractor is a query primitive, an arrangement primitive, or both. That one is the ugliest remaining shape to me, because it bends several branches around the same overloaded word."
     }
   ]
 }

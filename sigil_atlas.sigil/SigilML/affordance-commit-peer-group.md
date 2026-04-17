@@ -1,0 +1,1 @@
+Bind a row of tokens as a peer-group. The result becomes a single sigil-term at the parent scope, usable alongside other peers. Committing happens on explicit user action (pressing enter, closing a parenthesis) — never implicitly.

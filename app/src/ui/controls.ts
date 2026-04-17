@@ -50,52 +50,70 @@ export async function recomputeSliceAndLayout(): Promise<void> {
       proximity_filters: state.proximityFilters,
       contrast_controls: state.contrastControls,
       model: state.model,
-      tightness: state.tightness,
+      feathering: state.feathering,
     });
     state.imageIds = res.image_ids;
     state.orderValues = res.order_values || {};
 
-    let orderValues: Record<string, number> | undefined;
-    let preserveOrder = false;
-
-    if (state.mode === "timelike") {
-      const hasOV = Object.keys(state.orderValues).length > 0;
-      orderValues = hasOV ? state.orderValues : undefined;
-    } else if (state.proximityFilters.length > 0) {
-      preserveOrder = true;
-    }
-
-    const layout = await api.computeLayout({
-      image_ids: state.imageIds,
-      axes: state.selectedAxes.length > 0 ? state.selectedAxes : null,
-      tightness: state.tightness,
-      model: state.model,
-      strip_height: state.stripHeight,
-      preserve_order: preserveOrder,
-      order_values: orderValues,
-    });
-    state.layout = layout;
-
     const prevArea = state.torusWidth * state.torusHeight;
-    const newArea = layout.torus_width * layout.torus_height;
-    state.torusWidth = layout.torus_width;
-    state.torusHeight = layout.torus_height;
-
     const canvas = document.getElementById("viewport") as HTMLCanvasElement;
     const aspect = canvas.clientWidth / canvas.clientHeight;
-    const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
 
-    if (prevArea === 0 || Math.abs(newArea - prevArea) / prevArea > 0.3) {
-      const visibleStrips = 8;
-      const desiredZoom = visibleStrips * layout.strip_height * aspect;
-      state.pov.x = layout.torus_width / 2;
-      state.pov.y = layout.torus_height / 2;
-      state.pov.z = Math.min(desiredZoom, maxZoom);
+    if (state.mode === "spacelike") {
+      const layout = await api.computeSpacelike({
+        image_ids: state.imageIds,
+        attractors: state.attractors,
+        model: state.model,
+        feathering: state.feathering,
+        cell_size: state.cellSize,
+      });
+      state.layout = layout;
+      state.torusWidth = layout.torus_width;
+      state.torusHeight = layout.torus_height;
+
+      const newArea = layout.torus_width * layout.torus_height;
+      const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
+      if (prevArea === 0 || Math.abs(newArea - prevArea) / Math.max(prevArea, 1) > 0.3) {
+        const visibleCells = 8;
+        const desiredZoom = visibleCells * layout.cell_size * aspect;
+        state.pov.x = layout.torus_width / 2;
+        state.pov.y = layout.torus_height / 2;
+        state.pov.z = Math.min(desiredZoom, maxZoom);
+      } else {
+        state.pov.z = Math.min(state.pov.z, maxZoom);
+      }
+      if (viewport) viewport.setLayout(layout);
     } else {
-      state.pov.z = Math.min(state.pov.z, maxZoom);
+      const hasOV = Object.keys(state.orderValues).length > 0;
+      const orderValues = hasOV ? state.orderValues : undefined;
+
+      const layout = await api.computeLayout({
+        image_ids: state.imageIds,
+        axes: state.selectedAxes.length > 0 ? state.selectedAxes : null,
+        feathering: state.feathering,
+        model: state.model,
+        strip_height: state.stripHeight,
+        preserve_order: false,
+        order_values: orderValues,
+      });
+      state.layout = layout;
+      state.torusWidth = layout.torus_width;
+      state.torusHeight = layout.torus_height;
+
+      const newArea = layout.torus_width * layout.torus_height;
+      const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
+      if (prevArea === 0 || Math.abs(newArea - prevArea) / Math.max(prevArea, 1) > 0.3) {
+        const visibleStrips = 8;
+        const desiredZoom = visibleStrips * layout.strip_height * aspect;
+        state.pov.x = layout.torus_width / 2;
+        state.pov.y = layout.torus_height / 2;
+        state.pov.z = Math.min(desiredZoom, maxZoom);
+      } else {
+        state.pov.z = Math.min(state.pov.z, maxZoom);
+      }
+      if (viewport) viewport.setLayout(layout);
     }
 
-    if (viewport) viewport.setLayout(layout);
     updateImageCount();
     state.lastError = null;
   } catch (e) {
@@ -596,31 +614,31 @@ export async function initControls(dimensions: Dimension[], models: string[]): P
   // Settings section (collapsed by default)
   const settings = createSection("Settings", true);
 
-  // Tightness
-  const tightnessGroup = document.createElement("div");
-  tightnessGroup.className = "control-group";
-  const tightnessLabel = document.createElement("label");
-  tightnessLabel.textContent = "Feather";
-  tightnessGroup.appendChild(tightnessLabel);
+  // Feathering — soft vs hard edge of attractor neighborhoods
+  const featherGroup = document.createElement("div");
+  featherGroup.className = "control-group";
+  const featherLabel = document.createElement("label");
+  featherLabel.textContent = "Feather";
+  featherGroup.appendChild(featherLabel);
 
-  const tightnessSlider = document.createElement("input");
-  tightnessSlider.type = "range";
-  tightnessSlider.min = "0";
-  tightnessSlider.max = "1";
-  tightnessSlider.step = "0.05";
-  tightnessSlider.value = String(state.tightness);
+  const featherSlider = document.createElement("input");
+  featherSlider.type = "range";
+  featherSlider.min = "0";
+  featherSlider.max = "1";
+  featherSlider.step = "0.05";
+  featherSlider.value = String(state.feathering);
 
-  const tightnessLabels = document.createElement("div");
-  tightnessLabels.className = "slider-labels";
-  tightnessLabels.innerHTML = "<span>strict</span><span>permissive</span>";
+  const featherLabels = document.createElement("div");
+  featherLabels.className = "slider-labels";
+  featherLabels.innerHTML = "<span>hard</span><span>soft</span>";
 
-  tightnessSlider.addEventListener("change", () => {
-    state.tightness = parseFloat(tightnessSlider.value);
+  featherSlider.addEventListener("change", () => {
+    state.feathering = parseFloat(featherSlider.value);
     recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
   });
-  tightnessGroup.appendChild(tightnessSlider);
-  tightnessGroup.appendChild(tightnessLabels);
-  settings.body.appendChild(tightnessGroup);
+  featherGroup.appendChild(featherSlider);
+  featherGroup.appendChild(featherLabels);
+  settings.body.appendChild(featherGroup);
 
   // Time direction
   const timeDirGroup = document.createElement("div");

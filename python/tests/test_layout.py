@@ -78,7 +78,7 @@ class TestComputeLayout:
         provider = FakeEmbeddingProvider(embeddings)
         result = compute_layout(
             provider, db, list(embeddings.keys()),
-            tightness=0.3, strip_height=100.0,
+            strip_height=100.0,
         )
 
         assert len(result.strips) > 0
@@ -134,14 +134,14 @@ class TestComputeLayout:
         provider = FakeEmbeddingProvider(embeddings)
         ids = list(embeddings.keys())
 
-        layout_tight = compute_layout(provider, db, ids, tightness=0.1)
-        layout_loose = compute_layout(provider, db, ids, tightness=0.9)
+        layout_a = compute_layout(provider, db, ids)
+        layout_b = compute_layout(provider, db, ids)
 
-        ids_tight = {img.id for s in layout_tight.strips for img in s.images}
-        ids_loose = {img.id for s in layout_loose.strips for img in s.images}
+        ids_a = {img.id for s in layout_a.strips for img in s.images}
+        ids_b = {img.id for s in layout_b.strips for img in s.images}
 
-        # Same images in both layouts regardless of tightness
-        assert ids_tight == ids_loose == set(ids)
+        # Layout is deterministic and preserves all images
+        assert ids_a == ids_b == set(ids)
 
     def test_invariant_local_neighborhoods(self, db):
         """Verify !local-neighborhoods: similar images cluster locally as patches.
@@ -168,7 +168,7 @@ class TestComputeLayout:
         provider = FakeEmbeddingProvider(embeddings)
         result = compute_layout(
             provider, db, list(embeddings.keys()),
-            tightness=0.1, strip_height=100.0,
+            strip_height=100.0,
                     )
 
         # Collect strip indices per cluster
@@ -208,25 +208,3 @@ class TestComputeLayout:
                 f"Strip {i}: height {strip.height:.1f} deviates >10% from nominal {result.strip_height:.1f}"
             )
 
-    def test_tightness_affects_clustering(self, db):
-        """Tighter layout should produce more compact clusters."""
-        n = 30
-        _seed_images(db, n)
-        embeddings = {}
-        for i in range(n):
-            vec = np.random.randn(16).astype(np.float32)
-            if i < 15:
-                vec[0] += 3.0
-            else:
-                vec[0] -= 3.0
-            embeddings[f"img_{i}"] = vec / np.linalg.norm(vec)
-
-        provider = FakeEmbeddingProvider(embeddings)
-        ids = list(embeddings.keys())
-
-        layout_tight = compute_layout(provider, db, ids, tightness=0.05)
-        layout_loose = compute_layout(provider, db, ids, tightness=0.95)
-
-        # Both should contain all images
-        assert sum(len(s.images) for s in layout_tight.strips) == n
-        assert sum(len(s.images) for s in layout_loose.strips) == n

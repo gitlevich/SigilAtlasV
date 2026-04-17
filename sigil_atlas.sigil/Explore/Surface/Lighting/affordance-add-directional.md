@@ -1,0 +1,1 @@
+Add a directional or point light to the scene. The user picks its position (draggable on the @surface), its color, and its intensity. Multiple directional lights can coexist. Each is a narrating attention beam — moving it is the act of attending.

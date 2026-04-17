@@ -20,6 +20,40 @@ export interface StripLayout {
   strip_height: number;
 }
 
+export interface CellPosition {
+  id: string;
+  col: number;
+  row: number;
+}
+
+export interface SpaceLikeLayout {
+  positions: CellPosition[];
+  cell_size: number;
+  cols: number;
+  rows: number;
+  torus_width: number;
+  torus_height: number;
+}
+
+export type AnyLayout = StripLayout | SpaceLikeLayout;
+
+export function isSpaceLikeLayout(layout: AnyLayout): layout is SpaceLikeLayout {
+  return (layout as SpaceLikeLayout).positions !== undefined;
+}
+
+export interface Attractor {
+  kind: "thing" | "target_image";
+  ref: string;
+}
+
+export interface SpaceLikeRequest {
+  image_ids: string[];
+  attractors: Attractor[];
+  model: string;
+  feathering: number;
+  cell_size: number;
+}
+
 export interface RangeFilter {
   dimension: string;
   min: number;
@@ -44,7 +78,7 @@ export interface SliceRequest {
   proximity_filters: ProximityFilter[];
   contrast_controls: ContrastControl[];
   model: string;
-  tightness: number;
+  feathering: number;
 }
 
 export interface SliceResponse {
@@ -57,7 +91,7 @@ export interface SliceResponse {
 export interface LayoutRequest {
   image_ids: string[];
   axes: string[] | null;
-  tightness: number;
+  feathering: number;
   model: string;
   strip_height: number;
   preserve_order?: boolean;

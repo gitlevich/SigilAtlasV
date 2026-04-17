@@ -7,6 +7,8 @@ import type {
   SliceResponse,
   LayoutRequest,
   StripLayout,
+  SpaceLikeLayout,
+  SpaceLikeRequest,
   Dimension,
   VocabularyTree,
   Sibling,
@@ -82,6 +84,10 @@ export async function computeSlice(req: SliceRequest): Promise<SliceResponse> {
 
 export async function computeLayout(req: LayoutRequest): Promise<StripLayout> {
   return post("/layout", req);
+}
+
+export async function computeSpacelike(req: SpaceLikeRequest): Promise<SpaceLikeLayout> {
+  return post("/spacelike", req);
 }
 
 export async function startImport(source: string): Promise<{ status: string }> {

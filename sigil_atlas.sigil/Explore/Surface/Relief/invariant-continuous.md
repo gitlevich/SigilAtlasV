@@ -1,0 +1,1 @@
+Elevation is continuous across the @torus. No step discontinuities between cells; the field has a well-defined gradient everywhere, so surface normals are stable and shading reads as a single terrain rather than a stack of tiles.

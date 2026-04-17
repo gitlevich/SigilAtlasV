@@ -5,7 +5,15 @@
  * Uses a simple listener pattern for reactivity.
  */
 
-import type { StripLayout, PointOfView, RangeFilter, ProximityFilter, ContrastControl, ImportProgress } from "./types";
+import type {
+  AnyLayout,
+  Attractor,
+  PointOfView,
+  RangeFilter,
+  ProximityFilter,
+  ContrastControl,
+  ImportProgress,
+} from "./types";
 
 export interface AppState {
   // Slice controls
@@ -15,11 +23,14 @@ export interface AppState {
 
   // Layout
   selectedAxes: string[];
-  tightness: number;
+  feathering: number;
   model: string;
 
-  // Layout result
-  layout: StripLayout | null;
+  // SpaceLike attractors
+  attractors: Attractor[];
+
+  // Layout result (StripLayout for timelike, SpaceLikeLayout for spacelike)
+  layout: AnyLayout | null;
   imageIds: string[];
   orderValues: Record<string, number>;
 
@@ -36,6 +47,7 @@ export interface AppState {
   torusWidth: number;
   torusHeight: number;
   stripHeight: number;
+  cellSize: number;
 
   // Import
   importProgress: ImportProgress | null;
@@ -53,8 +65,9 @@ export const state: AppState = {
   proximityFilters: [],
   contrastControls: [],
   selectedAxes: [],
-  tightness: 0.5,
+  feathering: 0.5,
   model: "clip-vit-b-32",
+  attractors: [],
   layout: null,
   imageIds: [],
   orderValues: {},
@@ -64,6 +77,7 @@ export const state: AppState = {
   torusWidth: 0,
   torusHeight: 0,
   stripHeight: 100,
+  cellSize: 100,
   importProgress: null,
   lastError: null,
 };

@@ -1,0 +1,1 @@
+Open a child scope inside the current peer-group. Tokens added inside the nested scope form a sub-expression that, when committed, appears at the parent as a single peer-term. The nested scope's affordances are determined by its opening context.

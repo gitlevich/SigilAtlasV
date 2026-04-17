@@ -1,0 +1,1 @@
+Elevation is computed from the current @arrangement's own structure — attractor pull strength, local @proximity density, or similar — never authored by the user and never external data. Changing the arrangement recomputes the relief automatically.

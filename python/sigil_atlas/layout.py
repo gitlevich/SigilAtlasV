@@ -263,7 +263,7 @@ def _ensure_umap_cached(
 
 def compute_layout(
     provider: EmbeddingProvider, db: CorpusDB, image_ids: list[str],
-    axes: list[str] | None = None, tightness: float = 0.5,
+    axes: list[str] | None = None,
     model: str = "clip-vit-l-14", strip_height: float = 100.0,
     preserve_order: bool = False,
     order_values: dict[str, float] | None = None,

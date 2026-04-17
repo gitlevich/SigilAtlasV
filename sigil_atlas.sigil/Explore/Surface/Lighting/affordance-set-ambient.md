@@ -1,0 +1,1 @@
+Set the ambient light level and color. Ambient illuminates every cell equally and carries no direction. Turning ambient up while turning directional lights down approaches pure @spacelike apprehension — the sigil without narration.
