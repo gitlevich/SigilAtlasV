@@ -87,6 +87,22 @@ CREATE TABLE IF NOT EXISTS things_library (
     name TEXT PRIMARY KEY,
     created_at REAL NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS collages (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    modified_at REAL NOT NULL,
+    expression_json TEXT NOT NULL,
+    pov_json TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    model TEXT NOT NULL,
+    relevance REAL NOT NULL,
+    feathering REAL NOT NULL,
+    cell_size REAL NOT NULL,
+    thumbnail_blob BLOB
+);
+CREATE INDEX IF NOT EXISTS idx_collages_modified ON collages(modified_at DESC);
 """
 
 
@@ -557,6 +573,82 @@ class CorpusDB:
     def remove_thing_from_library(self, name: str) -> None:
         self._conn.execute("DELETE FROM things_library WHERE name = ?", (name,))
         self._conn.commit()
+
+    # ── Collages ──
+
+    def list_collages(self) -> list[dict]:
+        """Return collage metadata (no thumbnail blob), most-recent first."""
+        rows = self._conn.execute(
+            "SELECT id, name, created_at, modified_at, mode, model, "
+            "relevance, feathering, cell_size, "
+            "(thumbnail_blob IS NOT NULL) AS has_thumbnail "
+            "FROM collages ORDER BY modified_at DESC"
+        ).fetchall()
+        return [
+            {
+                "id": r[0], "name": r[1],
+                "created_at": r[2], "modified_at": r[3],
+                "mode": r[4], "model": r[5],
+                "relevance": r[6], "feathering": r[7], "cell_size": r[8],
+                "has_thumbnail": bool(r[9]),
+            }
+            for r in rows
+        ]
+
+    def fetch_collage(self, collage_id: str) -> dict | None:
+        """Return a single collage with its full expression and pov, no thumbnail."""
+        row = self._conn.execute(
+            "SELECT id, name, created_at, modified_at, expression_json, pov_json, "
+            "mode, model, relevance, feathering, cell_size "
+            "FROM collages WHERE id = ?",
+            (collage_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0], "name": row[1],
+            "created_at": row[2], "modified_at": row[3],
+            "expression_json": row[4], "pov_json": row[5],
+            "mode": row[6], "model": row[7],
+            "relevance": row[8], "feathering": row[9], "cell_size": row[10],
+        }
+
+    def fetch_collage_thumbnail(self, collage_id: str) -> bytes | None:
+        row = self._conn.execute(
+            "SELECT thumbnail_blob FROM collages WHERE id = ?", (collage_id,),
+        ).fetchone()
+        return row[0] if row and row[0] else None
+
+    def insert_collage(
+        self, collage_id: str, name: str,
+        expression_json: str, pov_json: str,
+        mode: str, model: str,
+        relevance: float, feathering: float, cell_size: float,
+        thumbnail_blob: bytes | None,
+    ) -> None:
+        now = time.time()
+        self._conn.execute(
+            "INSERT INTO collages (id, name, created_at, modified_at, "
+            "expression_json, pov_json, mode, model, relevance, feathering, "
+            "cell_size, thumbnail_blob) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (collage_id, name, now, now, expression_json, pov_json,
+             mode, model, relevance, feathering, cell_size, thumbnail_blob),
+        )
+        self._conn.commit()
+
+    def rename_collage(self, collage_id: str, new_name: str) -> bool:
+        cur = self._conn.execute(
+            "UPDATE collages SET name = ?, modified_at = ? WHERE id = ?",
+            (new_name, time.time(), collage_id),
+        )
+        self._conn.commit()
+        return cur.rowcount > 0
+
+    def delete_collage(self, collage_id: str) -> bool:
+        cur = self._conn.execute("DELETE FROM collages WHERE id = ?", (collage_id,))
+        self._conn.commit()
+        return cur.rowcount > 0
 
     def fetch_uncharacterized_image_ids(self) -> list[str]:
         """Return image IDs that have CLIP embeddings but no characterizations."""

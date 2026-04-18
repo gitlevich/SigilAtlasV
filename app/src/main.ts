@@ -6,7 +6,7 @@
  */
 
 import { TorusViewport } from "./renderer/torus-viewport";
-import { state, notify, subscribe, initThingsLibrary } from "./state";
+import { state, notify, subscribe, initThingsLibrary, refreshCollages } from "./state";
 import * as api from "./api";
 import { initControls, setViewport, recomputeSliceAndLayout, refreshControls, imageAtWorld, cellCenterAtWorld } from "./ui/controls";
 import { initStatusBar } from "./ui/status-bar";
@@ -192,11 +192,37 @@ async function main(): Promise<void> {
   // library pills show up on first paint. Also drains any legacy localStorage
   // entries into the workspace.
   await initThingsLibrary();
+  // Load saved collages — non-blocking; UI re-renders when they arrive.
+  refreshCollages().catch((e) => console.error("[collages init]", e));
   mark("things library");
 
   // Init controls
   await initControls(dimensions, modelsRes);
   notify();
+
+  // File-association handling. macOS asks us to open `.sigil` folders by
+  // emitting RunEvent::Opened on the Rust side. We listen for the bridged
+  // event AND drain any opens that were buffered before this listener
+  // attached (cold-launch double-click).
+  if (isTauri()) {
+    try {
+      const { listen } = await import("@tauri-apps/api/event");
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { loadCollageFromFolder } = await import("./collages");
+
+      await listen<string>("collage-open", (event) => {
+        const path = event.payload;
+        if (path) loadCollageFromFolder(path).catch((e) => console.error("[open]", e));
+      });
+
+      const pending = await invoke<string[]>("drain_pending_opens");
+      for (const path of pending) {
+        loadCollageFromFolder(path).catch((e) => console.error("[open pending]", e));
+      }
+    } catch (e) {
+      console.error("[file-association]", e);
+    }
+  }
   mark("controls ready");
 
   // Refresh viewport when import completes (or errors — images may already be
@@ -291,7 +317,6 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     const ch = canvas.clientHeight;
     const dxPx = (e.clientX - rect.left) - cw / 2;
     const dyPx = (e.clientY - rect.top) - ch / 2;
-    // Same Y-flip as dblclick: world-y is inverted on screen.
     const worldPerPx = state.pov.z / cw;
     const worldX = state.pov.x + dxPx * worldPerPx;
     const worldY = state.pov.y - dyPx * worldPerPx;
@@ -299,8 +324,6 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     if (!id) return;
     state.attractors = state.attractors.filter((a) => a.kind !== "target_image");
     state.attractors.push({ kind: "target_image", ref: id });
-    // Anchor on the clicked image so it lands at screen centre after the
-    // field rearranges — "what I pointed at is what I'm now looking at".
     recomputeSliceAndLayout({ anchorImageId: id }).catch((err) => console.error("[attract]", err));
   });
 
@@ -476,15 +499,16 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
   }, { passive: false });
 
   // Cmd+/Cmd- keyboard zoom (suspended while the @Lightbox owns attention).
+  // Cmd+S is owned by the File > Save Collage As\u2026 menu item.
   window.addEventListener("keydown", (e) => {
     if (isLightboxOpen()) return;
     if (!(e.metaKey || e.ctrlKey)) return;
     if (e.key === "=" || e.key === "+") {
       e.preventDefault();
-      applyZoom(0.85); // zoom in
+      applyZoom(0.85);
     } else if (e.key === "-") {
       e.preventDefault();
-      applyZoom(1.18); // zoom out
+      applyZoom(1.18);
     }
   });
 
@@ -518,14 +542,11 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     }
   });
 
-  // Escape releases an active TargetImage — per spec
-  // `Attractor/TargetImage/affordance-clear`: "the arrangement returns to
-  // whatever @attractors or @contrasts are otherwise active." There's no
-  // pill for the target (the radial layout is its visible form), so the
-  // keyboard is the way to let go.
+  // Escape releases an active TargetImage. The pill is visible in
+  // AttractorControl, but the keyboard remains a handy quick release.
   window.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    if (isLightboxOpen()) return; // Lightbox swallowed this keystroke above
+    if (isLightboxOpen()) return;
     const before = state.attractors.length;
     state.attractors = state.attractors.filter((a) => a.kind !== "target_image");
     if (state.attractors.length !== before) {

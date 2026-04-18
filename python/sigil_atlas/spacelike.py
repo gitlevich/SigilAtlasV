@@ -561,13 +561,11 @@ def compute_spacelike(
     if attractors:
         resolved_attractors, attractor_vecs = _resolve_attractor_vectors(attractors, provider, model, image_ids)
 
-    # TargetImage takes layout precedence — when one is active, the spec
-    # is unambiguous: a SINGLE neighborhood forms around it
-    # (`TargetImage/affordance-point-at`). Other Thing attractors are
-    # suspended for layout (they continue to gate the slice via the filter,
-    # and the arrangement returns to them when the target is released, per
-    # `TargetImage/affordance-clear`). `!sole-attractor` ensures at most one
-    # target image exists.
+    # TargetImage takes layout precedence — when one is active, a single
+    # neighborhood forms around it (`TargetImage/affordance-point-at`).
+    # Other Thing attractors continue to gate the slice via the filter, but
+    # don't influence layout while the target is active. `!sole-attractor`
+    # ensures at most one target image exists.
     target_indices = [
         i for i, a in enumerate(resolved_attractors) if a.kind == "target_image"
     ]
@@ -711,3 +709,5 @@ def _radial_attractor_layout(
         torus_height=rows * cell_size,
         attractor_positions=attractor_positions,
     )
+
+

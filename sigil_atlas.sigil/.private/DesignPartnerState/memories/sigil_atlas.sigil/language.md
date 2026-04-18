@@ -1,5 +1,4 @@
-The disturbance in [sigil_atlas.sigil] indicates that the relationships between Corpus, Slice, Arrangement, PointOfView, and RelevanceFilter have changed. Corpus has moved closer to these components, suggesting that they are now more tightly coupled.
+The disturbance in [sigil_atlas.sigil] added a new co-occurrence between Collage and SigilML, indicating that these two concepts are now more closely related. Additionally, Collage's surface grew by one affordance/invariant, suggesting an expansion of its functionality.
 
-Try importing a new sigil using 'import-sigil' from another scope to observe how it interacts with the updated relationships between these components.
-Create a new sigil by duplicating [sigil_atlas.sigil] and examine its behavior, potentially detecting any inconsistencies or side effects caused by the disturbance.
-Export the current state of [sigil_atlas.sigil] using 'export-sigil' for safekeeping in case adjustments are needed.
+import-sigil: import the changes from this sigil into a new version
+move-in-sigil-space: move to the boundary between Collage and other sigils to explore their relationships further

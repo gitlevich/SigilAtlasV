@@ -4,8 +4,8 @@
 mod commands;
 mod sidecar;
 
-use std::sync::Arc;
-use tauri::Manager;
+use std::sync::{Arc, Mutex as StdMutex};
+use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 
 pub struct SidecarState {
@@ -15,7 +15,14 @@ pub struct SidecarState {
 }
 
 fn main() {
-    tauri::Builder::default()
+    // Buffers any `.sigil` URL the OS asks us to open before the webview is
+    // ready to receive events. `RunEvent::Opened` can fire on cold launch,
+    // before the JS listener attaches; we flush these on window-ready.
+    let pending_open: Arc<StdMutex<Vec<String>>> = Arc::new(StdMutex::new(Vec::new()));
+    let pending_for_run = pending_open.clone();
+    let pending_for_setup = pending_open.clone();
+
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(SidecarState {
@@ -28,29 +35,53 @@ fn main() {
             commands::get_sidecar_port,
             commands::proxy_get,
             commands::proxy_post,
+            commands::drain_pending_opens,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 let state = window.state::<SidecarState>();
                 // Block briefly to kill the sidecar and clean up the PID file.
-                // This runs on the main thread during window close — acceptable
-                // since it's just a SIGTERM + file delete.
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
                     .unwrap();
                 rt.block_on(async {
-                    // Kill the child process explicitly
                     if let Some(mut child) = state.process.lock().await.take() {
                         let _ = child.kill().await;
                     }
-                    // Remove PID file
                     if let Some(ws) = state.workspace.lock().await.as_deref() {
                         sidecar::remove_pid(ws);
                     }
                 });
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .setup(move |app| {
+            app.manage(commands::PendingOpens(pending_for_setup));
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(move |app_handle, event| {
+        if let tauri::RunEvent::Opened { urls } = event {
+            for url in urls {
+                let path = if url.scheme() == "file" {
+                    url.to_file_path()
+                        .ok()
+                        .and_then(|p| p.to_str().map(String::from))
+                } else {
+                    Some(url.to_string())
+                };
+                let Some(path) = path else { continue };
+
+                // Try to deliver immediately; if the webview isn't up, buffer.
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.emit("collage-open", path.clone());
+                }
+                if let Ok(mut buf) = pending_for_run.lock() {
+                    buf.push(path);
+                }
+            }
+        }
+    });
 }

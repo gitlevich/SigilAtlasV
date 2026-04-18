@@ -29,6 +29,13 @@ export function setSidecarPort(port: number): void {
   sidecarPort = port;
 }
 
+/** Base URL for the sidecar — useful for `<img src>` references that need
+ *  a direct GET. Throws if the port hasn't been set yet. */
+export function getThumbnailBaseUrl(): string {
+  if (!sidecarPort) throw new Error("Sidecar port not set");
+  return `http://127.0.0.1:${sidecarPort}`;
+}
+
 export function setReviveFn(fn: ReviveFn | null): void {
   reviveSidecar = fn;
 }
@@ -249,4 +256,108 @@ export async function addThingToLibrary(name: string): Promise<string[]> {
 export async function removeThingFromLibrary(name: string): Promise<string[]> {
   const data = await post<{ names: string[] }>("/things/library/remove", { name });
   return data.names;
+}
+
+// ── Collages ──────────────────────────────────────────────────────────────
+
+export interface CollageSummary {
+  id: string;
+  name: string;
+  created_at: number;
+  modified_at: number;
+  mode: string;
+  model: string;
+  relevance: number;
+  feathering: number;
+  cell_size: number;
+  has_thumbnail: boolean;
+}
+
+export interface CollageDetail extends Omit<CollageSummary, "has_thumbnail"> {
+  expression_json: string; // JSON-stringified Expression | null
+  pov_json: string;        // JSON-stringified PointOfView
+}
+
+export interface SaveCollageRequest {
+  name: string;
+  expression: import("./relevance").Expression | null;
+  pov: import("./types").PointOfView;
+  mode: "spacelike" | "timelike";
+  model: string;
+  relevance: number;
+  feathering: number;
+  cell_size: number;
+  thumbnail_base64?: string;
+}
+
+export async function listCollages(): Promise<CollageSummary[]> {
+  const data = await get<{ collages: CollageSummary[] }>("/collages");
+  return data.collages;
+}
+
+export async function fetchCollage(id: string): Promise<CollageDetail> {
+  return get<CollageDetail>(`/collages/${encodeURIComponent(id)}`);
+}
+
+export function collageThumbnailUrl(id: string): string {
+  if (!sidecarPort) throw new Error("Sidecar port not set");
+  return `http://127.0.0.1:${sidecarPort}/collages/${encodeURIComponent(id)}/thumbnail`;
+}
+
+export async function saveCollage(req: SaveCollageRequest): Promise<{ id: string; collages: CollageSummary[] }> {
+  return post("/collages/save", req);
+}
+
+export async function renameCollage(id: string, name: string): Promise<CollageSummary[]> {
+  const data = await post<{ collages: CollageSummary[] }>("/collages/rename", { id, name });
+  return data.collages;
+}
+
+export async function deleteCollage(id: string): Promise<CollageSummary[]> {
+  const data = await post<{ collages: CollageSummary[] }>("/collages/delete", { id });
+  return data.collages;
+}
+
+// Collage as a `.sigil` directory (file-based, browseable in Finder).
+
+export interface ExportCollageRequest {
+  parent_path: string;
+  name_hint?: string;
+  expression: import("./relevance").Expression | null;
+  pov: import("./types").PointOfView;
+  mode: "spacelike" | "timelike";
+  model: string;
+  relevance: number;
+  feathering: number;
+  cell_size: number;
+  attractors: import("./types").Attractor[]; // for naming hint (Thing pills)
+  image_ids: string[]; // for CLIP-centroid naming when no pills
+  screenshot_base64?: string; // full-resolution canvas PNG
+}
+
+export interface ExportCollageResponse {
+  folder_path: string;
+  name: string;
+}
+
+export async function exportCollage(req: ExportCollageRequest): Promise<ExportCollageResponse> {
+  return post("/collages/export", req);
+}
+
+export interface CollageManifest {
+  version: number;
+  name: string;
+  saved_at: number;
+  expression: import("./relevance").Expression | null;
+  pov: import("./types").PointOfView;
+  mode: "spacelike" | "timelike";
+  model: string;
+  relevance: number;
+  feathering: number;
+  cell_size: number;
+  image_ids: string[];
+}
+
+export async function importCollage(folder_path: string): Promise<{ collage: CollageManifest; folder_path: string }> {
+  return post("/collages/import", { folder_path });
 }

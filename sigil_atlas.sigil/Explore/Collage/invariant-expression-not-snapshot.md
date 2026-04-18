@@ -1,0 +1,1 @@
+a @collage stores a @SigilML expression, not a frozen image set. Loading re-evaluates the expression against the current @corpus. If new images satisfy the filter they appear; if old ones no longer satisfy it they drop out. The thumbnail is a hint, not the truth.

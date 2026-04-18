@@ -75,6 +75,10 @@ export interface AppState {
   // @arrangement and @control are not recomputing; the field is frozen.
   // See sigil_atlas.sigil/Explore/Lightbox.
   lightbox: LightboxState;
+
+  // Collages — saved views (SigilML expression + camera + arrangement params).
+  // Loaded from the workspace on init; refreshed on save/rename/delete.
+  collages: api.CollageSummary[];
 }
 
 export interface LightboxState {
@@ -178,7 +182,17 @@ export const state: AppState = {
   importProgress: null,
   lastError: null,
   lightbox: { imageId: null, entryPov: null, showMetadata: false },
+  collages: [],
 };
+
+/** Refresh state.collages from the workspace. Call after any save/rename/delete. */
+export async function refreshCollages(): Promise<void> {
+  try {
+    state.collages = await api.listCollages();
+  } catch (e) {
+    console.error("[collages] list failed:", e);
+  }
+}
 
 export function subscribe(fn: Listener): () => void {
   listeners.push(fn);

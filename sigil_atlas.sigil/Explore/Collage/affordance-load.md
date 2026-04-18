@@ -1,0 +1,1 @@
+restore a saved @collage. Re-evaluates its @RelevanceFilter expression against the current @corpus, applies the saved @arrangement parameters and mode, and animates the @PointOfView to the saved camera. The @slice may differ slightly from when saved if the @corpus has grown — this is by design, the collage is an expression, not a snapshot.

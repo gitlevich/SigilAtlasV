@@ -194,21 +194,6 @@ def _score_thing(ctx: Context, atom: Thing) -> np.ndarray:
     return scores
 
 
-def _score_target_image(ctx: Context, atom: TargetImage) -> np.ndarray:
-    cached = ctx._score_cache.get(id(atom))
-    if cached is not None:
-        return cached
-
-    matrix = ctx.provider.fetch_matrix(ctx.corpus_ids, ctx.model)
-    target = ctx.provider.fetch_matrix([atom.image_id], ctx.model)[0]
-    norm = float(np.linalg.norm(target))
-    if norm > 1e-8:
-        target = target / norm
-    scores = (matrix @ target).astype(np.float32)
-    ctx._score_cache[id(atom)] = scores
-    return scores
-
-
 def _semantic_gate(scores: np.ndarray, ctx: Context) -> np.ndarray:
     """Boolean mask (N,) keeping the top fraction by relevance."""
     n = len(scores)
@@ -233,14 +218,11 @@ def _eval_thing(ctx: Context, atom: Thing) -> set[str]:
 def _eval_target_image(ctx: Context, atom: TargetImage) -> set[str]:
     """TargetImage is purely a layout directive, not a slice gate.
 
-    Per spec `Attractor/TargetImage/affordance-point-at`:
-      "designate an @image in the current @slice as the @TargetImage.
-       A single @neighborhood forms around it."
-
-    The slice already exists (defined by other atoms or the whole corpus);
-    the TargetImage just picks the focal point for arrangement. So as a
-    filter atom it is a no-op — return the full corpus, which automatically
-    satisfies `!in-slice` for the target itself.
+    Per spec `TargetImage/affordance-point-at`: the spec says "designate an
+    @image in the current @slice as the @TargetImage. A single @neighborhood
+    forms around it" — the slice already exists; the target picks the focal
+    point. Returning the full corpus makes it a no-op as a gate while still
+    satisfying `!in-slice` for the target itself.
     """
     return set(ctx.corpus_ids)
 

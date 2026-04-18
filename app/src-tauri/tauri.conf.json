@@ -35,7 +35,20 @@
     "macOS": {
       "signingIdentity": null,
       "minimumSystemVersion": "10.15"
-    }
+    },
+    "fileAssociations": [
+      {
+        "ext": ["sigil"],
+        "name": "Sigil",
+        "description": "A SigilAtlas saved view (a SigilML expression plus camera and arrangement).",
+        "role": "Editor",
+        "rank": "Default",
+        "exportedType": {
+          "identifier": "com.sigilatlas.collage",
+          "conformsTo": ["com.apple.package", "public.composite-content"]
+        }
+      }
+    ]
   },
   "plugins": {
     "shell": {

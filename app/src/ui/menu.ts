@@ -7,6 +7,7 @@
 
 import * as api from "../api";
 import { startImport, startPolling } from "../import";
+import { saveCurrentAsCollage, openCollage } from "../collages";
 
 export async function initMenu(): Promise<void> {
   try {
@@ -34,8 +35,25 @@ export async function initMenu(): Promise<void> {
       text: "File",
       items: [
         await MenuItem.new({
+          id: "open-collage",
+          text: "Open Collage\u2026",
+          accelerator: "CmdOrCtrl+O",
+          action: () => {
+            openCollage().catch((e) => console.error("[open-collage]", e));
+          },
+        }),
+        await MenuItem.new({
+          id: "save-collage",
+          text: "Save Collage As\u2026",
+          accelerator: "CmdOrCtrl+S",
+          action: () => {
+            saveCurrentAsCollage().catch((e) => console.error("[save-collage]", e));
+          },
+        }),
+        await PredefinedMenuItem.new({ item: "Separator" }),
+        await MenuItem.new({
           id: "import",
-          text: "Import...",
+          text: "Import\u2026",
           accelerator: "CmdOrCtrl+I",
           action: async () => {
             const selected = await open({ directory: true, title: "Choose source folder" });

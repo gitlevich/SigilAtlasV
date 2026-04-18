@@ -90,11 +90,7 @@ export function and(children: Expression[]): AndNode {
  * ContrastControl widgets → Contrast atoms.
  * Range sliders (color, tone) → Range atoms.
  *
- * Default composition across pills/widgets is AND, per the AttractorControl
- * invariant !attracts-images-with-all-named-things and the ContrastControl
- * bandpass semantics. Compound things (OR-within-a-pill) are not yet
- * exposed in the UI; when they land they compose as Or nodes inside a pill.
- *
+ * Default composition across pills/widgets is AND.
  * Returns null when nothing constrains the slice — the whole corpus survives.
  */
 export function buildFilter(args: {

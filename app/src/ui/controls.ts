@@ -5,11 +5,13 @@
  * Mode, Attract, Contrasts, Color, Tone, Settings.
  */
 
-import { state, notify, persistLibraryFolded } from "../state";
+import { state, notify, subscribe, persistLibraryFolded } from "../state";
 import * as api from "../api";
+import { collageThumbnailUrl } from "../api";
 import type { AnyLayout, Dimension, ContrastControl, PointOfView, VocabTerm } from "../types";
 import { isSpaceLikeLayout } from "../types";
 import { buildFilter } from "../relevance";
+import { loadCollage, renameCollageById, deleteCollageById } from "../collages";
 import type { TorusViewport } from "../renderer/torus-viewport";
 import { createBandpassWidget } from "./bandpass-widget";
 import { createColorWheel, hueRangeToFilter, type HueRange } from "./color-wheel";
@@ -26,6 +28,19 @@ let vocabulary: VocabTerm[] = [];
 // without rebuilding the entire panel.
 let renderAttractPills: (() => void) | null = null;
 let renderLibraryPills: (() => void) | null = null;
+
+/** Add a Thing as an active attractor. Releases any TargetImage first —
+ *  naming a new search is signalling intent to attend to something new,
+ *  and the layout would otherwise still rank by similarity to a stale
+ *  focal point. De-dupes the Thing by name. */
+function addThingAttractor(name: string): boolean {
+  const hadTarget = state.attractors.some((a) => a.kind === "target_image");
+  const hasThing = state.attractors.some((a) => a.kind === "thing" && a.ref === name);
+  if (hasThing && !hadTarget) return false;
+  state.attractors = state.attractors.filter((a) => a.kind !== "target_image");
+  if (!hasThing) state.attractors.push({ kind: "thing", ref: name });
+  return true;
+}
 
 /** Add a name to the ThingsLibrary if not already present, and persist to the workspace. */
 function captureInLibrary(name: string): void {
@@ -576,6 +591,106 @@ function createAttractInput(commit: (name: string) => void): HTMLElement {
 // #delete from the library entirely (with confirmation). #search filters the
 // pills by substring; #fold collapses the section to its header.
 
+// ── Collages ──
+//
+// Per `Explore/Collage/language.md`: a saved view is a serialized SigilML
+// expression plus camera POV plus arrangement params. Click a collage to
+// re-evaluate and restore the camera; double-click name to rename; × deletes.
+
+let renderCollages: (() => void) | null = null;
+
+function buildCollagesSection(body: HTMLElement): void {
+  const list = document.createElement("div");
+  list.className = "collages-list";
+  body.appendChild(list);
+
+  const render = () => {
+    list.innerHTML = "";
+    if (state.collages.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "library-empty";
+      empty.textContent = "press \u2318S to save the current view";
+      list.appendChild(empty);
+      return;
+    }
+
+    for (const c of state.collages) {
+      const row = document.createElement("div");
+      row.className = "collage-row";
+      row.title = `Saved ${new Date(c.modified_at * 1000).toLocaleString()}`;
+
+      const thumb = document.createElement("div");
+      thumb.className = "collage-thumb";
+      if (c.has_thumbnail) {
+        const img = document.createElement("img");
+        img.src = collageThumbnailUrl(c.id);
+        img.alt = c.name;
+        thumb.appendChild(img);
+      }
+      thumb.addEventListener("click", () => {
+        loadCollage(c.id).catch((e) => console.error("[collage load]", e));
+      });
+      row.appendChild(thumb);
+
+      const meta = document.createElement("div");
+      meta.className = "collage-meta";
+      const nameEl = document.createElement("div");
+      nameEl.className = "collage-name";
+      nameEl.textContent = c.name;
+      nameEl.title = "double-click to rename";
+      nameEl.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        beginRename(nameEl, c.id, c.name);
+      });
+      nameEl.addEventListener("click", () => {
+        loadCollage(c.id).catch((e) => console.error("[collage load]", e));
+      });
+      meta.appendChild(nameEl);
+      row.appendChild(meta);
+
+      const remove = document.createElement("span");
+      remove.className = "pill-remove collage-delete";
+      remove.textContent = "\u00d7";
+      remove.title = "delete (cannot be undone)";
+      remove.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete collage "${c.name}"?`)) return;
+        deleteCollageById(c.id).catch((err) => console.error("[collage delete]", err));
+      });
+      row.appendChild(remove);
+
+      list.appendChild(row);
+    }
+  };
+
+  function beginRename(el: HTMLElement, id: string, current: string): void {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "collage-name-edit";
+    input.value = current;
+    el.replaceWith(input);
+    input.focus();
+    input.select();
+    const commit = () => {
+      const v = input.value.trim();
+      if (v && v !== current) {
+        renameCollageById(id, v).catch((e) => console.error("[collage rename]", e));
+      } else {
+        render();
+      }
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      else if (e.key === "Escape") { render(); }
+    });
+    input.addEventListener("blur", commit);
+  }
+
+  renderCollages = render;
+  render();
+}
+
+
 function buildThingsLibrarySection(section: HTMLElement, body: HTMLElement): void {
   // Search row — toggled by clicking the magnifier in the header.
   const searchRow = document.createElement("div");
@@ -625,7 +740,7 @@ function buildThingsLibrarySection(section: HTMLElement, body: HTMLElement): voi
       pill.addEventListener("click", (e) => {
         if ((e.target as HTMLElement).classList.contains("pill-remove")) return;
         if (isActive) return;
-        state.attractors.push({ kind: "thing", ref: name });
+        if (!addThingAttractor(name)) return;
         renderAttractPills?.();
         render();
         recomputeSliceAndLayout().catch((err) => console.error("[library activate]", err));
@@ -703,21 +818,36 @@ function buildAttractSection(body: HTMLElement): void {
     holder.querySelectorAll(".pill").forEach((el) => el.remove());
     for (let i = 0; i < state.attractors.length; i++) {
       const att = state.attractors[i];
-      // TargetImage attractors are not represented as pills — the radial
-      // layout itself (your image at the centre) is the visible affordance.
-      // Press Escape (handled in main.ts) to release the target.
-      if (att.kind === "target_image") continue;
       const pill = document.createElement("span");
-      pill.className = "pill";
-      pill.textContent = att.ref;
+      const idx = i;
+
+      if (att.kind === "target_image") {
+        // TargetImage pill carries a thumbnail of the actual image so the
+        // user can see *which* image they pointed at — invisible state was
+        // the original confusion and the thumbnail directly answers it.
+        pill.className = "pill pill-target";
+        const thumb = document.createElement("img");
+        thumb.className = "pill-thumb";
+        thumb.src = `${api.getThumbnailBaseUrl()}/thumbnail/${encodeURIComponent(att.ref)}`;
+        thumb.alt = "target image";
+        pill.appendChild(thumb);
+        const label = document.createElement("span");
+        label.className = "pill-label";
+        label.textContent = "this image";
+        pill.appendChild(label);
+        pill.title = `Target image (shift-clicked).\nClick × or press Escape to release.`;
+      } else {
+        pill.className = "pill";
+        pill.textContent = att.ref;
+      }
+
       const remove = document.createElement("span");
       remove.className = "pill-remove";
       remove.textContent = "\u00d7";
-      const idx = i;
       remove.addEventListener("click", () => {
         state.attractors.splice(idx, 1);
         renderPills();
-        renderLibraryPills?.();  // active state of library pill changes
+        renderLibraryPills?.();
         recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
       });
       pill.appendChild(remove);
@@ -727,8 +857,7 @@ function buildAttractSection(body: HTMLElement): void {
 
   const inputWrapper = createAttractInput((name: string) => {
     captureInLibrary(name);
-    if (state.attractors.some((a) => a.kind === "thing" && a.ref === name)) return;
-    state.attractors.push({ kind: "thing", ref: name });
+    if (!addThingAttractor(name)) return;
     renderPills();
     recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
   });
@@ -737,6 +866,19 @@ function buildAttractSection(body: HTMLElement): void {
   body.appendChild(holder);
   renderAttractPills = renderPills;
   renderPills();
+
+  // Repaint when state.attractors changes by reference — covers shift+click
+  // (which assigns a new array and pushes) and any future external mutations.
+  // The local renderPills() call after typed adds is still in place to avoid
+  // depending on the next notify() tick for typed-pill visibility.
+  let lastAttractors = state.attractors;
+  subscribe((s) => {
+    if (s.attractors !== lastAttractors) {
+      lastAttractors = s.attractors;
+      renderPills();
+      renderLibraryPills?.();
+    }
+  });
 
   // Relevance slider — how strictly the named things gate the slice.
   // Per spec (Neighborhood/language.md): "distinctness of neighborhoods
@@ -1158,6 +1300,22 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   const layers = createSection("Layers");
   buildLayersSection(layers.body);
   panel.appendChild(layers.section);
+
+  // Collages — saved views (Cmd+S to save). Sits high in the panel because
+  // it's the across-session anchor: a place to pick up where you left off.
+  const collages = createSection("Collages");
+  buildCollagesSection(collages.body);
+  panel.appendChild(collages.section);
+  // Re-render the collages list whenever state changes (covers async load
+  // on init plus save/rename/delete); compare references to avoid pointless
+  // DOM churn from unrelated state changes.
+  let lastCollages = state.collages;
+  subscribe((s) => {
+    if (s.collages !== lastCollages) {
+      lastCollages = s.collages;
+      renderCollages?.();
+    }
+  });
 
   // ThingsLibrary — sits ABOVE Attract per spec; persists across sessions.
   // Initial fold state restored from localStorage; toggling persists.

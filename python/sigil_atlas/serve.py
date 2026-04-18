@@ -206,6 +206,18 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._send_json(_state.ingest.progress())
         elif self.path == "/things/library":
             self._send_json({"names": _state.db.list_things_library()})
+        elif self.path == "/collages":
+            self._send_json({"collages": _state.db.list_collages()})
+        elif self.path.startswith("/collages/") and self.path.endswith("/thumbnail"):
+            collage_id = self.path[len("/collages/"):-len("/thumbnail")]
+            self._handle_collage_thumbnail(collage_id)
+        elif self.path.startswith("/collages/"):
+            collage_id = self.path[len("/collages/"):]
+            row = _state.db.fetch_collage(collage_id)
+            if row is None:
+                self._send_json({"error": "not found"}, 404)
+            else:
+                self._send_json(row)
         elif self.path == "/overview/index":
             self._handle_overview_index()
         elif self.path == "/overview/atlas":
@@ -235,6 +247,16 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_things_library_add()
             elif self.path == "/things/library/remove":
                 self._handle_things_library_remove()
+            elif self.path == "/collages/save":
+                self._handle_collage_save()
+            elif self.path == "/collages/rename":
+                self._handle_collage_rename()
+            elif self.path == "/collages/delete":
+                self._handle_collage_delete()
+            elif self.path == "/collages/export":
+                self._handle_collage_export()
+            elif self.path == "/collages/import":
+                self._handle_collage_import()
             elif self.path == "/corpus/nuke":
                 self._handle_corpus_nuke()
             elif self.path == "/ingest/start":
@@ -546,7 +568,6 @@ class RequestHandler(BaseHTTPRequestHandler):
         )
         image_ids = slice_result.image_ids
 
-        # Thing and TargetImage atoms become gravity anchors.
         attractors = [
             Attractor(kind="thing", ref=t.name) for t in thing_atoms(filter_expr)
         ] + [
@@ -554,8 +575,6 @@ class RequestHandler(BaseHTTPRequestHandler):
             for ti in target_image_atoms(filter_expr)
         ]
 
-        # Every named Contrast contributes a direction to proximity subspace.
-        # Unnamed contrasts are in superposition and do not contribute.
         contrasts = [
             ContrastAxis(pole_a=c.pole_a, pole_b=c.pole_b)
             for c in walk_filter(filter_expr) if isinstance(c, FilterContrast)
@@ -677,6 +696,156 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
         _state.db.remove_thing_from_library(name)
         self._send_json({"names": _state.db.list_things_library()})
+
+    # ── Collages ───────────────────────────────────────────────────────────
+
+    def _handle_collage_thumbnail(self, collage_id: str):
+        blob = _state.db.fetch_collage_thumbnail(collage_id)
+        if blob is None:
+            self.send_response(204)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(blob)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "public, max-age=86400")
+        self.end_headers()
+        self.wfile.write(blob)
+
+    def _handle_collage_save(self):
+        import base64
+        import uuid
+        data = self._read_json()
+        name = (data.get("name") or "").strip()
+        if not name:
+            self._send_json({"error": "missing 'name'"}, 400)
+            return
+        expression = data.get("expression")  # may be None for unconstrained
+        pov = data.get("pov")
+        if pov is None:
+            self._send_json({"error": "missing 'pov'"}, 400)
+            return
+        thumbnail_blob = None
+        thumb_b64 = data.get("thumbnail_base64")
+        if thumb_b64:
+            try:
+                thumbnail_blob = base64.b64decode(thumb_b64)
+            except Exception:
+                logger.warning("Bad thumbnail_base64 for collage save")
+        collage_id = str(uuid.uuid4())
+        _state.db.insert_collage(
+            collage_id=collage_id,
+            name=name,
+            expression_json=json.dumps(expression),
+            pov_json=json.dumps(pov),
+            mode=data.get("mode", "spacelike"),
+            model=data.get("model", "clip-vit-b-32"),
+            relevance=float(data.get("relevance", 0.5)),
+            feathering=float(data.get("feathering", 0.5)),
+            cell_size=float(data.get("cell_size", 100.0)),
+            thumbnail_blob=thumbnail_blob,
+        )
+        self._send_json({"id": collage_id, "collages": _state.db.list_collages()})
+
+    def _handle_collage_rename(self):
+        data = self._read_json()
+        collage_id = data.get("id")
+        new_name = (data.get("name") or "").strip()
+        if not collage_id or not new_name:
+            self._send_json({"error": "missing 'id' or 'name'"}, 400)
+            return
+        ok = _state.db.rename_collage(collage_id, new_name)
+        if not ok:
+            self._send_json({"error": "not found"}, 404)
+            return
+        self._send_json({"collages": _state.db.list_collages()})
+
+    def _handle_collage_delete(self):
+        data = self._read_json()
+        collage_id = data.get("id")
+        if not collage_id:
+            self._send_json({"error": "missing 'id'"}, 400)
+            return
+        ok = _state.db.delete_collage(collage_id)
+        if not ok:
+            self._send_json({"error": "not found"}, 404)
+            return
+        self._send_json({"collages": _state.db.list_collages()})
+
+    # ── Collage export / import as `.sigil` directories ───────────────────
+
+    def _handle_collage_export(self):
+        from sigil_atlas import collage as collage_mod
+        data = self._read_json()
+        parent = data.get("parent_path")
+        if not parent:
+            self._send_json({"error": "missing 'parent_path'"}, 400)
+            return
+        parent_path = Path(parent)
+        if not parent_path.is_dir():
+            self._send_json({"error": f"not a directory: {parent}"}, 400)
+            return
+
+        expression = data.get("expression")  # may be None
+        pov = data.get("pov")
+        if pov is None:
+            self._send_json({"error": "missing 'pov'"}, 400)
+            return
+
+        image_ids = data.get("image_ids") or []
+        pill_names = [a["ref"] for a in data.get("attractors", []) if a.get("kind") == "thing"]
+
+        base_name = collage_mod.derive_folder_name(
+            user_hint=data.get("name_hint"),
+            pill_names=pill_names,
+            image_ids=image_ids,
+            provider=_state.provider,
+        )
+        folder = collage_mod.unique_sigil_folder(parent_path, base_name)
+
+        try:
+            collage_mod.write_collage(
+                folder,
+                name=base_name,
+                expression=expression,
+                pov=pov,
+                mode=data.get("mode", "spacelike"),
+                model=data.get("model", "clip-vit-b-32"),
+                relevance=float(data.get("relevance", 0.5)),
+                feathering=float(data.get("feathering", 0.5)),
+                cell_size=float(data.get("cell_size", 100.0)),
+                image_ids=image_ids,
+                screenshot_base64=data.get("screenshot_base64"),
+            )
+        except Exception as e:
+            logger.exception("Collage export failed")
+            self._send_json({"error": str(e)}, 500)
+            return
+
+        self._send_json({"folder_path": str(folder), "name": base_name})
+
+    def _handle_collage_import(self):
+        from sigil_atlas import collage as collage_mod
+        data = self._read_json()
+        folder = data.get("folder_path")
+        if not folder:
+            self._send_json({"error": "missing 'folder_path'"}, 400)
+            return
+        folder_path = Path(folder)
+        if not folder_path.is_dir():
+            self._send_json({"error": f"not a directory: {folder}"}, 400)
+            return
+        try:
+            manifest = collage_mod.read_collage(folder_path)
+        except FileNotFoundError as e:
+            self._send_json({"error": str(e)}, 400)
+            return
+        except json.JSONDecodeError as e:
+            self._send_json({"error": f"corrupt collage.json: {e}"}, 400)
+            return
+        self._send_json({"collage": manifest, "folder_path": str(folder_path)})
 
     def _handle_things(self):
         data = self._read_json()

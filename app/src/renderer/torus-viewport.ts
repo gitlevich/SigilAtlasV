@@ -224,7 +224,9 @@ export class TorusViewport {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    const gl = canvas.getContext("webgl", { antialias: false, alpha: false, depth: true })!;
+    // preserveDrawingBuffer lets us snapshot the canvas (Collage thumbnails)
+    // without re-rendering. The perf cost is negligible for our draw budget.
+    const gl = canvas.getContext("webgl", { antialias: false, alpha: false, depth: true, preserveDrawingBuffer: true })!;
     if (!gl) throw new Error("WebGL not supported");
     this.gl = gl;
 

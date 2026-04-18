@@ -1,6 +1,21 @@
 use crate::SidecarState;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex as StdMutex};
 use tauri::State;
+
+/// Buffer of `.sigil` paths the OS asked us to open before the webview was
+/// ready. Drained via the `drain_pending_opens` command on JS startup.
+pub struct PendingOpens(pub Arc<StdMutex<Vec<String>>>);
+
+#[tauri::command]
+pub fn drain_pending_opens(state: State<'_, PendingOpens>) -> Vec<String> {
+    state
+        .0
+        .lock()
+        .ok()
+        .map(|mut v| std::mem::take(&mut *v))
+        .unwrap_or_default()
+}
 
 /// Resolve a path relative to the project root (two levels up from src-tauri).
 fn project_root() -> PathBuf {
