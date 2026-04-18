@@ -271,7 +271,13 @@ def _gravity_targets(
         confidence = np.clip((max_sim - lo) / (hi - lo), 0.0, 1.0)
     else:
         confidence = np.full(n, 0.5, dtype=np.float32)
-    confidence = confidence.reshape(-1, 1)
+    # Cap below 1.0 so the most-similar cohort doesn't collapse to a single
+    # anchor point. Lower values preserve more UMAP-residual at the peak,
+    # which softens the kd-tree partition seams visible at content-cluster
+    # boundaries (sky/crowd/cityscape bands in 2-attractor Axis mode). 0.6
+    # gives a noticeably smoother field while keeping the polar tension legible.
+    PEAK_MAX_BIAS = 0.60
+    confidence = (confidence * PEAK_MAX_BIAS).reshape(-1, 1)
 
     targets = confidence * gravity_pos + (1.0 - confidence) * umap_fallback
 
@@ -435,6 +441,30 @@ def _pick_grid(n: int) -> tuple[int, int]:
     return best
 
 
+def _pick_tight_grid(n: int) -> tuple[int, int]:
+    """(rows, cols) with rows*cols <= n, near-square, minimising dropped images.
+
+    Used by the tight @field expansion mode: every cell carries a unique
+    image, no padding cycle. May drop the least-similar 0-3 images so the
+    grid stays close to square. For n with good divisors (perfect squares,
+    near-squares) the grid is exact and nothing is dropped.
+    """
+    if n <= 0:
+        return (0, 0)
+    side = max(1, int(math.sqrt(n)))
+    best: tuple[tuple[int, int], tuple[int, int]] | None = None  # (score, (r,c))
+    for rows in range(max(1, side - 3), side + 4):
+        for cols in range(rows, rows + 4):
+            cells = rows * cols
+            if cells <= 0 or cells > n:
+                continue
+            dropped = n - cells
+            score = (dropped, abs(rows - cols))
+            if best is None or score < best[0]:
+                best = (score, (rows, cols))
+    return best[1] if best else (1, 1)
+
+
 def _recursive_split(
     indices: list[int],
     targets: np.ndarray,
@@ -534,6 +564,8 @@ def compute_spacelike(
     model: str = "clip-vit-l-14",
     feathering: float = 0.5,
     cell_size: float = 100.0,
+    field_expansion: str = "echo",
+    arrangement: str = "rings",
 ) -> SpaceLikeLayout:
     n = len(image_ids)
     if n == 0:
@@ -550,46 +582,97 @@ def compute_spacelike(
 
     contrast_directions = _contrast_directions(contrasts, provider, model, image_ids)
 
-    rows, cols = _pick_grid(n)
-    logger.info(
-        "Grid: %d x %d = %d cells (%d padding duplicates)",
-        rows, cols, rows * cols, rows * cols - n,
-    )
+    # Field expansion modes:
+    #   "echo"  — grid >= slice; surplus cells cycle the most-similar prefix.
+    #             Creates the moire/repeat-ring visual that emerges from
+    #             radial layouts on small slices.
+    #   "tight" — grid <= slice; every cell unique. The downstream layouts
+    #             naturally drop the overflow: the radial path takes the
+    #             top-N most-similar; the gravity-field path drops via the
+    #             recursive median split.
+    if field_expansion == "tight":
+        rows, cols = _pick_tight_grid(n)
+        dropped = max(0, n - rows * cols)
+        logger.info("Grid (tight): %d x %d = %d cells (drops %d overflow)",
+                    rows, cols, rows * cols, dropped)
+    else:
+        rows, cols = _pick_grid(n)
+        logger.info("Grid (echo): %d x %d = %d cells (%d padding duplicates)",
+                    rows, cols, rows * cols, rows * cols - n)
 
     resolved_attractors: list[Attractor] = []
     attractor_vecs: np.ndarray = np.empty((0, 0), dtype=np.float32)
     if attractors:
         resolved_attractors, attractor_vecs = _resolve_attractor_vectors(attractors, provider, model, image_ids)
 
-    # TargetImage takes layout precedence — when one is active, a single
-    # neighborhood forms around it (`TargetImage/affordance-point-at`).
-    # Other Thing attractors continue to gate the slice via the filter, but
-    # don't influence layout while the target is active. `!sole-attractor`
-    # ensures at most one target image exists.
+    # Single-attractor arrangement choice (per `arrangement` parameter):
+    #   "rings" — radial layout: target at centre, concentric Chebyshev rings
+    #             outward by similarity-to-attractor. Sharp boundaries between
+    #             rings; no mutual-similarity within a ring. Good for "what
+    #             ranks where" intuition; produces the moiré-on-wrap visuals.
+    #   "field" — biased-UMAP deformation: UMAP topology (mutual proximity)
+    #             is preserved everywhere; the attractor pulls similar images
+    #             toward its anchor proportional to similarity. Per spec:
+    #             "continuous field, no disjoint patches, no hard boundaries."
+    # Both are spec-coherent reads of @Neighborhood; they're different lenses.
+    # Multi-attractor always uses the field path — rings only makes sense for
+    # one focal point.
     target_indices = [
         i for i, a in enumerate(resolved_attractors) if a.kind == "target_image"
     ]
-    if target_indices:
-        idx = target_indices[0]
-        return _radial_attractor_layout(
-            provider, image_ids, model, cell_size, rows, cols,
-            resolved_attractors[idx], attractor_vecs[idx],
-            contrast_directions,
-        )
 
-    # Single Thing attractor → radial centred on the most representative image.
-    # Per `Attractor/Neighborhood/language.md`: "for a @thing, the most
-    # representative @image" sits at the centre. The gravity-field path is
-    # degenerate for k=1 (one anchor pulls every confident image to the same
-    # point, then median-split distributes the pile arbitrarily).
-    if len(resolved_attractors) == 1:
-        return _radial_attractor_layout(
-            provider, image_ids, model, cell_size, rows, cols,
-            resolved_attractors[0], attractor_vecs[0],
-            contrast_directions,
+    # Axis arrangement (TargetImage only): the target sits at one pole; the
+    # opposite pole is the *real corpus image* whose embedding is closest to
+    # -target_vec — i.e. the actual most-cosine-opposite picture in the slice.
+    # Both poles are real images with real cells. Each image in between is
+    # pulled toward whichever pole it's more similar to; the field settles
+    # into a smooth gradient along that axis. PCA in
+    # _attractor_anchor_positions places the two diametric vectors on
+    # opposite sides of the torus.
+    if (
+        arrangement == "axis"
+        and len(target_indices) == 1
+        and len(resolved_attractors) == 1
+    ):
+        target = resolved_attractors[0]
+        target_vec = attractor_vecs[0]
+        # Find the image whose embedding is closest to -target_vec.
+        matrix = provider.fetch_matrix(image_ids, model)
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        matrix_n = matrix / np.maximum(norms, 1e-8)
+        anti_sims = matrix_n @ (-target_vec).astype(np.float32)
+        anti_idx = int(np.argmax(anti_sims))
+        anti_id = image_ids[anti_idx]
+        anti_vec = matrix_n[anti_idx].astype(np.float32)
+        logger.info("Axis: target=%s, antipode=%s (cos=%.3f)",
+                    target.ref[:20], anti_id[:20], float(anti_sims[anti_idx]))
+        resolved_attractors = [
+            target,
+            Attractor(kind="target_image", ref=anti_id),
+        ]
+        attractor_vecs = np.stack([target_vec, anti_vec])
+        # Fall through to the gravity-field path with the two real attractors.
+    else:
+        use_rings = arrangement == "rings" and (
+            bool(target_indices) or len(resolved_attractors) == 1
         )
+        if use_rings and target_indices:
+            idx = target_indices[0]
+            return _radial_attractor_layout(
+                provider, image_ids, model, cell_size, rows, cols,
+                resolved_attractors[idx], attractor_vecs[idx],
+                contrast_directions,
+            )
+        if use_rings and len(resolved_attractors) == 1:
+            return _radial_attractor_layout(
+                provider, image_ids, model, cell_size, rows, cols,
+                resolved_attractors[0], attractor_vecs[0],
+                contrast_directions,
+            )
 
-    # Else: gravity-field layout (multi-attractor or thing-only).
+    # Gravity-field (biased-UMAP) layout. For single attractor + Field this
+    # is a single-pole deformation. For Axis it's a two-pole tension.
+    # For multi-attractor it's the only path.
     umap_fallback = _ensure_umap(provider, db, image_ids, model)
     peak_indices: np.ndarray | None = None
     anchors: np.ndarray | None = None

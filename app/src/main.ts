@@ -127,6 +127,25 @@ async function main(): Promise<void> {
   viewport.setThumbnailBaseUrl(`http://127.0.0.1:${port}`);
   mark("webgl init");
 
+  // Crosshair at the canvas centre — marks the "centred image" that
+  // Image > Set Target (\u2318T) and Image > Open in Lightbox (\u2318L)
+  // act on. Fired once and on canvas resize (which catches panel folds
+  // since the canvas is a flex item).
+  const crosshair = document.getElementById("viewport-crosshair");
+  const positionCrosshair = () => {
+    if (!crosshair) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const w = crosshair.offsetWidth || 18;
+    const h = crosshair.offsetHeight || 18;
+    crosshair.style.left = `${rect.left + rect.width / 2 - w / 2}px`;
+    crosshair.style.top = `${rect.top + rect.height / 2 - h / 2}px`;
+    crosshair.style.display = "block";
+  };
+  positionCrosshair();
+  new ResizeObserver(positionCrosshair).observe(canvas);
+  window.addEventListener("resize", positionCrosshair);
+
   // Start loading the baked atlases in the background. First call on a fresh
   // workspace triggers generation (~1min overview, ~3min mid); cached after.
   viewport.loadOverview().then(() => mark("overview atlas ready"));
@@ -307,10 +326,16 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
   let animStart = 0;
   const ANIM_MS = 450;
 
-  // Shift+click on a photo makes it a @TargetImage attractor. Replaces any
-  // existing target image; leaves Thing attractors intact.
+  // Option+click on a photo makes it a @TargetImage attractor. Deferred by
+  // the system double-click window because alt+dblclick zooms out — without
+  // the delay both fire on a real double-click and race. Cancelled by the
+  // dblclick handler below if a second click arrives in time.
+  let pendingTargetId: string | null = null;
+  let pendingTargetTimer: number | null = null;
+  const DOUBLE_CLICK_MS = 280;
+
   canvas.addEventListener("click", (e) => {
-    if (!e.shiftKey) return;
+    if (!e.altKey) return;
     if (!state.layout) return;
     const rect = canvas.getBoundingClientRect();
     const cw = canvas.clientWidth;
@@ -322,12 +347,28 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     const worldY = state.pov.y - dyPx * worldPerPx;
     const id = imageAtWorld(state.layout, worldX, worldY);
     if (!id) return;
-    state.attractors = state.attractors.filter((a) => a.kind !== "target_image");
-    state.attractors.push({ kind: "target_image", ref: id });
-    recomputeSliceAndLayout({ anchorImageId: id }).catch((err) => console.error("[attract]", err));
+    pendingTargetId = id;
+    if (pendingTargetTimer !== null) clearTimeout(pendingTargetTimer);
+    pendingTargetTimer = window.setTimeout(() => {
+      pendingTargetTimer = null;
+      const targetId = pendingTargetId;
+      pendingTargetId = null;
+      if (!targetId) return;
+      state.attractors = state.attractors.filter((a) => a.kind !== "target_image");
+      state.attractors.push({ kind: "target_image", ref: targetId });
+      recomputeSliceAndLayout({ anchorImageId: targetId })
+        .catch((err) => console.error("[attract]", err));
+    }, DOUBLE_CLICK_MS);
   });
 
   canvas.addEventListener("dblclick", (e) => {
+    // Cancel any pending option+click target — this is a double-click, not
+    // a single, so the deferred target action should not fire.
+    if (pendingTargetTimer !== null) {
+      clearTimeout(pendingTargetTimer);
+      pendingTargetTimer = null;
+      pendingTargetId = null;
+    }
     const rect = canvas.getBoundingClientRect();
     const cw = canvas.clientWidth;
     const ch = canvas.clientHeight;
@@ -498,19 +539,9 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     }
   }, { passive: false });
 
-  // Cmd+/Cmd- keyboard zoom (suspended while the @Lightbox owns attention).
-  // Cmd+S is owned by the File > Save Collage As\u2026 menu item.
-  window.addEventListener("keydown", (e) => {
-    if (isLightboxOpen()) return;
-    if (!(e.metaKey || e.ctrlKey)) return;
-    if (e.key === "=" || e.key === "+") {
-      e.preventDefault();
-      applyZoom(0.85);
-    } else if (e.key === "-") {
-      e.preventDefault();
-      applyZoom(1.18);
-    }
-  });
+  // Cmd+= / Cmd+- / Cmd+0 / Cmd+\\ are owned by the View menu accelerators
+  // when running in Tauri (native menu). The keydown handler here would
+  // double-fire and is intentionally absent.
 
   // @Lightbox keyboard: Escape exits, arrows walk the suspended
   // @arrangement's lattice, Cmd-I toggles the metadata overlay. These

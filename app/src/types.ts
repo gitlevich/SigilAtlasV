@@ -86,6 +86,16 @@ export interface SpaceLikeRequest {
   model: string;
   feathering: number;
   cell_size: number;
+  // "echo" (default): grid >= slice; surplus cells cycle, creating moiré
+  //   on small slices. "tight": grid <= slice; every cell unique, the
+  //   layout drops the least-similar overflow.
+  field_expansion?: "echo" | "tight";
+  // Single-attractor arrangement. "rings": radial Chebyshev rings, sharp
+  //   similarity tiers from centre. "field": biased-UMAP deformation,
+  //   continuous gradient. "axis" (TargetImage only): synthesises a two-pole
+  //   axis between the target's embedding and its antipode, smooth gradient
+  //   along that axis. Default "rings".
+  arrangement?: "rings" | "field" | "axis";
 }
 
 export interface SliceResponse {

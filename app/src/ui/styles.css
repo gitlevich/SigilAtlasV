@@ -322,7 +322,7 @@ html, body {
   line-height: 1;
 }
 
-/* TargetImage pill — the @TargetImage attractor (set by shift-clicking a
+/* TargetImage pill — the @TargetImage attractor (set by option-clicking a
    photo). Carries a thumbnail of the actual image so the user can see
    *which* image is the focus, not just that something is set. */
 .pill-target {
@@ -342,6 +342,37 @@ html, body {
 .pill-target .pill-label {
   font-style: italic;
   color: #d8d2ea;
+}
+
+/* Viewport crosshair — a faint mark at the canvas centre showing which
+   image is "centred" (the one Set Target / Open in Lightbox act on). */
+#viewport-crosshair {
+  position: fixed;
+  pointer-events: none;
+  width: 18px;
+  height: 18px;
+  z-index: 40;
+  display: none; /* JS shows it once positioned */
+}
+#viewport-crosshair::before,
+#viewport-crosshair::after {
+  content: "";
+  position: absolute;
+  background: rgba(255, 255, 255, 0.55);
+}
+#viewport-crosshair::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+}
+#viewport-crosshair::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
 }
 
 /* In-app modal — replaces window.prompt (blocked by Tauri). */
@@ -1048,12 +1079,16 @@ html, body {
 }
 
 .lightbox-img {
-  max-width: 100%;
-  max-height: 100%;
+  /* Fill the viewport while preserving aspect ratio. width/height (not just
+     max-) is what asks the browser to scale UP from the preview's native
+     size — without it, a 2048-px preview stops at 2048 and leaves a frame
+     on larger screens. The cascade in lightbox.ts upgrades from preview to
+     source as soon as the original file is available, so on Retina the
+     final pixels usually come from the full-resolution source. */
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   display: block;
-  /* Softer edges on the dark background; no shadow or frame — this is not
-     a card, it is the image at 100%. */
   image-rendering: auto;
 }
 

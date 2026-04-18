@@ -50,7 +50,7 @@ async function pickParentFolder(title: string): Promise<string | null> {
  * Returns the path of the new folder, or null if cancelled / failed.
  */
 export async function saveCurrentAsCollage(): Promise<string | null> {
-  const parent = await pickParentFolder("Save Collage Into\u2026");
+  const parent = await pickParentFolder("Save Sigil Into\u2026");
   if (!parent) return null;
 
   const expression = buildFilter({
@@ -92,7 +92,7 @@ export async function saveCurrentAsCollage(): Promise<string | null> {
  * corpus, applies arrangement params, and restores the camera.
  */
 export async function openCollage(): Promise<void> {
-  const folder = await pickParentFolder("Open Collage\u2026");
+  const folder = await pickParentFolder("Open Sigil\u2026");
   if (!folder) return;
   await loadCollageFromFolder(folder);
 }

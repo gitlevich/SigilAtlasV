@@ -110,7 +110,7 @@ export async function recomputeSliceAndLayout(opts?: { anchorImageId?: string })
     // keep this same image at screen centre after the recompute, regardless
     // of mode switch or slice change.
     const prevLayout = state.layout;
-    // Explicit anchor (e.g. shift-click target) overrides the
+    // Explicit anchor (e.g. option-click target) overrides the
     // "whatever is at screen centre" auto-anchor.
     const anchorImageId = opts?.anchorImageId ?? (prevLayout ? imageAtPov(prevLayout, state.pov) : null);
     const isFirstLoad = state.torusWidth === 0;
@@ -128,6 +128,8 @@ export async function recomputeSliceAndLayout(opts?: { anchorImageId?: string })
         model: state.model,
         feathering: state.feathering,
         cell_size: state.cellSize,
+        field_expansion: state.fieldExpansion,
+        arrangement: state.arrangement,
       });
       newLayout = layout;
       if (layout.attractor_positions.length > 0) {
@@ -835,7 +837,7 @@ function buildAttractSection(body: HTMLElement): void {
         label.className = "pill-label";
         label.textContent = "this image";
         pill.appendChild(label);
-        pill.title = `Target image (shift-clicked).\nClick × or press Escape to release.`;
+        pill.title = `Target image (option-clicked).\nClick × or press Escape to release.`;
       } else {
         pill.className = "pill";
         pill.textContent = att.ref;
@@ -867,7 +869,7 @@ function buildAttractSection(body: HTMLElement): void {
   renderAttractPills = renderPills;
   renderPills();
 
-  // Repaint when state.attractors changes by reference — covers shift+click
+  // Repaint when state.attractors changes by reference — covers option+click
   // (which assigns a new array and pushes) and any future external mutations.
   // The local renderPills() call after typed adds is still in place to avoid
   // depending on the next notify() tick for typed-pill visibility.
@@ -1301,9 +1303,9 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   buildLayersSection(layers.body);
   panel.appendChild(layers.section);
 
-  // Collages — saved views (Cmd+S to save). Sits high in the panel because
-  // it's the across-session anchor: a place to pick up where you left off.
-  const collages = createSection("Collages");
+  // Sigils — saved views (⌘S). Sits high in the panel because it's the
+  // across-session anchor: a place to pick up where you left off.
+  const collages = createSection("Sigils");
   buildCollagesSection(collages.body);
   panel.appendChild(collages.section);
   // Re-render the collages list whenever state changes (covers async load
@@ -1378,6 +1380,59 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   featherGroup.appendChild(featherSlider);
   featherGroup.appendChild(featherLabels);
   settings.body.appendChild(featherGroup);
+
+  // Field expansion — controls how the SpaceLike grid relates to the slice.
+  // Echo (default) cycles surplus cells, creating moiré on small slices;
+  // Tight drops the least-similar overflow so every cell is unique.
+  const fieldGroup = document.createElement("div");
+  fieldGroup.className = "control-group";
+  const fieldLabel = document.createElement("label");
+  fieldLabel.textContent = "Field";
+  fieldGroup.appendChild(fieldLabel);
+  const fieldSelect = document.createElement("select");
+  for (const opt of [
+    { value: "echo", label: "Echo (cycle to fill)" },
+    { value: "tight", label: "Tight (no repeats)" },
+  ]) {
+    const o = document.createElement("option");
+    o.value = opt.value;
+    o.textContent = opt.label;
+    fieldSelect.appendChild(o);
+  }
+  fieldSelect.value = state.fieldExpansion;
+  fieldSelect.addEventListener("change", () => {
+    state.fieldExpansion = fieldSelect.value as "echo" | "tight";
+    recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
+  });
+  fieldGroup.appendChild(fieldSelect);
+  settings.body.appendChild(fieldGroup);
+
+  // Arrangement — how a single attractor lays out its neighbourhood.
+  // Rings produces sharp similarity tiers; Field is a continuous deformation
+  // of UMAP that preserves local mutual proximity.
+  const arrGroup = document.createElement("div");
+  arrGroup.className = "control-group";
+  const arrLabel = document.createElement("label");
+  arrLabel.textContent = "Arrangement";
+  arrGroup.appendChild(arrLabel);
+  const arrSelect = document.createElement("select");
+  for (const opt of [
+    { value: "rings", label: "Rings (radial shells)" },
+    { value: "field", label: "Field (continuous)" },
+    { value: "axis",  label: "Axis (similar \u2194 opposite)" },
+  ]) {
+    const o = document.createElement("option");
+    o.value = opt.value;
+    o.textContent = opt.label;
+    arrSelect.appendChild(o);
+  }
+  arrSelect.value = state.arrangement;
+  arrSelect.addEventListener("change", () => {
+    state.arrangement = arrSelect.value as "rings" | "field" | "axis";
+    recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
+  });
+  arrGroup.appendChild(arrSelect);
+  settings.body.appendChild(arrGroup);
 
   // Time direction
   const timeDirGroup = document.createElement("div");

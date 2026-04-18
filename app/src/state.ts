@@ -71,6 +71,17 @@ export interface AppState {
   // Last error (shown in status bar, cleared on next successful recompute)
   lastError: string | null;
 
+  // SpaceLike field expansion mode. "echo" preserves the moiré-on-small-slices
+  // visual that emerges from radial padding cycle; "tight" drops the
+  // least-similar overflow so every cell carries a unique image.
+  fieldExpansion: "echo" | "tight";
+
+  // SpaceLike arrangement (single-attractor only). "rings" = radial Chebyshev
+  // shells; "field" = biased-UMAP continuous deformation; "axis" (target
+  // image only) = two-pole gradient between the target's embedding and its
+  // antipode.
+  arrangement: "rings" | "field" | "axis";
+
   // Lightbox — one image inhabited in isolation. While open, the @slice,
   // @arrangement and @control are not recomputing; the field is frozen.
   // See sigil_atlas.sigil/Explore/Lightbox.
@@ -183,6 +194,8 @@ export const state: AppState = {
   lastError: null,
   lightbox: { imageId: null, entryPov: null, showMetadata: false },
   collages: [],
+  fieldExpansion: "echo",
+  arrangement: "rings",
 };
 
 /** Refresh state.collages from the workspace. Call after any save/rename/delete. */

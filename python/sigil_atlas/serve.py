@@ -552,6 +552,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         feathering = data.get("feathering", 0.5)
         cell_size = data.get("cell_size", 100.0)
         relevance = float(data.get("relevance", 0.5))
+        field_expansion = data.get("field_expansion", "echo")
+        arrangement = data.get("arrangement", "rings")
 
         try:
             get_adapter(model)
@@ -584,6 +586,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             _state.provider, _state.db, image_ids,
             attractors=attractors, contrasts=contrasts, model=model,
             feathering=feathering, cell_size=cell_size,
+            field_expansion=field_expansion,
+            arrangement=arrangement,
         )
 
         self._send_json({

@@ -215,16 +215,38 @@ def _eval_thing(ctx: Context, atom: Thing) -> set[str]:
     return result
 
 
-def _eval_target_image(ctx: Context, atom: TargetImage) -> set[str]:
-    """TargetImage is purely a layout directive, not a slice gate.
+def _score_target_image(ctx: Context, atom: TargetImage) -> np.ndarray:
+    """Cosine scores (N,) for every corpus image against the target image."""
+    cached = ctx._score_cache.get(id(atom))
+    if cached is not None:
+        return cached
+    matrix = ctx.provider.fetch_matrix(ctx.corpus_ids, ctx.model)
+    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+    matrix_n = matrix / np.maximum(norms, 1e-8)
+    target_raw = ctx.provider.fetch_matrix([atom.image_id], ctx.model)[0]
+    tn = float(np.linalg.norm(target_raw))
+    target_vec = (target_raw / tn).astype(np.float32) if tn > 1e-8 else target_raw.astype(np.float32)
+    scores = (matrix_n @ target_vec).astype(np.float32)
+    ctx._score_cache[id(atom)] = scores
+    return scores
 
-    Per spec `TargetImage/affordance-point-at`: the spec says "designate an
-    @image in the current @slice as the @TargetImage. A single @neighborhood
-    forms around it" — the slice already exists; the target picks the focal
-    point. Returning the full corpus makes it a no-op as a gate while still
-    satisfying `!in-slice` for the target itself.
+
+def _eval_target_image(ctx: Context, atom: TargetImage) -> set[str]:
+    """TargetImage gates by cosine similarity, same shape as Thing.
+
+    Was previously a no-op, treating TargetImage as purely a focal point. That
+    left the Relevance slider dead in single-target configurations and
+    produced unworkable visualisations of 70k+ images. Symmetrising the gate
+    makes Relevance live everywhere; the target's own image is always kept
+    (per `!in-slice`).
     """
-    return set(ctx.corpus_ids)
+    scores = _score_target_image(ctx, atom)
+    mask = _semantic_gate(scores, ctx)
+    result = {ctx.corpus_ids[i] for i in range(len(mask)) if mask[i]}
+    result.add(atom.image_id)  # !in-slice — the target itself always survives
+    logger.info("TargetImage %s: %d/%d pass relevance=%.2f",
+                atom.image_id[:10], len(result), len(ctx.corpus_ids), ctx.relevance)
+    return result
 
 
 def _eval_contrast(ctx: Context, atom: Contrast) -> set[str]:
