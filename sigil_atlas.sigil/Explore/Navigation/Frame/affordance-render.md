@@ -1,1 +1,1 @@
-show the portion of the @torus visible from my @pointOfView via @multiResolution.
+show the portion of the @torus visible from my @POV via @multiResolution.

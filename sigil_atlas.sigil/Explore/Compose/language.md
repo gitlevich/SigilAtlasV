@@ -10,6 +10,6 @@ One pane is the driver at any moment; the others conform. I #drive-source when I
 
 @Attention is light, and light has a finite budget. Driving the @Timeline points the beam into the @narrative — the directional light in @Lighting — and the @Program's ambient picks up the tonal aggregate of what the playhead is touching. A dark narrative literally darkens the Program; a luminous one brightens it. !light-follows-attention.
 
-Compose is the authoring mode; @SpaceLike alone and @TimeLike alone are the inhabiting modes. When I am composing I am an @agent with both modes in hand at once; when I am inhabiting I am an @observer at rest in one of them. @Explore lets me #change-mode into Compose from either inhabiting mode and back out.
+Compose is the authoring mode; @SpaceLike alone and @TimeLike alone are the inhabiting modes. When I am composing I am an @agent with both modes in hand at once; when I am inhabiting I am a @POV at rest in one of them. @Explore lets me #change-mode into Compose from either inhabiting mode and back out.
 
 !one-driver. !passives-conform. !light-follows-attention.

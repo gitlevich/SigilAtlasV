@@ -4,7 +4,7 @@ status: idea
 
 # Image Cache
 
-Cached copies of @images at multiple resolutions for rendering at different @PointOfView distances.
+Cached copies of @images at multiple resolutions for rendering at different @POV distances.
 
 Three tiers:
 - Micro (16px height): for maximum zoom-out. Just color and shape. Pre-generated at ingest.

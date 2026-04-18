@@ -1,1 +1,1 @@
-capture the current view as a named @collage. Prompts for a name (pre-filled from active @attractors when present). Stores the @RelevanceFilter expression, @PointOfView, mode, model, @relevance, @feathering, and a small canvas snapshot. Cmd+S also triggers save.
+capture the current view as a named @collage. Prompts for a name (pre-filled from active @attractors when present). Stores the @RelevanceFilter expression, @POV, mode, model, @relevance, @feathering, and a small canvas snapshot. Cmd+S also triggers save.

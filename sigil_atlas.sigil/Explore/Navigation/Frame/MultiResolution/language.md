@@ -4,7 +4,7 @@ status: idea
 
 # Multi Resolution
 
-Render @images at the resolution appropriate for the current @pointOfView distance. Avoids loading full-resolution files when they'd display at a few pixels.
+Render @images at the resolution appropriate for the current @POV distance. Avoids loading full-resolution files when they'd display at a few pixels.
 
 - Micro (16px height): maximum zoom-out. Just color and shape.
 - Thumb (256px height): medium distance. Content recognizable.

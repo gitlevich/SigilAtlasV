@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "icons": {
+    "DifferentialGeometry": {
+      "x": 248.96484375,
+      "y": 115.6875
+    },
+    "AttentionLanguage": {
+      "x": 86.4375,
+      "y": 119.3359375
+    },
+    "EcologicalPsychology": {
+      "x": 440.07421875,
+      "y": 112.90625
+    },
+    "Goal": {
+      "x": 808.0390625,
+      "y": 493.1953125
+    }
+  }
+}

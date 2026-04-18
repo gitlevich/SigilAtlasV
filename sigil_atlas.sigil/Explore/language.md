@@ -14,7 +14,7 @@ An @arrangement makes the @slice legible. It gives the @images a shape I can mov
 
 Every @arrangement lives on a @surface. The @surface is continuous and wraps.
 
-I use @navigation to change my @PointOfView over the surface on which @images are arranged. By moving and zooming, I see different parts of the same @slice.
+I use @navigation to change my @POV over the surface on which @images are arranged. By moving and zooming, I see different parts of the same @slice.
 
 Different @arrangements can make the same @slice meaningful in different ways. For example, one @arrangement can make it readable as @time. Another can make it readable as @similarity.
 

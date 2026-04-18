@@ -2,7 +2,7 @@
 status: idea
 ---
 
-# Point Of View
+# POV
 
 The camera. Three values: x, y (position on @torus surface, wraps) and z (distance from surface).
 

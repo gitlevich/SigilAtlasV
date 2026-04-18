@@ -10,4 +10,4 @@ In @spacelike, @images are center-cropped to squares and tile the surface contig
 
 Distinctness of neighborhoods comes from the @slice's @relevanceFilter, not from spatial separation.
 
-The @pointOfView determines which neighborhood I am in. Zooming out reveals the neighborhood structure. Zooming in enters one neighborhood and shows individual @images.
+The @POV determines which neighborhood I am in. Zooming out reveals the neighborhood structure. Zooming in enters one neighborhood and shows individual @images.

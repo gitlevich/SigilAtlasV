@@ -1,1 +1,1 @@
-Turn @Relief on or off. When on, the @surface carries elevation and the @observer's @Perspective gains orbit and tilt — a point of view is needed to read the terrain. When off, the @surface is flat and no @Perspective is required; 2D pan-and-zoom only.
+Turn @Relief on or off. When on, the @surface carries elevation and the @POV's @Perspective gains orbit and tilt — a point of view is needed to read the terrain. When off, the @surface is flat and no @Perspective is required; 2D pan-and-zoom only.
