@@ -432,7 +432,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _handle_dimensions(self):
         """Return range characterization dimensions with their min/max.
 
-        Only range dimensions are returned — they drive the bandpass
+        Only range dimensions are returned — they drive the discriminate
         sliders in the Slice panel. Enum dimensions (taxonomy terms)
         are accessed via the vocabulary endpoints instead.
         """

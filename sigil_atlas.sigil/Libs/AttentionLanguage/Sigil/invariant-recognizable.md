@@ -1,0 +1,1 @@
+How a @sigil is identified @timelike, in a @narrative.

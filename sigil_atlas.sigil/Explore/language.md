@@ -20,6 +20,6 @@ Different @arrangements can make the same @slice meaningful in different ways. F
 
 @Control let me change the @RelevanceFilter and the @arrangement. The result is visible immediately.
 
-@Explore lets me #change-mode between @SpaceLike and @TimeLike.
+@Explore lets me #change-mode between @SpaceLike and @TimeLike as inhabiting modes, or into @Compose to author the @sigil by driving @SpaceLike and @TimeLike side by side.
 
-From either mode I can zoom past the field into the @Lightbox, inhabit one @image without its neighbors, and return to the same @Frame I left. The @Lightbox is the one place the two modes resolve to the same thing.
+From either inhabiting mode I can zoom past the field into the @Lightbox, inhabit one @image without its neighbors, and return to the same @Frame I left. The @Lightbox is the one place the two modes resolve to the same thing.

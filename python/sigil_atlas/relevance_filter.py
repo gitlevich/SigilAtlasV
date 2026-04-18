@@ -7,7 +7,7 @@ As an invariant, it declares what must hold inside the slice.
 Atoms:
     Thing(name)                    — semantic: images depicting the named thing
     TargetImage(id)                — semantic: images near a specific image
-    Contrast(pole_a, pole_b, band) — bandpass along a named contrast axis
+    Contrast(pole_a, pole_b, band) — discriminate along a named contrast axis
     Range(dimension, min, max)     — numeric range on a characterization
 
 Composites:

@@ -13,3 +13,5 @@ Purely topological — the @frame always renders flat. No 3D curvature. Wrapping
 My @pointOfView is a position on the surface. Coming close fills my @frame with one image. Stepping back reveals the surrounding layout. Switching mode recomputes the layout.
 
 !endless, !flat, !reorderable, !undistorted.
+
+The @torus is my @LawsOfNature in this app: the given substrate I inhabit, non-negotiable, inherited. I cannot refuse its topology or edit its invariants; I can only throw @sigils onto it and watch the @world respond.

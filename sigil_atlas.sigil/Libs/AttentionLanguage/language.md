@@ -4,14 +4,18 @@ status: external-ontology
 
 # Attention Language
 
-The mechanics of @attention as experienced from a first-person point of view at a given @timescale. Both @DifferentialGeometry@timelike and @DifferentialGeometry@spacelike.
+The mechanics of @attention as experienced from a first-person point of view at a given @scale. Both timelike and @@spacelike.
 
 Here the exact semantics are lexical: @sigils are nested scopes over domain language. Imported @DifferentialGeometry gives names to the shape of those scopes in experience — simultaneous structure, sequential articulation, reachability, and projection.
 
-@Attention is the given. Its @fixedPoint is the origin — the "I am" that persists under all transformation of scope. I am an @observer: attention paid from a point of view, attending to the @frame (@DifferentialGeometry@spacelike). I am an @agent: an observer wearing a @sigil, attending to a @narrative (@DifferentialGeometry@timelike).
+@Attention is the given. Its @fixedPoint is the origin — the "I am" that persists under all transformation of scope. 
 
-I @collapse @observations one @frame at a time into a @narrative — compressing @DifferentialGeometry@spacelike experience into a @DifferentialGeometry@timelike trajectory. The @resolution of the collapse is bounded by finite @attention.
+I am an @observer: attention paid from a point of view, attending to the @frame (@spacelike). 
 
-I inhabit a @sigil that protects my attention by defining self as the region of @contrastSpace where @invariant along relevant @contrasts I care about hold.
+I am an @agent: an observer wearing a @sigil, attending to a @narrative (@timelike).
 
-@SigilEngineering is the practice of compression of lived experience to @sigils and inflating @sigils to lived experience. Compression is lossless within precision of relevance.
+I @collapse @observations one @frame at a time into a @narrative — compressing @spacelike experience into a @timelike trajectory. The @resolution of the collapse is bounded by finite @attention.
+
+I identify with/inhabit a @sigil that protects my attention by defining @self as the region of @contrastSpace where @invariants about @contrasts of @relevance to me hold.
+
+@SigilEngineering is the practice of converting lived experience to @sigils.

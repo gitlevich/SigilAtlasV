@@ -1,0 +1,1 @@
+Make the @Program pane active. While it is the driver, I rearrange what I have already thrown — tighten a @Discriminate, add or remove a @contrast, nudge an @Attractor, negate a term. Edits rewrite the current @SigilML expression in place; @Source stays put (the @corpus does not change); @Timeline re-orders to match the new arrangement's @sequencing.

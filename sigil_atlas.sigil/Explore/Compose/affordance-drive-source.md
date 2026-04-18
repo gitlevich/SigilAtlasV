@@ -1,0 +1,1 @@
+Make the @Source pane active. While it is the driver, I reach into the @corpus and throw things — a @Thing, a @TargetImage, a range on a @contrast — into the composition. Each throw adds an atom to the current @SigilML expression; the @Program recomposes its standing-wave to include it; the @Timeline re-articulates any root-to-leaf paths that now land under the new attractor.

@@ -1,1 +1,1 @@
-I can change more so I can explore either @spacelike or @timelike
+I can change mode so I can inhabit either @spacelike or @timelike alone, or enter @Compose to author the @sigil by driving both side by side.

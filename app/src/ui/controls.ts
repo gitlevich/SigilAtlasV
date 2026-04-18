@@ -13,7 +13,7 @@ import { isSpaceLikeLayout } from "../types";
 import { buildFilter } from "../relevance";
 import { loadCollage, renameCollageById, deleteCollageById } from "../collages";
 import type { TorusViewport } from "../renderer/torus-viewport";
-import { createBandpassWidget } from "./bandpass-widget";
+import { createDiscriminateWidget } from "./discriminate-widget";
 import { createColorWheel, hueRangeToFilter, type HueRange } from "./color-wheel";
 import { startImport } from "../import";
 
@@ -1048,7 +1048,7 @@ function createContrastWidget(
   header.appendChild(removeBtn);
   widget.appendChild(header);
 
-  const bandWidget = createBandpassWidget({
+  const bandWidget = createDiscriminateWidget({
     rangeMin: -1,
     rangeMax: 1,
     initial: { min: cc.band_min, max: cc.band_max },
@@ -1124,7 +1124,7 @@ function buildToneSection(body: HTMLElement, dimensions: Dimension[]): void {
     label.textContent = tc.label;
     group.appendChild(label);
 
-    const widget = createBandpassWidget({
+    const widget = createDiscriminateWidget({
       rangeMin: dim.min,
       rangeMax: dim.max,
       initial: { min: dim.min, max: dim.max },
@@ -1200,7 +1200,7 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
     const label = document.createElement("label");
     label.textContent = dim.name;
     container.appendChild(label);
-    const widget = createBandpassWidget({
+    const widget = createDiscriminateWidget({
       rangeMin: dim.min,
       rangeMax: dim.max,
       initial: { min: dim.min, max: dim.max },

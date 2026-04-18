@@ -1,1 +1,1 @@
-images outside the @bandPass are excluded from the @slice.
+images outside the @discriminate range are excluded from the @slice.

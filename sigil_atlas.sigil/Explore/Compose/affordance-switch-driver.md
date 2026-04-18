@@ -1,0 +1,1 @@
+Transfer the driver role to another pane. Explicit — a click into a pane, or a keyboard shortcut that cycles. The newly active pane is visibly marked (a highlight on its edge, or the cursor's acceptance of input); the previously active pane becomes passive and starts conforming to the new driver's state. !one-driver.

@@ -10,4 +10,5 @@ A collage is not a screenshot. Per @SigilML, a saved view is a serialized expres
 
 A small canvas snapshot is captured at save time as a recognisable thumbnail. The snapshot is for browsing the library by sight; the truth of the collage is the expression.
 
-Collages !persist in the @Workspace. Loading is instant; saving captures the current state in one act.
+Collages are !persistent in the @Workspace. Loading is instant; saving captures the current state in one act.
+

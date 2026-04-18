@@ -193,7 +193,7 @@ html, body {
   margin-top: 14px;
 }
 
-/* Relevance & gravity sliders — thin neutral track matching bandpass aesthetics */
+/* Relevance & gravity sliders — thin neutral track matching discriminate aesthetics */
 .thin-slider {
   -webkit-appearance: none;
   appearance: none;
@@ -662,20 +662,20 @@ html, body {
   margin-bottom: 4px;
 }
 
-.bandpass-row {
+.discriminate-row {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.bandpass-slider {
+.discriminate-slider {
   width: 100%;
   accent-color: #6a6aff;
 }
 
-/* ── Bandpass range widget ── */
+/* ── Discriminate range widget ── */
 
-.bandpass-track {
+.discriminate-track {
   position: relative;
   width: 100%;
   height: 16px;
@@ -684,7 +684,7 @@ html, body {
   touch-action: none;
 }
 
-.bandpass-track-bg {
+.discriminate-track-bg {
   position: absolute;
   top: 8px;
   left: 0;
@@ -695,17 +695,17 @@ html, body {
 }
 
 /* Gradient hints per dimension */
-.bandpass-track[data-dim="brightness"] .bandpass-track-bg {
+.discriminate-track[data-dim="brightness"] .discriminate-track-bg {
   background: linear-gradient(to right, #1a1a1a, #e0e0e0);
 }
-.bandpass-track[data-dim="contrast"] .bandpass-track-bg {
+.discriminate-track[data-dim="contrast"] .discriminate-track-bg {
   background: linear-gradient(to right, #555, #fff);
 }
-.bandpass-track[data-dim="color_temperature"] .bandpass-track-bg {
+.discriminate-track[data-dim="color_temperature"] .discriminate-track-bg {
   background: linear-gradient(to right, #4488cc, #dd8833);
 }
 
-.bandpass-band {
+.discriminate-band {
   position: absolute;
   top: 5px;
   height: 8px;
@@ -717,16 +717,16 @@ html, body {
   transition: background 0.1s;
 }
 
-.bandpass-band:hover {
+.discriminate-band:hover {
   background: rgba(180, 180, 190, 0.35);
 }
 
-.bandpass-band.dragging {
+.discriminate-band.dragging {
   background: rgba(200, 200, 210, 0.4);
   cursor: grabbing;
 }
 
-.bandpass-handle {
+.discriminate-handle {
   position: absolute;
   top: -2px;
   width: 10px;
@@ -737,7 +737,7 @@ html, body {
 }
 
 /* Visible part of the handle — thinner than the hit area */
-.bandpass-handle::after {
+.discriminate-handle::after {
   content: "";
   position: absolute;
   top: 4px;
@@ -749,16 +749,16 @@ html, body {
   transition: background 0.1s;
 }
 
-.bandpass-handle:hover::after,
-.bandpass-handle.dragging::after {
+.discriminate-handle:hover::after,
+.discriminate-handle.dragging::after {
   background: #ccc;
 }
 
-.bandpass-handle.left {
+.discriminate-handle.left {
   left: -6px;
 }
 
-.bandpass-handle.right {
+.discriminate-handle.right {
   right: -6px;
 }
 

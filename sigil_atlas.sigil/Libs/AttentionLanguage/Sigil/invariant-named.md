@@ -1,0 +1,1 @@
+I identify a @sigil other than @self, @spacelike, by sight (it is !recognizable), and narrate about it using its name. I name things that are relevant to me. So any @sigil I notice must have a name. by construction.

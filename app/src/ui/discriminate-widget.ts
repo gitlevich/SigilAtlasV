@@ -1,8 +1,8 @@
 /**
- * Bandpass range slider widget.
+ * Discriminate range slider widget.
  *
- * A track with a draggable, resizable band on top.
- * The band spans [min, max] within a [rangeMin, rangeMax] domain.
+ * Renders a `Discriminate(contrast, min, max)` SigilML operator: a track with
+ * a draggable, resizable band spanning [min, max] within [rangeMin, rangeMax].
  *
  * Interactions:
  * - Drag left edge to narrow from the left
@@ -15,47 +15,47 @@
  * Supply at least one.
  */
 
-export interface BandpassState {
+export interface DiscriminateState {
   min: number;
   max: number;
 }
 
-export interface BandpassOptions {
+export interface DiscriminateOptions {
   rangeMin: number;
   rangeMax: number;
-  initial: BandpassState;
-  onChange?: (state: BandpassState) => void;
-  onCommit?: (state: BandpassState) => void;
+  initial: DiscriminateState;
+  onChange?: (state: DiscriminateState) => void;
+  onCommit?: (state: DiscriminateState) => void;
   dimension?: string;
 }
 
-export function createBandpassWidget(options: BandpassOptions): HTMLElement {
+export function createDiscriminateWidget(options: DiscriminateOptions): HTMLElement {
   const { rangeMin, rangeMax, initial, onChange, onCommit, dimension } = options;
   const span = rangeMax - rangeMin;
   if (span <= 0) {
     return document.createElement("div");
   }
 
-  const current: BandpassState = { min: initial.min, max: initial.max };
+  const current: DiscriminateState = { min: initial.min, max: initial.max };
 
   const track = document.createElement("div");
-  track.className = "bandpass-track";
+  track.className = "discriminate-track";
   if (dimension) track.dataset.dim = dimension;
 
   const bg = document.createElement("div");
-  bg.className = "bandpass-track-bg";
+  bg.className = "discriminate-track-bg";
   track.appendChild(bg);
 
   const band = document.createElement("div");
-  band.className = "bandpass-band";
+  band.className = "discriminate-band";
   track.appendChild(band);
 
   const handleL = document.createElement("div");
-  handleL.className = "bandpass-handle left";
+  handleL.className = "discriminate-handle left";
   band.appendChild(handleL);
 
   const handleR = document.createElement("div");
-  handleR.className = "bandpass-handle right";
+  handleR.className = "discriminate-handle right";
   band.appendChild(handleR);
 
   const toFrac = (v: number) => (v - rangeMin) / span;
