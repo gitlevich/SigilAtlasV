@@ -10,6 +10,7 @@ import { state, notify, subscribe, initThingsLibrary, refreshCollages } from "./
 import * as api from "./api";
 import { initControls, setViewport, recomputeSliceAndLayout, refreshControls, imageAtWorld, cellCenterAtWorld } from "./ui/controls";
 import { initStatusBar } from "./ui/status-bar";
+import { tickAmbientLight, setAmbientViewport } from "./ui/ambient-light";
 import { initMenu } from "./ui/menu";
 import {
   openLightbox,
@@ -124,6 +125,7 @@ async function main(): Promise<void> {
   const viewport = new TorusViewport(canvas);
   setViewport(viewport);
   setViewportForLightbox(viewport);
+  setAmbientViewport(viewport);
   viewport.setThumbnailBaseUrl(`http://127.0.0.1:${port}`);
   mark("webgl init");
 
@@ -152,10 +154,17 @@ async function main(): Promise<void> {
   viewport.loadMidAtlas().then(() => mark("mid-atlas ready"));
 
   // Load dimensions and models (with coverage counts for disabling incomplete)
-  const [dimensions, modelsRes] = await Promise.all([
+  // Tonal (per-image brightness + color temperature) is fetched in parallel
+  // and cached in state; drives the ambient @Lighting coupling every frame.
+  const [dimensions, modelsRes, tonal] = await Promise.all([
     api.getDimensions(),
     api.getModels(),
+    api.getTonal().catch((e) => {
+      console.warn("[tonal] fetch failed; ambient lighting will stay neutral", e);
+      return {} as Record<string, [number, number]>;
+    }),
   ]);
+  state.tonal = tonal;
   // Prefer a model whose embeddings are complete. Fall back to the first
   // available if the current default isn't present.
   const completeModels = modelsRes.models.filter(
@@ -271,6 +280,7 @@ async function main(): Promise<void> {
     tickCamera();
     viewport.setLayers(state.layers);
     viewport.setReliefScale(state.reliefScale);
+    tickAmbientLight(performance.now());
     if (!firstFrameLogged && state.layout) {
       firstFrameLogged = true;
       requestAnimationFrame(() => mark("first frame"));

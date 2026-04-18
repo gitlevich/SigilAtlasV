@@ -164,6 +164,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "ok"})
         elif self.path == "/dimensions":
             self._handle_dimensions()
+        elif self.path == "/tonal":
+            self._handle_tonal()
         elif self.path == "/models":
             self._handle_models()
         elif self.path == "/vocabulary":
@@ -447,6 +449,32 @@ class RequestHandler(BaseHTTPRequestHandler):
             for r in rows
         ]
         self._send_json({"dimensions": dimensions})
+
+    def _handle_tonal(self):
+        """Return per-image tonal data for the whole corpus.
+
+        {image_id: [brightness, color_temperature]} — one row per image
+        that has both characterizations. Brightness in [0, 1]; color
+        temperature in [-1, 1] (negative = cool, positive = warm).
+
+        Drives the @Lighting coupling in @TimeLike / @Compose: ambient
+        colour of the surface tracks the tonal aggregate of what is
+        currently in the frame.
+        """
+        rows = _state.db._conn.execute(
+            "SELECT image_id, proximity_name, value_range "
+            "FROM characterizations "
+            "WHERE value_type = 'range' "
+            "AND proximity_name IN ('brightness', 'color_temperature')"
+        ).fetchall()
+        out: dict[str, list[float]] = {}
+        for image_id, name, value in rows:
+            entry = out.setdefault(image_id, [0.5, 0.0])
+            if name == "brightness":
+                entry[0] = float(value)
+            elif name == "color_temperature":
+                entry[1] = float(value)
+        self._send_json({"tonal": out})
 
     def _handle_models(self):
         models = _state.provider.available_models()

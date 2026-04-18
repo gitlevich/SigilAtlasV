@@ -132,6 +132,14 @@ export async function getDimensions(): Promise<Dimension[]> {
   return data.dimensions;
 }
 
+/** Per-image tonal data. Map from image_id to [brightness, color_temperature].
+ *  Brightness in [0, 1]; color_temperature in [-1, 1] (cool to warm).
+ *  Drives the @Lighting coupling: ambient tint follows what I'm looking at. */
+export async function getTonal(): Promise<Record<string, [number, number]>> {
+  const data = await get<{ tonal: Record<string, [number, number]> }>("/tonal");
+  return data.tonal;
+}
+
 export interface ModelsResponse {
   models: string[];
   total: number;
