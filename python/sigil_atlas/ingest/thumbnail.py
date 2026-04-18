@@ -12,7 +12,7 @@ from sigil_atlas.progress import StageProgress
 logger = logging.getLogger(__name__)
 
 THUMB_MAX_SIZE = 512
-PREVIEW_MAX_SIZE = 1024
+PREVIEW_MAX_SIZE = 2048
 JPEG_QUALITY = 85
 
 
@@ -43,11 +43,17 @@ def _generate_one(
     db: CorpusDB, image_id: str, source_path: Path,
     thumbnails_dir: Path, previews_dir: Path,
 ) -> None:
-    """Generate thumbnail (512px) and preview (1024px) for a single image."""
+    """Generate thumbnail (512px) and preview (PREVIEW_MAX_SIZE px) for one image.
+
+    Existing previews whose larger dimension is below PREVIEW_MAX_SIZE are
+    regenerated — needed when upgrading legacy workspaces that were ingested
+    at a lower preview tier.
+    """
     thumb_path = thumbnails_dir / f"{image_id}.jpg"
     preview_path = previews_dir / f"{image_id}.jpg"
 
-    if thumb_path.exists() and preview_path.exists():
+    preview_ok = _preview_meets_target(preview_path)
+    if thumb_path.exists() and preview_ok:
         db.update_thumbnail(image_id, f"{image_id}.jpg")
         return
 
@@ -55,7 +61,7 @@ def _generate_one(
         with Image.open(source_path) as img:
             img = img.convert("RGB")
 
-            if not preview_path.exists():
+            if not preview_ok:
                 preview = img.copy()
                 preview.thumbnail((PREVIEW_MAX_SIZE, PREVIEW_MAX_SIZE), Image.LANCZOS)
                 preview.save(preview_path, "JPEG", quality=JPEG_QUALITY)
@@ -68,3 +74,15 @@ def _generate_one(
 
     except Exception:
         logger.warning("Failed to generate thumbnail for %s", source_path, exc_info=True)
+
+
+def _preview_meets_target(preview_path: Path) -> bool:
+    """True when the existing preview's larger dimension is at or above the
+    current PREVIEW_MAX_SIZE. Returns False if the file is missing or smaller."""
+    if not preview_path.exists():
+        return False
+    try:
+        with Image.open(preview_path) as img:
+            return max(img.size) >= PREVIEW_MAX_SIZE
+    except Exception:
+        return False

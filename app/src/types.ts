@@ -60,40 +60,32 @@ export interface ContrastAxis {
   pole_b: string;
 }
 
-export interface SpaceLikeRequest {
-  image_ids: string[];
-  attractors: Attractor[];
-  contrasts: ContrastAxis[];
-  model: string;
-  feathering: number;
-  cell_size: number;
-}
-
 export interface RangeFilter {
   dimension: string;
   min: number;
   max: number;
 }
 
-export interface ProximityFilter {
-  text: string;
-  weight: number;
-}
-
 export interface ContrastControl {
   pole_a: string;
   pole_b: string;
-  role: "filter" | "attract" | "order";
   band_min: number;
   band_max: number;
 }
 
 export interface SliceRequest {
-  range_filters: RangeFilter[];
-  proximity_filters: ProximityFilter[];
-  contrast_controls: ContrastControl[];
+  filter: import("./relevance").Expression | null;
+  relevance: number;
+  model: string;
+  order_contrast?: { pole_a: string; pole_b: string } | null;
+}
+
+export interface SpaceLikeRequest {
+  filter: import("./relevance").Expression | null;
+  relevance: number;
   model: string;
   feathering: number;
+  cell_size: number;
 }
 
 export interface SliceResponse {

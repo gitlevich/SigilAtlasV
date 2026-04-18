@@ -1,0 +1,1 @@
+The @Lightbox is the only place where @SpaceLike and @TimeLike resolve to the same thing. One @image is one @image in both modes; the field around it is different, but the inhabited point is shared. Any design that would make the @Lightbox differ by mode violates this — the whole value of the @Lightbox is that it is a mode-independent view of a single @image.

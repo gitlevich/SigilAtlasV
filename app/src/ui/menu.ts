@@ -87,6 +87,18 @@ export async function initMenu(): Promise<void> {
             }
           },
         }),
+        await MenuItem.new({
+          id: "regenerate-previews",
+          text: "Regenerate Previews",
+          action: async () => {
+            try {
+              await api.regeneratePreviews();
+              startPolling();
+            } catch (e) {
+              console.error("[regenerate-previews]", e);
+            }
+          },
+        }),
         await PredefinedMenuItem.new({ item: "Separator" }),
         await MenuItem.new({
           id: "nuke-corpus",

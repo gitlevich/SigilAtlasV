@@ -336,36 +336,52 @@ def _project(matrix: np.ndarray, directions: np.ndarray) -> np.ndarray:
 # Radial layout (single target_image): rank by similarity, place in rings
 # ---------------------------------------------------------------------------
 
+_GOLDEN_ANGLE = math.pi * (3.0 - math.sqrt(5.0))
+
+
 def _radial_cells(cols: int, rows: int, cc: int, rc: int) -> list[tuple[int, int]]:
     """All (col, row) cells in Chebyshev-ring order from (cc, rc), wrap-aware.
 
-    Ring 0 is the centre cell; ring r is the 8r cells at Chebyshev distance r;
-    torus wrap is respected via modulo. Returns at most cols*rows unique cells.
+    Ring 0 is the centre cell; ring r is the 8r cells at Chebyshev distance r.
+    Within each ring, cells are sorted by angle around the centre with a
+    per-ring golden-angle rotation offset — this prevents the "most-similar
+    fills the top-left first" corner bias that an axis-aligned walk creates,
+    so the residual ordering inside a ring distributes rotationally rather
+    than smearing into a quadrant gradient. Torus wrap is honoured.
     """
     cc = cc % cols
     rc = rc % rows
-    seen: set[tuple[int, int]] = set()
-    order: list[tuple[int, int]] = []
-    seen.add((cc, rc))
-    order.append((cc, rc))
+    seen: set[tuple[int, int]] = {(cc, rc)}
+    order: list[tuple[int, int]] = [(cc, rc)]
     max_r = max(cols, rows)
     total = cols * rows
+
     for r in range(1, max_r + 1):
         if len(order) >= total:
             break
-        candidates: list[tuple[int, int]] = []
+        # Logical (un-wrapped) offsets covering the ring's perimeter.
+        ring: list[tuple[int, int, int, int]] = []
         for d in range(-r, r + 1):
-            candidates.append(((cc + d) % cols, (rc - r) % rows))
-            candidates.append(((cc + d) % cols, (rc + r) % rows))
+            ring.append((d, -r, (cc + d) % cols, (rc - r) % rows))
+            ring.append((d,  r, (cc + d) % cols, (rc + r) % rows))
         for d in range(-r + 1, r):
-            candidates.append(((cc - r) % cols, (rc + d) % rows))
-            candidates.append(((cc + r) % cols, (rc + d) % rows))
-        for cell in candidates:
-            if cell not in seen:
-                seen.add(cell)
-                order.append(cell)
-                if len(order) >= total:
-                    break
+            ring.append((-r, d, (cc - r) % cols, (rc + d) % rows))
+            ring.append(( r, d, (cc + r) % cols, (rc + d) % rows))
+
+        # Angular sort with a per-ring golden-angle rotation. Successive rings
+        # start at different angles so any residual "starting cell" bias does
+        # not stack into a visible spoke across rings.
+        offset = r * _GOLDEN_ANGLE
+        ring.sort(key=lambda t: (math.atan2(t[1], t[0]) - offset) % (2 * math.pi))
+
+        for _, _, col, row in ring:
+            cell = (col, row)
+            if cell in seen:
+                continue
+            seen.add(cell)
+            order.append(cell)
+            if len(order) >= total:
+                break
     return order
 
 
@@ -545,15 +561,33 @@ def compute_spacelike(
     if attractors:
         resolved_attractors, attractor_vecs = _resolve_attractor_vectors(attractors, provider, model, image_ids)
 
-    # Special case: exactly one target_image attractor -> radial layout ranked
-    # by similarity (in contrast-space if contrasts are named; else raw). The
-    # clicked image is literally surrounded by its kin, progressively less
-    # similar outward. Matches the spec's neighbourhood invariants.
-    target_atts = [a for a in resolved_attractors if a.kind == "target_image"]
-    if len(resolved_attractors) == 1 and target_atts:
-        return _radial_target_image_layout(
+    # TargetImage takes layout precedence — when one is active, the spec
+    # is unambiguous: a SINGLE neighborhood forms around it
+    # (`TargetImage/affordance-point-at`). Other Thing attractors are
+    # suspended for layout (they continue to gate the slice via the filter,
+    # and the arrangement returns to them when the target is released, per
+    # `TargetImage/affordance-clear`). `!sole-attractor` ensures at most one
+    # target image exists.
+    target_indices = [
+        i for i, a in enumerate(resolved_attractors) if a.kind == "target_image"
+    ]
+    if target_indices:
+        idx = target_indices[0]
+        return _radial_attractor_layout(
             provider, image_ids, model, cell_size, rows, cols,
-            target_atts[0], attractor_vecs[0],
+            resolved_attractors[idx], attractor_vecs[idx],
+            contrast_directions,
+        )
+
+    # Single Thing attractor → radial centred on the most representative image.
+    # Per `Attractor/Neighborhood/language.md`: "for a @thing, the most
+    # representative @image" sits at the centre. The gravity-field path is
+    # degenerate for k=1 (one anchor pulls every confident image to the same
+    # point, then median-split distributes the pile arbitrarily).
+    if len(resolved_attractors) == 1:
+        return _radial_attractor_layout(
+            provider, image_ids, model, cell_size, rows, cols,
+            resolved_attractors[0], attractor_vecs[0],
             contrast_directions,
         )
 
@@ -602,21 +636,22 @@ def compute_spacelike(
     )
 
 
-def _radial_target_image_layout(
+def _radial_attractor_layout(
     provider: EmbeddingProvider,
     image_ids: list[str],
     model: str,
     cell_size: float,
     rows: int,
     cols: int,
-    target_att: Attractor,
-    target_vec: np.ndarray,
+    attractor: Attractor,
+    attractor_vec: np.ndarray,
     contrast_directions: np.ndarray,
 ) -> SpaceLikeLayout:
-    """Place the target image at grid centre, then rank all other images by
-    similarity (in contrast subspace if named) and place them in concentric
-    Chebyshev rings outward. Produces a clean "this photo's neighbourhood"
-    view where kinship is visible as radial proximity.
+    """Place the most-representative image at grid centre, then rank all other
+    images by similarity (in contrast subspace if named) and place them in
+    concentric Chebyshev rings outward. Works for both `thing` (centre = the
+    image with highest cosine to the resolved text vector) and `target_image`
+    (centre = the image itself, top of the cosine ranking by construction).
     """
     n = len(image_ids)
     matrix = provider.fetch_matrix(image_ids, model)
@@ -625,10 +660,10 @@ def _radial_target_image_layout(
 
     if contrast_directions.shape[0] > 0:
         image_proj = _project(matrix, contrast_directions)
-        target_proj = (contrast_directions @ target_vec).astype(np.float32)  # (K,)
+        target_proj = (contrast_directions @ attractor_vec).astype(np.float32)  # (K,)
         sims = -np.linalg.norm(image_proj - target_proj, axis=1)
     else:
-        sims = matrix @ target_vec
+        sims = matrix @ attractor_vec
 
     # Rank: most similar first.
     order_idx = np.argsort(-sims)
@@ -659,12 +694,12 @@ def _radial_target_image_layout(
     ]
 
     attractor_positions = [
-        AttractorPosition(kind=target_att.kind, ref=target_att.ref, col=cc, row=rc)
+        AttractorPosition(kind=attractor.kind, ref=attractor.ref, col=cc, row=rc)
     ]
 
     logger.info(
-        "Radial layout: target=%s at (%d, %d); contrasts=%d",
-        target_att.ref[:10], cc, rc, contrast_directions.shape[0],
+        "Radial layout: %s='%s' at (%d, %d); contrasts=%d",
+        attractor.kind, attractor.ref[:20], cc, rc, contrast_directions.shape[0],
     )
 
     return SpaceLikeLayout(

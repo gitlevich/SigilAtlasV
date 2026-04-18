@@ -195,3 +195,58 @@ export async function runPixelFeatures(): Promise<{ status: string }> {
 export async function runMissingEmbeddings(): Promise<{ status: string }> {
   return post("/tools/embed-missing", {});
 }
+
+export async function regeneratePreviews(): Promise<{ status: string; count: number }> {
+  return post("/tools/regenerate-previews", {});
+}
+
+export interface ImageMetadata {
+  id: string;
+  source_path: string | null;
+  capture_date: number | null;
+  pixel_width: number | null;
+  pixel_height: number | null;
+  gps_latitude: number | null;
+  gps_longitude: number | null;
+  camera_model: string | null;
+  lens_model: string | null;
+  focal_length: number | null;
+  aperture: number | null;
+  shutter_speed: number | null;
+  iso: number | null;
+}
+
+export async function getImageMetadata(id: string): Promise<ImageMetadata | null> {
+  try {
+    return await get<ImageMetadata>(`/image/info/${encodeURIComponent(id)}`);
+  } catch {
+    return null;
+  }
+}
+
+export function imageSourceUrl(id: string): string {
+  return `http://127.0.0.1:${sidecarPort}/image/source/${encodeURIComponent(id)}`;
+}
+
+export function imagePreviewUrl(id: string): string {
+  return `http://127.0.0.1:${sidecarPort}/preview/${encodeURIComponent(id)}`;
+}
+
+export function imageThumbnailUrl(id: string): string {
+  return `http://127.0.0.1:${sidecarPort}/thumbnail/${encodeURIComponent(id)}`;
+}
+
+export async function getThingsLibrary(): Promise<string[]> {
+  const data = await get<{ names: string[] }>("/things/library");
+  return data.names;
+}
+
+export async function addThingToLibrary(name: string): Promise<string[]> {
+  const data = await post<{ names: string[] }>("/things/library/add", { name });
+  return data.names;
+}
+
+export async function removeThingFromLibrary(name: string): Promise<string[]> {
+  const data = await post<{ names: string[] }>("/things/library/remove", { name });
+  return data.names;
+}

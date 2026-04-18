@@ -6,12 +6,22 @@
  */
 
 import { TorusViewport } from "./renderer/torus-viewport";
-import { state, notify, subscribe } from "./state";
+import { state, notify, subscribe, initThingsLibrary } from "./state";
 import * as api from "./api";
 import { initControls, setViewport, recomputeSliceAndLayout, refreshControls, imageAtWorld, cellCenterAtWorld } from "./ui/controls";
 import { initStatusBar } from "./ui/status-bar";
 import { initMenu } from "./ui/menu";
+import {
+  openLightbox,
+  closeLightbox,
+  isLightboxOpen,
+  walkLightbox,
+  toggleLightboxMetadata,
+  setViewportForLightbox,
+  setResumeRenderFn,
+} from "./ui/lightbox";
 import type { PointOfView } from "./types";
+import { isSpaceLikeLayout } from "./types";
 
 declare global {
   interface Window {
@@ -113,6 +123,7 @@ async function main(): Promise<void> {
   const canvas = document.getElementById("viewport") as HTMLCanvasElement;
   const viewport = new TorusViewport(canvas);
   setViewport(viewport);
+  setViewportForLightbox(viewport);
   viewport.setThumbnailBaseUrl(`http://127.0.0.1:${port}`);
   mark("webgl init");
 
@@ -138,13 +149,11 @@ async function main(): Promise<void> {
   }
   mark("dimensions + models");
 
-  // Initial slice: entire corpus
+  // Initial slice: entire corpus (null filter = unconstrained)
   const sliceRes = await api.computeSlice({
-    range_filters: [],
-    proximity_filters: [],
-    contrast_controls: [],
+    filter: null,
+    relevance: state.relevance,
     model: state.model,
-    feathering: state.feathering,
   });
   state.imageIds = sliceRes.image_ids;
   state.orderValues = sliceRes.order_values || {};
@@ -152,9 +161,8 @@ async function main(): Promise<void> {
 
   // Initial layout — spacelike by default (gravity field over square-crop cells)
   const layout = await api.computeSpacelike({
-    image_ids: state.imageIds,
-    attractors: state.attractors,
-    contrasts: state.contrastControls.map((c) => ({ pole_a: c.pole_a, pole_b: c.pole_b })),
+    filter: null,
+    relevance: state.relevance,
     model: state.model,
     feathering: state.feathering,
     cell_size: state.cellSize,
@@ -165,17 +173,26 @@ async function main(): Promise<void> {
   viewport.setLayout(layout);
   mark("layout");
 
-  // Initial splash: frame the entire torus so the user sees the whole field
-  // at once. Zoom-in happens via scroll/attractors.
+  // Initial framing: ~6 rows of cells in view. The full-torus splash is too
+  // far out to read individual cells and too expensive to re-layout when
+  // switching to TimeLike — 6 rows is legible and responsive.
   const aspect = canvas.clientWidth / canvas.clientHeight;
+  const rowsVisible = 6;
+  const desiredZoom = rowsVisible * layout.cell_size * aspect;
   const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
   state.pov = {
     x: layout.torus_width / 2,
     y: layout.torus_height / 2,
-    z: maxZoom,
+    z: Math.min(desiredZoom, maxZoom),
     pitch: 0,
     yaw: 0,
   };
+
+  // Load the ThingsLibrary from the workspace before the panel renders so
+  // library pills show up on first paint. Also drains any legacy localStorage
+  // entries into the workspace.
+  await initThingsLibrary();
+  mark("things library");
 
   // Init controls
   await initControls(dimensions, modelsRes);
@@ -205,7 +222,7 @@ async function main(): Promise<void> {
 
   // Render loop — push layer + relief state each frame (cheap)
   let firstFrameLogged = false;
-  viewport.startRenderLoop(() => {
+  const getPov = () => {
     tickCamera();
     viewport.setLayers(state.layers);
     viewport.setReliefScale(state.reliefScale);
@@ -214,7 +231,12 @@ async function main(): Promise<void> {
       requestAnimationFrame(() => mark("first frame"));
     }
     return state.pov;
-  });
+  };
+  viewport.startRenderLoop(getPov);
+  // The @Lightbox stops the loop on entry (no attention on the field ⇒ no
+  // recomputation) and asks us to restart it on exit. Keeps the loop
+  // closure opaque to the lightbox module.
+  setResumeRenderFn(() => viewport.startRenderLoop(getPov));
 }
 
 /** Set up camera controls. Returns a tick function to call each frame for inertia.
@@ -302,12 +324,32 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     const targetX = snap?.x ?? rawX;
     const targetY = snap?.y ?? rawY;
 
+    // @Lightbox entry: if the @pointOfView already shows three rows or fewer,
+    // the next zoom-in gesture lifts the clicked @image out of the field at
+    // 100% instead of zooming further into the @surface. Alt-double-click
+    // (zoom out) is never an entry — only the zoom-in direction enters.
+    const rowHeight = state.layout
+      ? (isSpaceLikeLayout(state.layout) ? state.layout.cell_size : state.layout.strip_height)
+      : state.cellSize;
+    const aspect = cw / ch;
+    const rowsVisible = rowHeight > 0 ? state.pov.z / (rowHeight * aspect) : Infinity;
+    const THRESHOLD_ROWS = 3;
+    if (!e.altKey && state.layout && rowsVisible <= THRESHOLD_ROWS) {
+      const id = imageAtWorld(state.layout, rawX, rawY);
+      if (id) {
+        vx = 0; vy = 0;
+        trail.length = 0;
+        animFrom = null; animTo = null;
+        openLightbox(id);
+        return;
+      }
+    }
+
     // Alt/Option held: zoom out 2x. Plain double-click: zoom in 2x.
     const zoomingOut = e.altKey;
     const factor = zoomingOut ? 2 : 0.5;
     const tw = state.torusWidth || 10000;
     const th = state.torusHeight || 10000;
-    const aspect = cw / ch;
     const maxZ = Math.min(tw, th * aspect);
     const newZ = Math.max(100, Math.min(maxZ, state.pov.z * factor));
 
@@ -433,8 +475,9 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     }
   }, { passive: false });
 
-  // Cmd+/Cmd- keyboard zoom
+  // Cmd+/Cmd- keyboard zoom (suspended while the @Lightbox owns attention).
   window.addEventListener("keydown", (e) => {
+    if (isLightboxOpen()) return;
     if (!(e.metaKey || e.ctrlKey)) return;
     if (e.key === "=" || e.key === "+") {
       e.preventDefault();
@@ -442,6 +485,51 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     } else if (e.key === "-") {
       e.preventDefault();
       applyZoom(1.18); // zoom out
+    }
+  });
+
+  // @Lightbox keyboard: Escape exits, arrows walk the suspended
+  // @arrangement's lattice, Cmd-I toggles the metadata overlay. These
+  // handlers are registered before the others so they consume the keystroke
+  // when the @Lightbox is open; the zoom and target-image handlers early-out
+  // via isLightboxOpen().
+  window.addEventListener("keydown", (e) => {
+    if (!isLightboxOpen()) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeLightbox();
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && (e.key === "i" || e.key === "I")) {
+      e.preventDefault();
+      toggleLightboxMetadata();
+      return;
+    }
+    const dirMap: Record<string, "up" | "down" | "left" | "right"> = {
+      ArrowUp: "up",
+      ArrowDown: "down",
+      ArrowLeft: "left",
+      ArrowRight: "right",
+    };
+    const dir = dirMap[e.key];
+    if (dir) {
+      e.preventDefault();
+      walkLightbox(dir);
+    }
+  });
+
+  // Escape releases an active TargetImage — per spec
+  // `Attractor/TargetImage/affordance-clear`: "the arrangement returns to
+  // whatever @attractors or @contrasts are otherwise active." There's no
+  // pill for the target (the radial layout is its visible form), so the
+  // keyboard is the way to let go.
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (isLightboxOpen()) return; // Lightbox swallowed this keystroke above
+    const before = state.attractors.length;
+    state.attractors = state.attractors.filter((a) => a.kind !== "target_image");
+    if (state.attractors.length !== before) {
+      recomputeSliceAndLayout().catch((err) => console.error("[release-target]", err));
     }
   });
 

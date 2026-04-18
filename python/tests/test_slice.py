@@ -1,10 +1,11 @@
-"""Tests for SliceMode filtering."""
+"""Tests for the RelevanceFilter membrane and the resulting slice."""
 
 import numpy as np
 import pytest
 
 from sigil_atlas.db import CorpusDB, ImageRecord
-from sigil_atlas.slice import RangeFilter, ProximityFilter, filter_by_range, compute_slice
+from sigil_atlas.relevance_filter import And, Or, Not, Range, Thing, evaluate, parse, Context
+from sigil_atlas.slice import compute_slice
 
 
 class FakeEmbeddingProvider:
@@ -45,14 +46,12 @@ def seeded_db(db):
             created_at=time.time(),
         )
         db.insert_image(rec)
-        # Mark as completed so fetch_image_ids returns them
         db._conn.execute(
             "UPDATE images SET completed_at=?, metadata_extracted_at=?, thumbnail_generated_at=? WHERE id=?",
             (time.time(), time.time(), time.time(), f"img_{i}"),
         )
     db._conn.commit()
 
-    # Add range characterizations: "brightness" ranges from 0.1 to 0.9
     rows = []
     for i in range(5):
         rows.append((f"img_{i}", "brightness", "range", None, 0.1 + i * 0.2))
@@ -60,57 +59,119 @@ def seeded_db(db):
     return db
 
 
-class TestFilterByRange:
-    def test_no_filters_returns_all(self, seeded_db):
-        result = filter_by_range(seeded_db, [])
-        assert len(result) == 5
+def _ctx(db, provider, model="test-model", relevance=0.5):
+    return Context(
+        db=db, provider=provider, model=model, relevance=relevance,
+        corpus_ids=db.fetch_image_ids(),
+    )
 
-    def test_single_range_filter(self, seeded_db):
-        filters = [RangeFilter(dimension="brightness", min_value=0.25, max_value=0.75)]
-        result = filter_by_range(seeded_db, filters)
-        assert len(result) == 3
-        assert "img_1" in result
-        assert "img_2" in result
-        assert "img_3" in result
 
-    def test_tight_range_filter(self, seeded_db):
-        filters = [RangeFilter(dimension="brightness", min_value=0.45, max_value=0.55)]
-        result = filter_by_range(seeded_db, filters)
+class TestRangeAtom:
+    def test_single_range(self, seeded_db):
+        provider = FakeEmbeddingProvider({})
+        ctx = _ctx(seeded_db, provider)
+        result = evaluate(Range("brightness", 0.25, 0.75), ctx)
+        assert result == {"img_1", "img_2", "img_3"}
+
+    def test_tight_range(self, seeded_db):
+        provider = FakeEmbeddingProvider({})
+        ctx = _ctx(seeded_db, provider)
+        result = evaluate(Range("brightness", 0.45, 0.55), ctx)
         assert result == {"img_2"}
 
     def test_no_matches(self, seeded_db):
-        filters = [RangeFilter(dimension="brightness", min_value=2.0, max_value=3.0)]
-        result = filter_by_range(seeded_db, filters)
-        assert len(result) == 0
+        provider = FakeEmbeddingProvider({})
+        ctx = _ctx(seeded_db, provider)
+        result = evaluate(Range("brightness", 2.0, 3.0), ctx)
+        assert result == set()
 
-    def test_nonexistent_dimension(self, seeded_db):
-        filters = [RangeFilter(dimension="contrast", min_value=0.0, max_value=1.0)]
-        result = filter_by_range(seeded_db, filters)
-        assert len(result) == 0
+
+class TestComposition:
+    def test_and_intersects(self, seeded_db):
+        provider = FakeEmbeddingProvider({})
+        ctx = _ctx(seeded_db, provider)
+        expr = And((
+            Range("brightness", 0.0, 0.75),  # img_0..img_3
+            Range("brightness", 0.25, 1.0),  # img_1..img_4
+        ))
+        assert evaluate(expr, ctx) == {"img_1", "img_2", "img_3"}
+
+    def test_or_unions(self, seeded_db):
+        provider = FakeEmbeddingProvider({})
+        ctx = _ctx(seeded_db, provider)
+        expr = Or((
+            Range("brightness", 0.0, 0.25),  # img_0
+            Range("brightness", 0.75, 1.0),  # img_4
+        ))
+        assert evaluate(expr, ctx) == {"img_0", "img_4"}
+
+    def test_not_complements(self, seeded_db):
+        provider = FakeEmbeddingProvider({})
+        ctx = _ctx(seeded_db, provider)
+        expr = Not(Range("brightness", 0.25, 0.75))
+        assert evaluate(expr, ctx) == {"img_0", "img_4"}
+
+    def test_empty_and_is_all(self, seeded_db):
+        provider = FakeEmbeddingProvider({})
+        ctx = _ctx(seeded_db, provider)
+        assert evaluate(And(()), ctx) == {"img_0", "img_1", "img_2", "img_3", "img_4"}
 
 
 class TestComputeSlice:
-    def test_no_filters_returns_all(self, seeded_db):
+    def test_none_filter_returns_all(self, seeded_db):
         provider = FakeEmbeddingProvider({})
-        result = compute_slice(seeded_db, provider)
+        result = compute_slice(seeded_db, provider, None, model="test-model")
         assert len(result.image_ids) == 5
 
-    def test_range_only(self, seeded_db):
+    def test_range_atom(self, seeded_db):
         provider = FakeEmbeddingProvider({})
         result = compute_slice(
             seeded_db, provider,
-            range_filters=[RangeFilter("brightness", 0.0, 0.2)],
+            Range("brightness", 0.0, 0.2),
+            model="test-model",
         )
-        assert len(result.image_ids) == 1
-        assert result.image_ids[0] == "img_0"
+        assert result.image_ids == ["img_0"]
 
     def test_slice_is_subset(self, seeded_db):
         """Filtered slice is a strict subset of unfiltered."""
         provider = FakeEmbeddingProvider({})
-        full = compute_slice(seeded_db, provider)
+        full = compute_slice(seeded_db, provider, None, model="test-model")
         filtered = compute_slice(
             seeded_db, provider,
-            range_filters=[RangeFilter("brightness", 0.0, 0.5)],
+            Range("brightness", 0.0, 0.5),
+            model="test-model",
         )
         assert set(filtered.image_ids).issubset(set(full.image_ids))
         assert len(filtered.image_ids) < len(full.image_ids)
+
+
+class TestParse:
+    def test_thing(self):
+        assert parse({"type": "thing", "name": "bird"}) == Thing("bird")
+
+    def test_range(self):
+        assert parse({"type": "range", "dimension": "brightness", "min": 0.2, "max": 0.8}) == Range("brightness", 0.2, 0.8)
+
+    def test_and_of_things(self):
+        node = {
+            "type": "and",
+            "children": [
+                {"type": "thing", "name": "bird"},
+                {"type": "thing", "name": "bee"},
+            ],
+        }
+        expr = parse(node)
+        assert isinstance(expr, And)
+        assert expr.children == (Thing("bird"), Thing("bee"))
+
+    def test_nested(self):
+        node = {
+            "type": "and",
+            "children": [
+                {"type": "thing", "name": "bird"},
+                {"type": "not", "child": {"type": "range", "dimension": "brightness", "min": 0, "max": 0.2}},
+            ],
+        }
+        expr = parse(node)
+        assert isinstance(expr, And)
+        assert isinstance(expr.children[1], Not)

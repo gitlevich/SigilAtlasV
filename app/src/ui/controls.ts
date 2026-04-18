@@ -5,14 +5,41 @@
  * Mode, Attract, Contrasts, Color, Tone, Settings.
  */
 
-import { state, notify } from "../state";
+import { state, notify, persistLibraryFolded } from "../state";
 import * as api from "../api";
-import type { AnyLayout, Dimension, ContrastControl, PointOfView } from "../types";
+import type { AnyLayout, Dimension, ContrastControl, PointOfView, VocabTerm } from "../types";
 import { isSpaceLikeLayout } from "../types";
+import { buildFilter } from "../relevance";
 import type { TorusViewport } from "../renderer/torus-viewport";
 import { createBandpassWidget } from "./bandpass-widget";
 import { createColorWheel, hueRangeToFilter, type HueRange } from "./color-wheel";
 import { startImport } from "../import";
+
+// Vocabulary cached for the lifetime of the panel — fetched once per init.
+// Falls through to `[]` until /vocabulary/flat resolves; autocomplete simply
+// shows nothing until then. Per spec (Thing/language.md): "the @taxonomy is
+// scaffolding, not a gate" — we never reject input that isn't in the list.
+let vocabulary: VocabTerm[] = [];
+
+// Re-render hooks — set by build*Section so cross-section actions (e.g.
+// activating a library pill into Attract) can refresh the affected views
+// without rebuilding the entire panel.
+let renderAttractPills: (() => void) | null = null;
+let renderLibraryPills: (() => void) | null = null;
+
+/** Add a name to the ThingsLibrary if not already present, and persist to the workspace. */
+function captureInLibrary(name: string): void {
+  if (!name) return;
+  if (state.thingsLibrary.includes(name)) return;
+  state.thingsLibrary.push(name);
+  renderLibraryPills?.();
+  api.addThingToLibrary(name)
+    .then((names) => {
+      state.thingsLibrary = names;
+      renderLibraryPills?.();
+    })
+    .catch((e) => console.error("[library] add failed:", e));
+}
 
 let sliceDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 function debouncedRecompute(): void {
@@ -51,12 +78,15 @@ export async function recomputeSliceAndLayout(opts?: { anchorImageId?: string })
   if (sliceDebounceTimer) { clearTimeout(sliceDebounceTimer); sliceDebounceTimer = null; }
 
   try {
+    const filter = buildFilter({
+      attractors: state.attractors,
+      contrastControls: state.contrastControls,
+      rangeFilters: state.rangeFilters,
+    });
     const res = await api.computeSlice({
-      range_filters: state.rangeFilters,
-      proximity_filters: state.proximityFilters,
-      contrast_controls: state.contrastControls,
+      filter,
+      relevance: state.relevance,
       model: state.model,
-      feathering: state.feathering,
     });
     state.imageIds = res.image_ids;
     state.orderValues = res.order_values || {};
@@ -78,9 +108,8 @@ export async function recomputeSliceAndLayout(opts?: { anchorImageId?: string })
 
     if (state.mode === "spacelike") {
       const layout = await api.computeSpacelike({
-        image_ids: state.imageIds,
-        attractors: state.attractors,
-        contrasts: state.contrastControls.map((c) => ({ pole_a: c.pole_a, pole_b: c.pole_b })),
+        filter,
+        relevance: state.relevance,
         model: state.model,
         feathering: state.feathering,
         cell_size: state.cellSize,
@@ -116,8 +145,10 @@ export async function recomputeSliceAndLayout(opts?: { anchorImageId?: string })
     //  3. First ever load: full-torus splash.
     //  4. Fallback (rare): geometric centre.
     if (attractorCell && !anchorImageId) {
-      // New attractor with no prior anchor: zoom in on it.
-      const visibleCells = 16;
+      // New attractor with no prior anchor: zoom in on it. ~10 visible rows
+      // keeps display cell height above the per-image-atlas threshold (80px),
+      // so cells render at the sharp tier rather than the blurry mid-atlas.
+      const visibleCells = 10;
       const desiredZoom = visibleCells * attractorCell.cell_size * aspect;
       state.pov.x = (attractorCell.col + 0.5) * attractorCell.cell_size;
       state.pov.y = (attractorCell.row + 0.5) * attractorCell.cell_size;
@@ -130,7 +161,7 @@ export async function recomputeSliceAndLayout(opts?: { anchorImageId?: string })
         state.pov.z = Math.min(state.pov.z, maxZoom);
       } else if (attractorCell) {
         // Anchor fell out of slice; fall back to attractor framing.
-        const visibleCells = 16;
+        const visibleCells = 10;
         const desiredZoom = visibleCells * attractorCell.cell_size * aspect;
         state.pov.x = (attractorCell.col + 0.5) * attractorCell.cell_size;
         state.pov.y = (attractorCell.row + 0.5) * attractorCell.cell_size;
@@ -141,9 +172,12 @@ export async function recomputeSliceAndLayout(opts?: { anchorImageId?: string })
         state.pov.z = Math.min(state.pov.z, maxZoom);
       }
     } else if (isFirstLoad) {
+      // ~6 rows visible: legible cells, fast mode switches.
+      const cellSize = isSpaceLikeLayout(newLayout) ? newLayout.cell_size : newLayout.strip_height;
+      const desiredZoom = 6 * cellSize * aspect;
       state.pov.x = newLayout.torus_width / 2;
       state.pov.y = newLayout.torus_height / 2;
-      state.pov.z = maxZoom;
+      state.pov.z = Math.min(desiredZoom, maxZoom);
     } else {
       state.pov.x = newLayout.torus_width / 2;
       state.pov.y = newLayout.torus_height / 2;
@@ -241,6 +275,68 @@ export function imageAtWorld(layout: AnyLayout, worldX: number, worldY: number):
 
 function imageAtPov(layout: AnyLayout, pov: PointOfView): string | null {
   return imageAtWorld(layout, pov.x, pov.y);
+}
+
+/** Step to an adjacent image on the layout's lattice. Directions are
+ *  screen-aligned: "up" goes to the row above (smaller row index in the
+ *  SpaceLike grid, earlier strip in TimeLike), "left" to the previous image
+ *  in reading order on the same row. The torus wraps on both axes, so the
+ *  walk never hits a hard edge.
+ *
+ *  Used by the @Lightbox to walk the suspended @arrangement's lattice with
+ *  arrow keys.
+ */
+export function imageNeighbor(
+  layout: AnyLayout,
+  id: string,
+  dir: "up" | "down" | "left" | "right",
+): string | null {
+  if (isSpaceLikeLayout(layout)) {
+    const here = layout.positions.find((p) => p.id === id);
+    if (!here) return null;
+    const dc = dir === "left" ? -1 : dir === "right" ? 1 : 0;
+    const dr = dir === "up" ? -1 : dir === "down" ? 1 : 0;
+    const cols = layout.cols, rows = layout.rows;
+    if (cols === 0 || rows === 0) return null;
+    const col = ((here.col + dc) % cols + cols) % cols;
+    const row = ((here.row + dr) % rows + rows) % rows;
+    for (const p of layout.positions) {
+      if (p.col === col && p.row === row) return p.id;
+    }
+    return null;
+  }
+  // Strip layout: up/down move between strips, left/right within the strip.
+  const strips = layout.strips;
+  if (strips.length === 0) return null;
+  let stripIdx = -1, imgIdx = -1;
+  for (let i = 0; i < strips.length && stripIdx < 0; i++) {
+    const j = strips[i].images.findIndex((im) => im.id === id);
+    if (j >= 0) { stripIdx = i; imgIdx = j; }
+  }
+  if (stripIdx < 0) return null;
+  if (dir === "left" || dir === "right") {
+    const imgs = strips[stripIdx].images;
+    const n = imgs.length;
+    if (n === 0) return null;
+    const next = ((imgIdx + (dir === "right" ? 1 : -1)) % n + n) % n;
+    return imgs[next].id;
+  }
+  const n = strips.length;
+  const nextStrip = ((stripIdx + (dir === "down" ? 1 : -1)) % n + n) % n;
+  const imgs = strips[nextStrip].images;
+  if (imgs.length === 0) return null;
+  // Pick the image nearest by x to the one we came from, so vertical walks
+  // don't snap to the start of each strip.
+  const here = strips[stripIdx].images[imgIdx];
+  const hereCenter = here.x + here.width / 2;
+  let best = imgs[0];
+  let bestDist = Math.abs((best.x + best.width / 2) - hereCenter);
+  for (let i = 1; i < imgs.length; i++) {
+    const c = imgs[i].x + imgs[i].width / 2;
+    const d = Math.abs(c - hereCenter);
+    if (d < bestDist) { best = imgs[i]; bestDist = d; }
+  }
+  return best.id;
 }
 
 function worldCenterOfImage(layout: AnyLayout, id: string): { x: number; y: number } | null {
@@ -356,6 +452,247 @@ function buildLayersSection(body: HTMLElement): void {
 }
 
 
+// ── Attract input with vocabulary autocomplete ──
+//
+// Free-text in, vocabulary suggestions surfaced as you type. Per spec
+// (Thing/language.md): "the @taxonomy is scaffolding, not a gate" — anything
+// you type is a valid @thing; the dropdown is for discovery only. Press Enter
+// (with or without a highlighted suggestion) to commit; arrows navigate;
+// Escape closes the dropdown without losing the typed text.
+
+function createAttractInput(commit: (name: string) => void): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "autocomplete-wrapper";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "pill-input";
+  input.placeholder = "type a thing, press enter...";
+
+  const dropdown = document.createElement("div");
+  dropdown.className = "autocomplete-dropdown";
+  dropdown.style.display = "none";
+
+  let suggestions: VocabTerm[] = [];
+  let activeIdx = -1;
+
+  const closeDropdown = () => {
+    dropdown.style.display = "none";
+    dropdown.innerHTML = "";
+    suggestions = [];
+    activeIdx = -1;
+  };
+
+  const renderDropdown = () => {
+    dropdown.innerHTML = "";
+    if (suggestions.length === 0) {
+      closeDropdown();
+      return;
+    }
+    dropdown.style.display = "";
+    suggestions.forEach((term, i) => {
+      const item = document.createElement("div");
+      item.className = "autocomplete-item" + (i === activeIdx ? " active" : "");
+      const name = document.createElement("span");
+      name.textContent = term.name;
+      const path = document.createElement("span");
+      path.className = "ac-path";
+      path.textContent = `  ${term.path}`;
+      item.appendChild(name);
+      item.appendChild(path);
+      item.title = term.prompt;
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // keep input focused so blur doesn't fire first
+        input.value = "";
+        closeDropdown();
+        commit(term.name);
+      });
+      dropdown.appendChild(item);
+    });
+  };
+
+  const updateSuggestions = () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q || vocabulary.length === 0) {
+      closeDropdown();
+      return;
+    }
+    // Substring match on name; rank exact-prefix matches above mid-string.
+    const prefix: VocabTerm[] = [];
+    const mid: VocabTerm[] = [];
+    for (const t of vocabulary) {
+      const n = t.name.toLowerCase();
+      if (n === q) prefix.unshift(t);
+      else if (n.startsWith(q)) prefix.push(t);
+      else if (n.includes(q)) mid.push(t);
+    }
+    suggestions = prefix.concat(mid).slice(0, 12);
+    activeIdx = suggestions.length > 0 ? 0 : -1;
+    renderDropdown();
+  };
+
+  input.addEventListener("input", updateSuggestions);
+  input.addEventListener("focus", updateSuggestions);
+  input.addEventListener("blur", () => {
+    // Delay so that mousedown on a dropdown item fires first.
+    setTimeout(closeDropdown, 100);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" && suggestions.length > 0) {
+      e.preventDefault();
+      activeIdx = (activeIdx + 1) % suggestions.length;
+      renderDropdown();
+    } else if (e.key === "ArrowUp" && suggestions.length > 0) {
+      e.preventDefault();
+      activeIdx = (activeIdx - 1 + suggestions.length) % suggestions.length;
+      renderDropdown();
+    } else if (e.key === "Escape") {
+      closeDropdown();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const chosen =
+        activeIdx >= 0 && activeIdx < suggestions.length
+          ? suggestions[activeIdx].name
+          : input.value.trim();
+      if (!chosen) return;
+      input.value = "";
+      closeDropdown();
+      commit(chosen);
+    }
+  });
+
+  wrapper.appendChild(input);
+  wrapper.appendChild(dropdown);
+  return wrapper;
+}
+
+
+// ── Things Library ──
+//
+// Per `Explore/Control/ThingsLibrary/language.md`: every @thing the user has
+// named lives here, persistent across sessions. Click a pill to #activate it
+// into AttractorControl (the slice recomputes as if just typed). Press × to
+// #delete from the library entirely (with confirmation). #search filters the
+// pills by substring; #fold collapses the section to its header.
+
+function buildThingsLibrarySection(section: HTMLElement, body: HTMLElement): void {
+  // Search row — toggled by clicking the magnifier in the header.
+  const searchRow = document.createElement("div");
+  searchRow.className = "library-search-row";
+  searchRow.style.display = "none";
+
+  const searchInput = document.createElement("input");
+  searchInput.type = "text";
+  searchInput.className = "pill-input";
+  searchInput.placeholder = "filter library...";
+  searchRow.appendChild(searchInput);
+  body.appendChild(searchRow);
+
+  const holder = document.createElement("div");
+  holder.className = "pill-holder library-holder";
+  body.appendChild(holder);
+
+  let searchQuery = "";
+
+  const render = () => {
+    holder.innerHTML = "";
+
+    const sorted = [...state.thingsLibrary].sort((a, b) => a.localeCompare(b));
+    const filtered = searchQuery
+      ? sorted.filter((n) => n.toLowerCase().includes(searchQuery))
+      : sorted;
+
+    if (filtered.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "library-empty";
+      empty.textContent = state.thingsLibrary.length === 0
+        ? "things you name will appear here"
+        : "no matches";
+      holder.appendChild(empty);
+      return;
+    }
+
+    for (const name of filtered) {
+      const isActive = state.attractors.some((a) => a.kind === "thing" && a.ref === name);
+      const pill = document.createElement("span");
+      pill.className = "pill library-pill" + (isActive ? " active" : "");
+      pill.textContent = name;
+      pill.title = isActive
+        ? `${name} (active in Attract — click here is a no-op; remove via × in Attract)`
+        : `click to activate as an attractor`;
+
+      pill.addEventListener("click", (e) => {
+        if ((e.target as HTMLElement).classList.contains("pill-remove")) return;
+        if (isActive) return;
+        state.attractors.push({ kind: "thing", ref: name });
+        renderAttractPills?.();
+        render();
+        recomputeSliceAndLayout().catch((err) => console.error("[library activate]", err));
+      });
+
+      const remove = document.createElement("span");
+      remove.className = "pill-remove";
+      remove.textContent = "\u00d7";
+      remove.title = "delete from library (cannot be undone)";
+      remove.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete "${name}" from the things library?`)) return;
+        state.thingsLibrary = state.thingsLibrary.filter((n) => n !== name);
+        // If active, also deactivate so we don't keep a name we've forgotten.
+        const wasActive = state.attractors.some((a) => a.kind === "thing" && a.ref === name);
+        state.attractors = state.attractors.filter(
+          (a) => !(a.kind === "thing" && a.ref === name),
+        );
+        render();
+        renderAttractPills?.();
+        api.removeThingFromLibrary(name)
+          .then((names) => {
+            state.thingsLibrary = names;
+            render();
+          })
+          .catch((err) => console.error("[library] remove failed:", err));
+        if (wasActive) {
+          recomputeSliceAndLayout().catch((err) => console.error("[library delete]", err));
+        }
+      });
+      pill.appendChild(remove);
+      holder.appendChild(pill);
+    }
+  };
+
+  // Wire fold / search affordances into the section header.
+  const header = section.querySelector(".section-header");
+  if (header) {
+    const tools = document.createElement("span");
+    tools.className = "library-header-tools";
+
+    const searchBtn = document.createElement("span");
+    searchBtn.className = "library-tool";
+    searchBtn.textContent = "\u2315"; // ⌕ search
+    searchBtn.title = "search library";
+    searchBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const showing = searchRow.style.display !== "none";
+      searchRow.style.display = showing ? "none" : "";
+      if (!showing) searchInput.focus();
+      else { searchInput.value = ""; searchQuery = ""; render(); }
+    });
+
+    tools.appendChild(searchBtn);
+    header.appendChild(tools);
+  }
+
+  searchInput.addEventListener("input", () => {
+    searchQuery = searchInput.value.trim().toLowerCase();
+    render();
+  });
+
+  renderLibraryPills = render;
+  render();
+}
+
+
 // ── Attractors (things that bend the SpaceLike gravity field) ──
 
 function buildAttractSection(body: HTMLElement): void {
@@ -366,10 +703,13 @@ function buildAttractSection(body: HTMLElement): void {
     holder.querySelectorAll(".pill").forEach((el) => el.remove());
     for (let i = 0; i < state.attractors.length; i++) {
       const att = state.attractors[i];
+      // TargetImage attractors are not represented as pills — the radial
+      // layout itself (your image at the centre) is the visible affordance.
+      // Press Escape (handled in main.ts) to release the target.
+      if (att.kind === "target_image") continue;
       const pill = document.createElement("span");
       pill.className = "pill";
-      pill.textContent = att.kind === "target_image" ? "\u25CE image" : att.ref;
-      if (att.kind === "target_image") pill.title = att.ref;
+      pill.textContent = att.ref;
       const remove = document.createElement("span");
       remove.className = "pill-remove";
       remove.textContent = "\u00d7";
@@ -377,6 +717,7 @@ function buildAttractSection(body: HTMLElement): void {
       remove.addEventListener("click", () => {
         state.attractors.splice(idx, 1);
         renderPills();
+        renderLibraryPills?.();  // active state of library pill changes
         recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
       });
       pill.appendChild(remove);
@@ -384,25 +725,49 @@ function buildAttractSection(body: HTMLElement): void {
     }
   };
 
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "pill-input";
-  input.placeholder = "type a thing, press enter...";
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
-      state.attractors.push({ kind: "thing", ref: text });
-      input.value = "";
-      renderPills();
-      recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
-    }
+  const inputWrapper = createAttractInput((name: string) => {
+    captureInLibrary(name);
+    if (state.attractors.some((a) => a.kind === "thing" && a.ref === name)) return;
+    state.attractors.push({ kind: "thing", ref: name });
+    renderPills();
+    recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
   });
 
-  holder.appendChild(input);
+  holder.appendChild(inputWrapper);
   body.appendChild(holder);
+  renderAttractPills = renderPills;
   renderPills();
+
+  // Relevance slider — how strictly the named things gate the slice.
+  // Per spec (Neighborhood/language.md): "distinctness of neighborhoods
+  // comes from the @slice's @relevanceFilter, not from spatial separation."
+  // This slider controls that membrane's permissiveness.
+  const relevanceGroup = document.createElement("div");
+  relevanceGroup.className = "control-group relevance-group";
+
+  const relevanceLabel = document.createElement("label");
+  relevanceLabel.textContent = "Relevance";
+  relevanceGroup.appendChild(relevanceLabel);
+
+  const relevanceSlider = document.createElement("input");
+  relevanceSlider.type = "range";
+  relevanceSlider.className = "thin-slider";
+  relevanceSlider.min = "0";
+  relevanceSlider.max = "1";
+  relevanceSlider.step = "0.05";
+  relevanceSlider.value = String(state.relevance);
+  relevanceSlider.addEventListener("change", () => {
+    state.relevance = parseFloat(relevanceSlider.value);
+    recomputeSliceAndLayout().catch((e) => console.error("Relevance change failed:", e));
+  });
+  relevanceGroup.appendChild(relevanceSlider);
+
+  const relevanceLabels = document.createElement("div");
+  relevanceLabels.className = "slider-labels";
+  relevanceLabels.innerHTML = "<span>loose</span><span>strict</span>";
+  relevanceGroup.appendChild(relevanceLabels);
+
+  body.appendChild(relevanceGroup);
 }
 
 
@@ -445,7 +810,6 @@ function buildContrastsSection(body: HTMLElement): void {
     state.contrastControls.push({
       pole_a: `a photograph that is ${a}`,
       pole_b: `a photograph that is ${b}`,
-      role: "filter",
       band_min: -1.0,
       band_max: 1.0,
     });
@@ -672,6 +1036,14 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   const counts = modelsRes.counts;
   const total = modelsRes.total;
 
+  // Load vocabulary in the background — autocomplete uses it when ready,
+  // and free-text typing works either way per !taxonomy-is-scaffolding.
+  if (vocabulary.length === 0) {
+    api.getVocabularyFlat()
+      .then((terms) => { vocabulary = terms; })
+      .catch((e) => console.error("[vocabulary]", e));
+  }
+
   // --- Left panel: start folded, keep dimension sliders for advanced use ---
   const slicePanel = document.getElementById("slice-panel")!;
   slicePanel.innerHTML = "<h3>Slice</h3>";
@@ -787,6 +1159,16 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   buildLayersSection(layers.body);
   panel.appendChild(layers.section);
 
+  // ThingsLibrary — sits ABOVE Attract per spec; persists across sessions.
+  // Initial fold state restored from localStorage; toggling persists.
+  const library = createSection("Things", state.thingsLibraryFolded);
+  buildThingsLibrarySection(library.section, library.body);
+  library.section.querySelector(".section-header")?.addEventListener("click", () => {
+    state.thingsLibraryFolded = library.section.classList.contains("collapsed");
+    persistLibraryFolded();
+  });
+  panel.appendChild(library.section);
+
   // Attract section
   const attract = createSection("Attract");
   buildAttractSection(attract.body);
@@ -810,15 +1192,18 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   // Settings section (collapsed by default)
   const settings = createSection("Settings", true);
 
-  // Feathering — soft vs hard edge of attractor neighborhoods
+  // Gravity softness — softmax temperature over attractor pulls in SpaceLike.
+  // Distinct from Relevance (slice membrane): this one shapes how sharply
+  // neighborhoods compete for cells inside the already-gated field.
   const featherGroup = document.createElement("div");
   featherGroup.className = "control-group";
   const featherLabel = document.createElement("label");
-  featherLabel.textContent = "Feather";
+  featherLabel.textContent = "Gravity softness";
   featherGroup.appendChild(featherLabel);
 
   const featherSlider = document.createElement("input");
   featherSlider.type = "range";
+  featherSlider.className = "thin-slider";
   featherSlider.min = "0";
   featherSlider.max = "1";
   featherSlider.step = "0.05";

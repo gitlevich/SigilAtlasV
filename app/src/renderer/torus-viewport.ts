@@ -32,8 +32,12 @@ import { MidAtlas } from "./mid-atlas";
 
 // Four-tier resolution thresholds, in CSS pixels of rendered cell height.
 // Overview (15px) is always the base; higher tiers overdraw when available.
-const TIER_MID_PX = 30;      // mid-atlas (32px) when cell > this
-const TIER_ATLAS_PX = 80;    // streamed per-image atlas (96px) when cell > this
+// Thresholds sit slightly *below* each tier's source resolution so the
+// up-tier kicks in before perceptible upscale-blur sets in. Previously
+// TIER_ATLAS_PX=80 left a wide blurry band where 70px cells were drawn from
+// 32px mid-atlas tiles (2.2× upscale, very visible).
+const TIER_MID_PX = 20;      // mid-atlas (32px) when cell > this
+const TIER_ATLAS_PX = 55;    // streamed per-image atlas (96px) when cell > this
 const PREVIEW_THRESHOLD = 200; // 1024px preview when cell > this
 const TWEEN_MS = 500;
 

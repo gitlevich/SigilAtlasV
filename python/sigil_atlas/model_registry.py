@@ -165,12 +165,19 @@ class CLIPLargeAdapter(ModelAdapter):
 
 
 class DINOv2Adapter(ModelAdapter):
-    """DINOv2 ViT-B/14 — 768-dim, visual only, bridges through CLIP L-14."""
+    """DINOv2 ViT-B/14 — 768-dim, visual only, bridges through CLIP B-32.
+
+    B-32 is the default bridge because (a) it's smaller and faster to
+    encode and (b) workspaces tend to have full B-32 coverage by default,
+    while L-14 is opt-in and often partial. Bridge precision is bounded by
+    the seed-image step, not by which CLIP variant runs — the difference
+    between B-32 and L-14 as a bridge is below the noise floor here.
+    """
 
     model_id = "dinov2-vitb14"
     dimension = 768
     supports_text = False
-    bridge_model_id = "clip-vit-l-14"
+    bridge_model_id = "clip-vit-b-32"
 
     def encode_text(self, text: str) -> np.ndarray:
         raise ValueError("DINOv2 has no text encoder — use resolve_text_vector()")

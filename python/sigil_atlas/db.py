@@ -82,6 +82,11 @@ CREATE TABLE IF NOT EXISTS characterizations (
     PRIMARY KEY (image_id, proximity_name)
 );
 CREATE INDEX IF NOT EXISTS idx_characterizations_name ON characterizations(proximity_name, value_type);
+
+CREATE TABLE IF NOT EXISTS things_library (
+    name TEXT PRIMARY KEY,
+    created_at REAL NOT NULL
+);
 """
 
 
@@ -302,6 +307,15 @@ class CorpusDB:
         ).fetchall()
         return [(r[0], r[1]) for r in rows]
 
+    def fetch_completed_images_with_paths(self) -> list[tuple[str, str]]:
+        """Return (id, source_path) for every completed image. Used by the
+        preview-regeneration sweep — touches every image, not just ones
+        missing artifacts."""
+        rows = self._conn.execute(
+            "SELECT id, source_path FROM images WHERE completed_at IS NOT NULL"
+        ).fetchall()
+        return [(r[0], r[1]) for r in rows]
+
     def fetch_images_without_metadata(self) -> list[tuple[str, str]]:
         """Return (id, source_path) for images missing metadata extraction."""
         rows = self._conn.execute(
@@ -314,6 +328,23 @@ class CorpusDB:
             "SELECT source_path FROM images WHERE id = ?", (image_id,)
         ).fetchone()
         return row[0] if row else None
+
+    def fetch_image_metadata(self, image_id: str) -> dict | None:
+        """Return all metadata columns for one image, or None if unknown.
+
+        Powers the Lightbox metadata overlay — everything the image knows about
+        itself that lives in the DB. Source path and EXIF-derived fields.
+        """
+        row = self._conn.execute(
+            """SELECT id, source_path, capture_date, pixel_width, pixel_height,
+                      gps_latitude, gps_longitude, camera_model, lens_model,
+                      focal_length, aperture, shutter_speed, iso
+               FROM images WHERE id = ?""",
+            (image_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return dict(row)
 
     # ── Embeddings ──
 
@@ -506,6 +537,26 @@ class CorpusDB:
             (model, k),
         ).fetchall()
         return {r[0]: r[1] for r in rows}
+
+    # ── Things library ──
+
+    def list_things_library(self) -> list[str]:
+        """Return all thing names, sorted by creation time."""
+        rows = self._conn.execute(
+            "SELECT name FROM things_library ORDER BY created_at ASC"
+        ).fetchall()
+        return [r[0] for r in rows]
+
+    def add_thing_to_library(self, name: str) -> None:
+        self._conn.execute(
+            "INSERT OR IGNORE INTO things_library (name, created_at) VALUES (?, ?)",
+            (name, time.time()),
+        )
+        self._conn.commit()
+
+    def remove_thing_from_library(self, name: str) -> None:
+        self._conn.execute("DELETE FROM things_library WHERE name = ?", (name,))
+        self._conn.commit()
 
     def fetch_uncharacterized_image_ids(self) -> list[str]:
         """Return image IDs that have CLIP embeddings but no characterizations."""

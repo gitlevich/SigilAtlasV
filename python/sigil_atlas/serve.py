@@ -11,14 +11,15 @@ import mimetypes
 import socket
 import sys
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
 from sigil_atlas.db import CorpusDB
 from sigil_atlas.embedding_provider import SqliteEmbeddingProvider
 from sigil_atlas.layout import compute_layout
 from sigil_atlas.model_registry import get_adapter
-from sigil_atlas.slice import RangeFilter, ProximityFilter, ContrastControl, compute_slice
+from sigil_atlas.relevance_filter import Contrast as FilterContrast, parse as parse_filter, thing_atoms, target_image_atoms, walk as walk_filter
+from sigil_atlas.slice import compute_slice
 from sigil_atlas.overview import (
     generate_mid_atlas,
     generate_overview,
@@ -182,8 +183,29 @@ class RequestHandler(BaseHTTPRequestHandler):
             image_id = self.path[len("/preview/"):]
             preview_path = _state.workspace.previews_dir / f"{image_id}.jpg"
             self._send_file(preview_path)
+        elif self.path.startswith("/image/info/"):
+            image_id = self.path[len("/image/info/"):]
+            meta = _state.db.fetch_image_metadata(image_id)
+            if meta is None:
+                self._send_json({"error": "unknown image"}, 404)
+            else:
+                self._send_json(meta)
+        elif self.path.startswith("/image/source/"):
+            # Serve the original file from @source if it's still on disk.
+            # Powers the @Lightbox's full-resolution swap-in; falls back to
+            # the preview when the source is disconnected.
+            image_id = self.path[len("/image/source/"):]
+            src = _state.db.fetch_image_source_path(image_id)
+            if src is None:
+                self.send_response(204)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+            else:
+                self._send_file(Path(src))
         elif self.path == "/ingest/progress":
             self._send_json(_state.ingest.progress())
+        elif self.path == "/things/library":
+            self._send_json({"names": _state.db.list_things_library()})
         elif self.path == "/overview/index":
             self._handle_overview_index()
         elif self.path == "/overview/atlas":
@@ -209,6 +231,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_neighborhoods()
             elif self.path == "/things":
                 self._handle_things()
+            elif self.path == "/things/library/add":
+                self._handle_things_library_add()
+            elif self.path == "/things/library/remove":
+                self._handle_things_library_remove()
             elif self.path == "/corpus/nuke":
                 self._handle_corpus_nuke()
             elif self.path == "/ingest/start":
@@ -221,6 +247,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_pixel_features()
             elif self.path == "/tools/embed-missing":
                 self._handle_embed_missing()
+            elif self.path == "/tools/regenerate-previews":
+                self._handle_regenerate_previews()
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as e:
@@ -335,6 +363,50 @@ class RequestHandler(BaseHTTPRequestHandler):
         _state.ingest.thread.start()
         self._send_json({"status": "started"})
 
+    def _handle_regenerate_previews(self):
+        """Sweep all completed images and regenerate any preview whose larger
+        dimension is below PREVIEW_MAX_SIZE. Idempotent — images already at
+        the target are no-ops. Upgrades legacy workspaces to the current tier.
+        """
+        if _state.ingest.is_running:
+            self._send_json({"error": "import already running"}, 409)
+            return
+
+        import threading
+        from sigil_atlas.cancel import CancellationToken
+        from sigil_atlas.progress import BufferedProgressReporter
+        from sigil_atlas.ingest.thumbnail import _generate_one
+
+        items = _state.db.fetch_completed_images_with_paths()
+
+        _state.ingest.token = CancellationToken()
+        _state.ingest.reporter = BufferedProgressReporter()
+        _state.ingest.reporter.emit_event("pipeline_started", source="regenerate_previews")
+
+        def run():
+            db = None
+            try:
+                db = _state.workspace.open_db()
+                progress = _state.ingest.reporter.create_stage("regenerate_previews", len(items))
+                previews_dir = _state.workspace.previews_dir
+                thumbnails_dir = _state.workspace.thumbnails_dir
+                for image_id, source_path in items:
+                    if _state.ingest.token.is_cancelled:
+                        break
+                    _generate_one(db, image_id, Path(source_path), thumbnails_dir, previews_dir)
+                    progress.advance(1)
+                _state.ingest.reporter.emit_event("pipeline_completed")
+            except Exception:
+                logger.error("Preview regeneration failed", exc_info=True)
+                _state.ingest.reporter.emit_event("pipeline_error")
+            finally:
+                if db is not None:
+                    db.close()
+
+        _state.ingest.thread = threading.Thread(target=run, daemon=True, name="regenerate-previews")
+        _state.ingest.thread.start()
+        self._send_json({"status": "started", "count": len(items)})
+
     def _handle_dimensions(self):
         """Return range characterization dimensions with their min/max.
 
@@ -370,41 +442,34 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def _handle_slice(self):
         data = self._read_json()
-        range_filters = [
-            RangeFilter(dimension=f["dimension"], min_value=f["min"], max_value=f["max"])
-            for f in data.get("range_filters", [])
-        ]
-        proximity_filters = [
-            ProximityFilter(text=f["text"], weight=f.get("weight", 1.0))
-            for f in data.get("proximity_filters", [])
-        ]
-        contrast_controls = [
-            ContrastControl(
-                pole_a=c["pole_a"], pole_b=c["pole_b"],
-                role=c.get("role", "filter"),
-                band_min=c.get("band_min", -1.0),
-                band_max=c.get("band_max", 1.0),
-            )
-            for c in data.get("contrast_controls", [])
-        ]
+        filter_expr = parse_filter(data.get("filter"))
+        relevance = float(data.get("relevance", 0.5))
         model = data.get("model", "clip-vit-l-14")
-        feathering = data.get("feathering", 0.5)
 
-        # Validate model via registry — fail loudly if unknown
+        order_node = data.get("order_contrast")
+        order_contrast = None
+        if order_node:
+            order_contrast = FilterContrast(
+                pole_a=order_node["pole_a"],
+                pole_b=order_node["pole_b"],
+            )
+
         try:
             get_adapter(model)
         except ValueError as e:
             self._send_json({"error": str(e)}, 400)
             return
 
-        logger.info("Slice request: model=%s, feathering=%.2f, proximity=%s", model, feathering, [f["text"] for f in data.get("proximity_filters", [])])
+        logger.info("Slice request: model=%s, relevance=%.2f, filter=%s",
+                    model, relevance, data.get("filter"))
 
         result = compute_slice(
             _state.db, _state.provider,
-            range_filters, proximity_filters, contrast_controls, model,
-            feathering=feathering,
+            filter_expr, model,
+            relevance=relevance,
+            order_contrast=order_contrast,
         )
-        # Return order values: contrast projections if order axis active, else capture dates
+
         if result.order_projections is not None:
             order_values = result.order_projections
         else:
@@ -461,24 +526,40 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def _handle_spacelike(self):
         data = self._read_json()
-        image_ids = data.get("image_ids") or _state.db.fetch_image_ids()
         model = data.get("model", "clip-vit-l-14")
         feathering = data.get("feathering", 0.5)
         cell_size = data.get("cell_size", 100.0)
-        attractors = [
-            Attractor(kind=a["kind"], ref=a["ref"])
-            for a in data.get("attractors", [])
-        ]
-        contrasts = [
-            ContrastAxis(pole_a=c.get("pole_a", ""), pole_b=c.get("pole_b", ""))
-            for c in data.get("contrasts", [])
-        ]
+        relevance = float(data.get("relevance", 0.5))
 
         try:
             get_adapter(model)
         except ValueError as e:
             self._send_json({"error": str(e)}, 400)
             return
+
+        # Single expression, three roles: gates image_ids, names attractors,
+        # names contrasts that shape proximity. Per spec, one sigil with faces.
+        filter_expr = parse_filter(data.get("filter"))
+        slice_result = compute_slice(
+            _state.db, _state.provider, filter_expr, model,
+            relevance=relevance,
+        )
+        image_ids = slice_result.image_ids
+
+        # Thing and TargetImage atoms become gravity anchors.
+        attractors = [
+            Attractor(kind="thing", ref=t.name) for t in thing_atoms(filter_expr)
+        ] + [
+            Attractor(kind="target_image", ref=ti.image_id)
+            for ti in target_image_atoms(filter_expr)
+        ]
+
+        # Every named Contrast contributes a direction to proximity subspace.
+        # Unnamed contrasts are in superposition and do not contribute.
+        contrasts = [
+            ContrastAxis(pole_a=c.pole_a, pole_b=c.pole_b)
+            for c in walk_filter(filter_expr) if isinstance(c, FilterContrast)
+        ]
 
         layout = compute_spacelike(
             _state.provider, _state.db, image_ids,
@@ -579,6 +660,24 @@ class RequestHandler(BaseHTTPRequestHandler):
         logger.info("Neighborhoods: k=%d, %d/%d assigned", k, len(cluster_ids), len(image_ids))
         self._send_json({"k": k, "cluster_ids": cluster_ids})
 
+    def _handle_things_library_add(self):
+        data = self._read_json()
+        name = (data.get("name") or "").strip()
+        if not name:
+            self._send_json({"error": "missing 'name'"}, 400)
+            return
+        _state.db.add_thing_to_library(name)
+        self._send_json({"names": _state.db.list_things_library()})
+
+    def _handle_things_library_remove(self):
+        data = self._read_json()
+        name = (data.get("name") or "").strip()
+        if not name:
+            self._send_json({"error": "missing 'name'"}, 400)
+            return
+        _state.db.remove_thing_from_library(name)
+        self._send_json({"names": _state.db.list_things_library()})
+
     def _handle_things(self):
         data = self._read_json()
         terms = data.get("terms", [])
@@ -649,7 +748,10 @@ def main():
     # CLIP model loads lazily on first text encode
 
     port = args.port or _find_free_port()
-    server = HTTPServer(("127.0.0.1", port), RequestHandler)
+    # ThreadingHTTPServer handles requests concurrently — a preview fetch
+    # (megabytes) must not block small JSON endpoints, and the frontend's
+    # 16 parallel preview loads must not serialize behind each other.
+    server = ThreadingHTTPServer(("127.0.0.1", port), RequestHandler)
 
     # Print port on first line for Tauri to read
     print(port, flush=True)
