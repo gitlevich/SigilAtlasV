@@ -1,4 +1,6 @@
 use crate::SidecarState;
+use base64::Engine;
+use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::State;
@@ -67,6 +69,101 @@ pub async fn start_sidecar(
     *state.process.lock().await = Some(child);
     *state.workspace.lock().await = Some(ws);
     Ok(port)
+}
+
+#[derive(Serialize)]
+pub struct SigilEntry {
+    pub name: String,
+    pub folder_path: String,
+    pub preview_data_url: Option<String>,
+    pub modified_at: Option<f64>,
+}
+
+/// List `.sigil` directories one level under `workspace`. Each entry carries
+/// the display name (from `collage.json` → `name`, falling back to the folder
+/// stem) and the preview image as an inline data URL so the webview can render
+/// it without a file-protocol or asset-scope round-trip.
+#[tauri::command]
+pub async fn list_sigils(workspace: String) -> Result<Vec<SigilEntry>, String> {
+    let root = PathBuf::from(&workspace);
+    if !root.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut out: Vec<SigilEntry> = Vec::new();
+    let entries = std::fs::read_dir(&root).map_err(|e| format!("read_dir failed: {e}"))?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let ext_is_sigil = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .map(|s| s.eq_ignore_ascii_case("sigil"))
+            .unwrap_or(false);
+        if !ext_is_sigil {
+            continue;
+        }
+
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+
+        let manifest_path = path.join("collage.json");
+        let name = std::fs::read_to_string(&manifest_path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .and_then(|v| v.get("name").and_then(|n| n.as_str()).map(String::from))
+            .unwrap_or_else(|| stem.clone());
+
+        let modified_at = std::fs::metadata(&manifest_path)
+            .or_else(|_| std::fs::metadata(&path))
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs_f64());
+
+        let preview_path = path.join("preview.png");
+        let preview_data_url = std::fs::read(&preview_path).ok().map(|bytes| {
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            format!("data:image/png;base64,{b64}")
+        });
+
+        out.push(SigilEntry {
+            name,
+            folder_path: path.to_string_lossy().to_string(),
+            preview_data_url,
+            modified_at,
+        });
+    }
+
+    out.sort_by(|a, b| {
+        b.modified_at
+            .partial_cmp(&a.modified_at)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    Ok(out)
+}
+
+/// Delete a `.sigil` directory. Refuses anything without the `.sigil`
+/// extension to reduce blast radius of a mis-wired caller.
+#[tauri::command]
+pub async fn delete_sigil(folder_path: String) -> Result<(), String> {
+    let path = PathBuf::from(&folder_path);
+    let ext_is_sigil = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.eq_ignore_ascii_case("sigil"))
+        .unwrap_or(false);
+    if !ext_is_sigil {
+        return Err(format!("refusing to delete non-.sigil path: {folder_path}"));
+    }
+    if !path.is_dir() {
+        return Err(format!("not a directory: {folder_path}"));
+    }
+    std::fs::remove_dir_all(&path).map_err(|e| format!("delete failed: {e}"))
 }
 
 #[tauri::command]

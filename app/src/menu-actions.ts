@@ -30,6 +30,7 @@ export async function actImportPhotos(): Promise<void> {
   }
 }
 
+
 // ── Mode ─────────────────────────────────────────────────────────────────
 
 export function actModeSpacelike(): void {
@@ -195,6 +196,24 @@ export function actToggleSidebar(): void {
   if (panel.classList.contains("folded")) {
     panel.style.width = "";
     panel.style.minWidth = "";
+  }
+}
+
+/** Toggle both side panels as a unit. If either is visible, hide both; if
+ *  both are hidden, show both. Bound to Ctrl+Tab. */
+export function actToggleBothPanels(): void {
+  const left = document.getElementById("slice-panel");
+  const right = document.getElementById("neighborhood-panel");
+  if (!left || !right) return;
+  const anyOpen = !left.classList.contains("folded") || !right.classList.contains("folded");
+  for (const p of [left, right]) {
+    if (anyOpen) {
+      p.classList.add("folded");
+      p.style.width = "";
+      p.style.minWidth = "";
+    } else {
+      p.classList.remove("folded");
+    }
   }
 }
 

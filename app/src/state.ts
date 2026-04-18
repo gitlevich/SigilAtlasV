@@ -90,6 +90,18 @@ export interface AppState {
   // Collages — saved views (SigilML expression + camera + arrangement params).
   // Loaded from the workspace on init; refreshed on save/rename/delete.
   collages: api.CollageSummary[];
+
+  // Sigils (.sigil subdirectories of the @Workspace). Each is a self-contained
+  // saved context. Populated by scanning the workspace directory on startup
+  // and after save. Null until the first scan completes.
+  workspaceSigils: SigilEntry[];
+}
+
+export interface SigilEntry {
+  name: string;
+  folder_path: string;
+  preview_data_url: string | null;
+  modified_at: number | null;
 }
 
 export interface LightboxState {
@@ -194,9 +206,45 @@ export const state: AppState = {
   lastError: null,
   lightbox: { imageId: null, entryPov: null, showMetadata: false },
   collages: [],
+  workspaceSigils: [],
   fieldExpansion: "echo",
   arrangement: "rings",
 };
+
+const SIGILS_FOLDER_KEY = "sigil-atlas.sigils-folder";
+
+/** The user-chosen directory where `.sigil` archives live. Distinct from the
+ *  sidecar's data-store workspace: this one only controls the left-panel
+ *  listing, not the corpus DB or image cache. Null until the user picks. */
+export function currentSigilsFolder(): string | null {
+  try {
+    return localStorage.getItem(SIGILS_FOLDER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setSigilsFolder(path: string): void {
+  try {
+    localStorage.setItem(SIGILS_FOLDER_KEY, path);
+  } catch (e) {
+    console.error("[sigils folder] persist failed:", e);
+  }
+}
+
+/** Scan the sigils folder for `.sigil` subdirectories. No-op outside Tauri. */
+export async function refreshWorkspaceSigils(): Promise<void> {
+  const folder = currentSigilsFolder();
+  if (!folder) { state.workspaceSigils = []; notify(); return; }
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    state.workspaceSigils = await invoke<SigilEntry[]>("list_sigils", { workspace: folder });
+  } catch (e) {
+    console.error("[sigils] list failed:", e);
+    state.workspaceSigils = [];
+  }
+  notify();
+}
 
 /** Refresh state.collages from the workspace. Call after any save/rename/delete. */
 export async function refreshCollages(): Promise<void> {

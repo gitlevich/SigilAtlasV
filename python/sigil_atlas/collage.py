@@ -274,6 +274,12 @@ def write_collage(
     cell_size: float,
     image_ids: list[str],
     screenshot_base64: str | None,
+    field_expansion: str = "echo",
+    arrangement: str = "rings",
+    time_direction: str = "capture_date",
+    strip_height: float = 100.0,
+    torus_width: float = 0.0,
+    torus_height: float = 0.0,
 ) -> None:
     """Materialise a collage as a `.sigil` directory with the spec's shape:
 
@@ -284,7 +290,7 @@ def write_collage(
     folder.mkdir(parents=True, exist_ok=False)
 
     manifest = {
-        "version": 1,
+        "version": 2,
         "name": name,
         "saved_at": time.time(),
         "expression": expression,
@@ -294,6 +300,12 @@ def write_collage(
         "relevance": relevance,
         "feathering": feathering,
         "cell_size": cell_size,
+        "field_expansion": field_expansion,
+        "arrangement": arrangement,
+        "time_direction": time_direction,
+        "strip_height": strip_height,
+        "torus_width": torus_width,
+        "torus_height": torus_height,
         "image_ids": image_ids,
     }
     (folder / "collage.json").write_text(json.dumps(manifest, indent=2))

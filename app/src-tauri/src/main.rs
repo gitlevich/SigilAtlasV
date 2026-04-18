@@ -36,6 +36,8 @@ fn main() {
             commands::proxy_get,
             commands::proxy_post,
             commands::drain_pending_opens,
+            commands::list_sigils,
+            commands::delete_sigil,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
