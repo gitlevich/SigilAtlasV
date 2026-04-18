@@ -433,7 +433,7 @@ async function fetchAndSetNeighborhoods(): Promise<void> {
 }
 
 
-// ── Layers (Photos / Wireframe / Relief) ──
+// ── Layers (Photos / Neighborhoods) ──
 
 function buildLayersSection(body: HTMLElement): void {
   const row = document.createElement("div");
