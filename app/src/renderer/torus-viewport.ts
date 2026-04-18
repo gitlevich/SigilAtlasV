@@ -290,22 +290,6 @@ export class TorusViewport {
   setLayers(layers: LayerToggles): void { this.layers = { ...layers }; }
   setReliefScale(scale: number): void { this.reliefScale = scale; }
 
-  /** Drive WebGL clear colour from the ambient tonal aggregate
-   *  (see ambient-light.ts). luma ∈ [0, 1], warmth ∈ [-1, 1] cool→warm.
-   *  Matches the body background formula in styles.css so the gel reads
-   *  continuous across the canvas boundary. */
-  setAmbientTint(luma: number, warmth: number): void {
-    // HSL-ish math inline: hue 240° cool → ~185° neutral → 135° warm, but
-    // we don't need the full colour wheel. A small offset on the R and B
-    // channels produces the felt warm/cool shift without looking tinted.
-    const l = Math.max(0, Math.min(1, luma)) * 0.18; // match CSS: 18% max
-    const w = Math.max(-1, Math.min(1, warmth));
-    const r = l * (1.0 + w * 0.4);
-    const g = l * 1.0;
-    const b = l * (1.0 - w * 0.4);
-    this.gl.clearColor(r, g, b, 1.0);
-  }
-
   setLayout(layout: AnyLayout): void {
     if (isSpaceLikeLayout(layout)) this._setGridLayout(layout);
     else this._setStripLayout(layout);

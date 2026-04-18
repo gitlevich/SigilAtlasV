@@ -82,12 +82,6 @@ export interface AppState {
   // antipode.
   arrangement: "rings" | "field" | "axis";
 
-  // Tonal data — per-image [brightness, color_temperature] for every image
-  // in the corpus that has pixel features. Fetched once on startup, used
-  // every frame to compute the ambient tint under the current viewport per
-  // the @Lighting light-follows-attention coupling.
-  tonal: Record<string, [number, number]>;
-
   // Lightbox — one image inhabited in isolation. While open, the @slice,
   // @arrangement and @control are not recomputing; the field is frozen.
   // See sigil_atlas.sigil/Explore/Lightbox.
@@ -199,7 +193,6 @@ export const state: AppState = {
   importProgress: null,
   lastError: null,
   lightbox: { imageId: null, entryPov: null, showMetadata: false },
-  tonal: {},
   collages: [],
   fieldExpansion: "echo",
   arrangement: "rings",
