@@ -6,7 +6,8 @@
  */
 
 import {
-  state, notify, subscribe, persistLibraryFolded,
+  state, notify, subscribe,
+  setPanelSectionCollapsed, setLeftPanelFolded, setRightPanelFolded, setRightPanelWidth,
   currentSigilsFolder, setSigilsFolder, refreshWorkspaceSigils,
 } from "../state";
 import * as api from "../api";
@@ -429,13 +430,20 @@ function worldCenterOfImage(layout: AnyLayout, id: string): { x: number; y: numb
 // ── Section builder ──
 
 function createSection(title: string, collapsed = false): { section: HTMLElement; body: HTMLElement } {
+  // Persisted workspace fold state trumps the section's own default.
+  const saved = state.panels.sections[title];
+  const initialCollapsed = saved ?? collapsed;
+
   const section = document.createElement("div");
-  section.className = "section" + (collapsed ? " collapsed" : "");
+  section.className = "section" + (initialCollapsed ? " collapsed" : "");
 
   const header = document.createElement("div");
   header.className = "section-header";
   header.textContent = title;
-  header.addEventListener("click", () => section.classList.toggle("collapsed"));
+  header.addEventListener("click", () => {
+    const isCollapsed = section.classList.toggle("collapsed");
+    setPanelSectionCollapsed(title, isCollapsed);
+  });
   section.appendChild(header);
 
   const body = document.createElement("div");
@@ -1380,7 +1388,7 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   // --- Left panel: Sigils (saved views) above the advanced dim sliders ---
   const slicePanel = document.getElementById("slice-panel")!;
   slicePanel.innerHTML = "";
-  slicePanel.classList.remove("folded");
+  slicePanel.classList.toggle("folded", state.panels.leftFolded);
 
   const leftHeader = document.createElement("div");
   leftHeader.className = "panel-header";
@@ -1391,6 +1399,7 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   leftCollapse.addEventListener("click", (e) => {
     e.stopPropagation();
     slicePanel.classList.add("folded");
+    setLeftPanelFolded(true);
   });
   leftHeader.appendChild(document.createElement("span"));
   leftHeader.appendChild(leftCollapse);
@@ -1402,6 +1411,7 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   leftUnfoldTab.addEventListener("click", (e) => {
     e.stopPropagation();
     slicePanel.classList.remove("folded");
+    setLeftPanelFolded(false);
   });
   slicePanel.parentElement!.insertBefore(leftUnfoldTab, slicePanel.nextSibling);
 
@@ -1420,6 +1430,13 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   // --- Right panel: Lightroom-style sections ---
   const panel = document.getElementById("neighborhood-panel")!;
   panel.innerHTML = "";
+  panel.classList.toggle("folded", state.panels.rightFolded);
+  // Restore user-dragged width. Null means "never resized" → use the CSS
+  // default by leaving inline styles unset.
+  if (state.panels.rightWidth !== null) {
+    panel.style.width = `${state.panels.rightWidth}px`;
+    panel.style.minWidth = `${state.panels.rightWidth}px`;
+  }
 
   // Gutter: resize by dragging, separate from the panel
   const gutter = document.getElementById("panel-gutter")!;
@@ -1430,12 +1447,14 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
     gutter.classList.add("dragging");
     const startX = e.clientX;
     const startWidth = panel.offsetWidth;
+    let lastWidth = startWidth;
 
     const onMove = (ev: PointerEvent) => {
       const delta = startX - ev.clientX;
       const newWidth = Math.max(180, Math.min(400, startWidth + delta));
       panel.style.width = `${newWidth}px`;
       panel.style.minWidth = `${newWidth}px`;
+      lastWidth = newWidth;
     };
 
     const onUp = () => {
@@ -1443,6 +1462,7 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
       gutter.removeEventListener("pointermove", onMove);
       gutter.removeEventListener("pointerup", onUp);
       gutter.removeEventListener("lostpointercapture", onUp);
+      setRightPanelWidth(lastWidth);
     };
 
     gutter.addEventListener("pointermove", onMove);
@@ -1457,6 +1477,7 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   unfoldTab.addEventListener("click", (e) => {
     e.stopPropagation();
     panel.classList.remove("folded");
+    setRightPanelFolded(false);
   });
   panel.parentElement!.appendChild(unfoldTab);
 
@@ -1474,6 +1495,7 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
     panel.style.width = "";
     panel.style.minWidth = "";
     panel.classList.add("folded");
+    setRightPanelFolded(true);
   });
   panelHeader.appendChild(panelTitle);
   panelHeader.appendChild(collapseBtn);
@@ -1508,13 +1530,9 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   panel.appendChild(layers.section);
 
   // ThingsLibrary — sits ABOVE Attract per spec; persists across sessions.
-  // Initial fold state restored from localStorage; toggling persists.
-  const library = createSection("Things", state.thingsLibraryFolded);
+  // Fold state flows through the general createSection → state.panels mechanism.
+  const library = createSection("Things");
   buildThingsLibrarySection(library.section, library.body);
-  library.section.querySelector(".section-header")?.addEventListener("click", () => {
-    state.thingsLibraryFolded = library.section.classList.contains("collapsed");
-    persistLibraryFolded();
-  });
   panel.appendChild(library.section);
 
   // Taxonomy browser — the sigil's tree, clickable. Picking a node turns

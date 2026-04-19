@@ -27,7 +27,13 @@ export interface AppState {
   // per `Explore/Control/ThingsLibrary/invariant-persistent`. Activation moves
   // a thing into AttractorControl; #delete removes it from the library entirely.
   thingsLibrary: string[];
-  thingsLibraryFolded: boolean;
+
+  // Panel chrome state — left/right panel folded, right panel width, every
+  // section's collapsed/expanded flag. Part of @Explore/invariant-persistent-
+  // state: reopening the workspace returns to the same panel layout the user
+  // left behind. Keyed by section title (stable, short, already used as the
+  // visible label).
+  panels: PanelState;
 
   // Relevance gate — how strictly semantic atoms (Thing, TargetImage) admit
   // images into the slice. [0, 1], 0 = loose, 1 = strict. Controlled by the
@@ -110,27 +116,38 @@ export interface LightboxState {
   showMetadata: boolean;
 }
 
+export interface PanelState {
+  leftFolded: boolean;
+  rightFolded: boolean;
+  // null ⇒ CSS default width; set to a pixel count once the user drags the
+  // gutter. Preserved independently of fold state so unfolding restores the
+  // last width.
+  rightWidth: number | null;
+  // Section title → collapsed. Created lazily on first toggle; absent
+  // entries fall back to the section's default.
+  sections: Record<string, boolean>;
+}
+
 type Listener = (state: AppState) => void;
 
 const listeners: Listener[] = [];
 
 // The library belongs to the @Workspace (per spec Explore/Control/
 // ThingsLibrary/invariant-persistent.md) and is persisted in the workspace
-// SQLite via /things/library endpoints. Only the folded/unfolded header state
-// stays in localStorage — it's a UI preference, not workspace data.
+// SQLite via /things/library endpoints. The folded/unfolded header state
+// lives inside state.panels.sections alongside every other section.
 const LIB_KEY_LEGACY = "sigil-atlas/things-library";
-const LIB_FOLDED_KEY = "sigil-atlas/things-library-folded";
+const LIB_FOLDED_KEY_LEGACY = "sigil-atlas/things-library-folded";
 
-function loadLibraryFolded(): boolean {
-  return localStorage.getItem(LIB_FOLDED_KEY) === "1";
-}
-
-export function persistLibraryFolded(): void {
+function drainLegacyThingsFolded(): boolean | null {
+  const raw = localStorage.getItem(LIB_FOLDED_KEY_LEGACY);
+  if (raw === null) return null;
   try {
-    localStorage.setItem(LIB_FOLDED_KEY, state.thingsLibraryFolded ? "1" : "0");
-  } catch (e) {
-    console.error("[library] persist folded failed:", e);
+    localStorage.removeItem(LIB_FOLDED_KEY_LEGACY);
+  } catch {
+    // Best-effort.
   }
+  return raw === "1";
 }
 
 /**
@@ -180,12 +197,19 @@ export async function initThingsLibrary(): Promise<void> {
   state.thingsLibrary = names;
 }
 
+function initialPanelState(): PanelState {
+  const legacyThings = drainLegacyThingsFolded();
+  const sections: Record<string, boolean> = {};
+  if (legacyThings !== null) sections["Things"] = legacyThings;
+  return { leftFolded: false, rightFolded: false, rightWidth: null, sections };
+}
+
 export const state: AppState = {
   attractors: [],
   contrastControls: [],
   rangeFilters: [],
   thingsLibrary: [],
-  thingsLibraryFolded: loadLibraryFolded(),
+  panels: initialPanelState(),
   relevance: 0.5,
   selectedAxes: [],
   feathering: 0.5,
@@ -286,6 +310,7 @@ export interface WorkspacePersistedState {
   layers: LayerToggles;
   reliefScale: number;
   pov: PointOfView;
+  panels: PanelState;
 }
 
 export function snapshotPersistentState(): WorkspacePersistedState {
@@ -302,13 +327,20 @@ export function snapshotPersistentState(): WorkspacePersistedState {
     layers: { ...state.layers },
     reliefScale: state.reliefScale,
     pov: { ...state.pov },
+    panels: {
+      leftFolded: state.panels.leftFolded,
+      rightFolded: state.panels.rightFolded,
+      rightWidth: state.panels.rightWidth,
+      sections: { ...state.panels.sections },
+    },
   };
 }
 
 /** Apply a persisted payload back into live state, in place. Called once at
  *  init before the first slice/layout so mode/model/etc take effect for the
  *  very first recompute. POV is applied separately after layout, because the
- *  initial framing depends on computed torus dimensions. */
+ *  initial framing depends on computed torus dimensions. Panel chrome is
+ *  applied too — initControls reads state.panels to build the DOM. */
 export function applyPersistedExceptPov(p: WorkspacePersistedState): void {
   state.mode = p.mode;
   state.arrangement = p.arrangement;
@@ -321,6 +353,17 @@ export function applyPersistedExceptPov(p: WorkspacePersistedState): void {
   state.relevance = p.relevance;
   state.layers = { ...p.layers };
   state.reliefScale = p.reliefScale;
+  if (p.panels) {
+    // Merge: persisted values take precedence; local legacy entries (e.g.
+    // the drained Things folded flag) remain for any sections the persisted
+    // blob doesn't mention.
+    state.panels = {
+      leftFolded: p.panels.leftFolded,
+      rightFolded: p.panels.rightFolded,
+      rightWidth: p.panels.rightWidth,
+      sections: { ...state.panels.sections, ...(p.panels.sections ?? {}) },
+    };
+  }
 }
 
 export async function loadPersistedState(): Promise<WorkspacePersistedState | null> {
@@ -338,6 +381,28 @@ export async function loadPersistedState(): Promise<WorkspacePersistedState | nu
 let persistTimer: number | null = null;
 let lastPersistedJson: string | null = null;
 const PERSIST_DEBOUNCE_MS = 400;
+
+/** Record a panel/section change and trigger a debounced save. Used by the
+ *  controls layer whenever the user folds a panel or collapses a section. */
+export function setPanelSectionCollapsed(title: string, collapsed: boolean): void {
+  state.panels.sections[title] = collapsed;
+  schedulePersist();
+}
+
+export function setLeftPanelFolded(folded: boolean): void {
+  state.panels.leftFolded = folded;
+  schedulePersist();
+}
+
+export function setRightPanelFolded(folded: boolean): void {
+  state.panels.rightFolded = folded;
+  schedulePersist();
+}
+
+export function setRightPanelWidth(width: number | null): void {
+  state.panels.rightWidth = width;
+  schedulePersist();
+}
 
 export function schedulePersist(): void {
   if (persistTimer !== null) return;
