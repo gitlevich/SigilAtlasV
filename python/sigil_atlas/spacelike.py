@@ -444,43 +444,54 @@ def _local_density(targets: np.ndarray, radius: float = 0.04) -> np.ndarray:
 # Grid sizing and recursive median split
 # ---------------------------------------------------------------------------
 
-def _pick_grid(n: int) -> tuple[int, int]:
-    """(rows, cols) with rows*cols >= n, minimising extras and aspect skew."""
+def _aspect_err(cols: int, rows: int, a: float) -> float:
+    """Log-ratio deviation of cols/rows from target aspect a. Zero when they
+    match; symmetric under shape flip for a=1 (so (2,5) and (5,2) are tied
+    at aspect=1), ordinal for a≠1 (so (3,4) is closer to 1.6 than (4,3))."""
+    return abs(math.log((cols / rows) / a))
+
+
+def _pick_grid(n: int, aspect: float = 1.0) -> tuple[int, int]:
+    """(rows, cols) with rows*cols >= n, minimising aspect deviation and
+    extras. Aspect first (bucketed to 0.1 in log-ratio) so the chosen shape
+    really matches the target; extras second, so among shapes with similar
+    aspect the tightest grid wins. Search ±2 cells around the aspect-seeded
+    shape."""
     if n <= 0:
         return (0, 0)
-    side = max(1, int(math.ceil(math.sqrt(n))))
-    best = (side, side)
-    best_score = (side * side - n, abs(side - side))
-    for rows in range(max(1, side - 2), side + 3):
-        for cols in range(max(1, rows - 2), rows + 3):
+    a = max(0.1, float(aspect))
+    rows_seed = max(1, int(round(math.sqrt(n / a))))
+    cols_seed = max(1, int(round(math.sqrt(n * a))))
+    best: tuple[int, int] | None = None
+    best_score: tuple[int, int] = (10**9, 10**9)
+    for rows in range(max(1, rows_seed - 2), rows_seed + 3):
+        for cols in range(max(1, cols_seed - 2), cols_seed + 3):
             if rows * cols < n:
                 continue
-            score = (rows * cols - n, abs(rows - cols))
-            if score < best_score:
+            bucket = int(round(_aspect_err(cols, rows, a) * 10))
+            score = (bucket, rows * cols - n)
+            if best is None or score < best_score:
                 best = (rows, cols)
                 best_score = score
-    return best
+    return best if best is not None else (rows_seed, cols_seed)
 
 
-def _pick_tight_grid(n: int) -> tuple[int, int]:
-    """(rows, cols) with rows*cols <= n, near-square, minimising dropped images.
-
-    Used by the tight @field expansion mode: every cell carries a unique
-    image, no padding cycle. May drop the least-similar 0-3 images so the
-    grid stays close to square. For n with good divisors (perfect squares,
-    near-squares) the grid is exact and nothing is dropped.
-    """
+def _pick_tight_grid(n: int, aspect: float = 1.0) -> tuple[int, int]:
+    """(rows, cols) with rows*cols <= n, minimising aspect deviation and
+    dropped images. Same windowing as _pick_grid."""
     if n <= 0:
         return (0, 0)
-    side = max(1, int(math.sqrt(n)))
-    best: tuple[tuple[int, int], tuple[int, int]] | None = None  # (score, (r,c))
-    for rows in range(max(1, side - 3), side + 4):
-        for cols in range(rows, rows + 4):
+    a = max(0.1, float(aspect))
+    rows_seed = max(1, int(round(math.sqrt(n / a))))
+    cols_seed = max(1, int(round(math.sqrt(n * a))))
+    best: tuple[tuple[int, int], tuple[int, int]] | None = None
+    for rows in range(max(1, rows_seed - 2), rows_seed + 3):
+        for cols in range(max(1, cols_seed - 2), cols_seed + 3):
             cells = rows * cols
             if cells <= 0 or cells > n:
                 continue
-            dropped = n - cells
-            score = (dropped, abs(rows - cols))
+            bucket = int(round(_aspect_err(cols, rows, a) * 10))
+            score = (bucket, n - cells)
             if best is None or score < best[0]:
                 best = (score, (rows, cols))
     return best[1] if best else (1, 1)
@@ -587,6 +598,7 @@ def compute_spacelike(
     cell_size: float = 100.0,
     field_expansion: str = "echo",
     arrangement: str = "rings",
+    aspect: float = 1.0,
 ) -> SpaceLikeLayout:
     n = len(image_ids)
     if n == 0:
@@ -612,14 +624,14 @@ def compute_spacelike(
     #             top-N most-similar; the gravity-field path drops via the
     #             recursive median split.
     if field_expansion == "tight":
-        rows, cols = _pick_tight_grid(n)
+        rows, cols = _pick_tight_grid(n, aspect)
         dropped = max(0, n - rows * cols)
-        logger.info("Grid (tight): %d x %d = %d cells (drops %d overflow)",
-                    rows, cols, rows * cols, dropped)
+        logger.info("Grid (tight): %d x %d = %d cells (drops %d overflow), aspect target=%.2f actual=%.2f",
+                    rows, cols, rows * cols, dropped, aspect, cols / max(1, rows))
     else:
-        rows, cols = _pick_grid(n)
-        logger.info("Grid (echo): %d x %d = %d cells (%d padding duplicates)",
-                    rows, cols, rows * cols, rows * cols - n)
+        rows, cols = _pick_grid(n, aspect)
+        logger.info("Grid (echo): %d x %d = %d cells (%d padding duplicates), aspect target=%.2f actual=%.2f",
+                    rows, cols, rows * cols, rows * cols - n, aspect, cols / max(1, rows))
 
     resolved_attractors: list[Attractor] = []
     attractor_vecs: np.ndarray = np.empty((0, 0), dtype=np.float32)

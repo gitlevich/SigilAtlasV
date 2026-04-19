@@ -617,9 +617,18 @@ export class TorusViewport {
 
           if (needsPreview) {
             if (!this.previews.isRequested(pos.id) && baseUrl) this.previews.load(pos.id, `${baseUrl}/preview/${pos.id}`);
-            if (this.previews.has(pos.id)) {
-              const cropped = this._squareCropUV({ u0: 0, v0: 1, u1: 1, v1: 0 });
-              previewQuads.push({ id: pos.id, wx, wy, wz, width: cell_size, height: cell_size, uvU0: cropped.u0, uvV0: cropped.v0, uvU1: cropped.u1, uvV1: cropped.v1 });
+            const entry = this.previews.get(pos.id);
+            if (entry) {
+              const aspect = entry.width / entry.height;
+              let u0 = 0, u1 = 1, v0 = 1, v1 = 0;
+              if (aspect > 1) {
+                const halfU = 0.5 / aspect;
+                u0 = 0.5 - halfU; u1 = 0.5 + halfU;
+              } else if (aspect < 1) {
+                const halfV = 0.5 * aspect;
+                v0 = 0.5 + halfV; v1 = 0.5 - halfV;
+              }
+              previewQuads.push({ id: pos.id, wx, wy, wz, width: cell_size, height: cell_size, uvU0: u0, uvV0: v0, uvU1: u1, uvV1: v1 });
               continue;
             }
           }

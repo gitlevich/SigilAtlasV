@@ -614,6 +614,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         relevance = float(data.get("relevance", 0.5))
         field_expansion = data.get("field_expansion", "echo")
         arrangement = data.get("arrangement", "rings")
+        aspect = float(data.get("aspect", 1.0))
 
         try:
             get_adapter(model)
@@ -648,6 +649,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             feathering=feathering, cell_size=cell_size,
             field_expansion=field_expansion,
             arrangement=arrangement,
+            aspect=aspect,
         )
 
         self._send_json({

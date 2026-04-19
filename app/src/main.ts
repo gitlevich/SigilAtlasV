@@ -23,7 +23,7 @@ import * as api from "./api";
 import { initControls, setViewport, recomputeSliceAndLayout, refreshControls, imageAtWorld, cellCenterAtWorld } from "./ui/controls";
 import { initStatusBar } from "./ui/status-bar";
 import { initMenu } from "./ui/menu";
-import { actToggleBothPanels } from "./menu-actions";
+import { actToggleBothPanels, actZoomInAll, actZoomOutAll } from "./menu-actions";
 import {
   openLightbox,
   closeLightbox,
@@ -168,6 +168,27 @@ async function main(): Promise<void> {
   positionCrosshair();
   new ResizeObserver(positionCrosshair).observe(canvas);
   window.addEventListener("resize", positionCrosshair);
+
+  // Debounced relayout on viewport aspect change. The @SpaceLike grid sizes
+  // itself to viewport aspect so a fully zoomed-out view shows exactly one
+  // torus. When the canvas aspect changes (window resize, panel fold), the
+  // grid needs to reshuffle to keep that property. 300ms debounce keeps the
+  // recompute out of the drag; only the settled aspect triggers relayout.
+  let lastAspect = canvas.clientHeight > 0 ? canvas.clientWidth / canvas.clientHeight : 1;
+  let relayoutT: ReturnType<typeof setTimeout> | null = null;
+  const relayoutOnAspectChange = () => {
+    if (canvas.clientHeight === 0) return;
+    const a = canvas.clientWidth / canvas.clientHeight;
+    if (Math.abs(a - lastAspect) < 0.01) return;
+    lastAspect = a;
+    if (state.mode !== "spacelike") return;
+    if (relayoutT !== null) clearTimeout(relayoutT);
+    relayoutT = setTimeout(() => {
+      relayoutT = null;
+      recomputeSliceAndLayout().catch((err) => console.error("[aspect-relayout]", err));
+    }, 300);
+  };
+  new ResizeObserver(relayoutOnAspectChange).observe(canvas);
 
   // Start loading the baked atlases in the background. First call on a fresh
   // workspace triggers generation (~1min overview, ~3min mid); cached after.
@@ -702,6 +723,38 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
       recomputeSliceAndLayout().catch((err) => console.error("[release-target]", err));
     }
   });
+
+  // Z: zoom all the way out. ZZ (double-press within 400ms): zoom all
+  // the way in at @POV. Cmd+/Cmd- handle incremental zoom. Single Z is
+  // delayed by the double-press window so a quick second Z preempts it.
+  {
+    const DOUBLE_MS = 400;
+    let pendingT: ReturnType<typeof setTimeout> | null = null;
+    window.addEventListener("keydown", (e) => {
+      if (e.key !== "z" && e.key !== "Z") return;
+      if (e.repeat) return;
+      if (isLightboxOpen()) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t) {
+        const tag = t.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || t.isContentEditable) return;
+      }
+      e.preventDefault();
+      if (pendingT !== null) {
+        clearTimeout(pendingT);
+        pendingT = null;
+        console.debug("[zoom] ZZ → zoom in all the way");
+        actZoomInAll();
+      } else {
+        pendingT = setTimeout(() => {
+          pendingT = null;
+          console.debug("[zoom] Z → zoom out all the way");
+          actZoomOutAll();
+        }, DOUBLE_MS);
+      }
+    });
+  }
 
   function wrapPov(): void {
     const tw = state.torusWidth || 1;

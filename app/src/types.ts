@@ -96,6 +96,10 @@ export interface SpaceLikeRequest {
   //   axis between the target's embedding and its antipode, smooth gradient
   //   along that axis. Default "rings".
   arrangement?: "rings" | "field" | "axis";
+  // Viewport aspect = cols/rows target. Sizing the torus to match the
+  // viewport aspect means a fully zoomed-out view shows exactly one torus
+  // — no repeated area visible. Default 1.0 (near-square, legacy).
+  aspect?: number;
 }
 
 export interface SliceResponse {

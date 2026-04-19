@@ -178,6 +178,7 @@ export async function recomputeSliceAndLayout(opts?: { anchorImageId?: string })
         cell_size: state.cellSize,
         field_expansion: state.fieldExpansion,
         arrangement: state.arrangement,
+        aspect,
       });
       newLayout = layout;
       if (layout.attractor_positions.length > 0) {
@@ -1393,6 +1394,24 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   const panelTitle = document.createElement("span");
   panelTitle.textContent = "Sigil Controls";
   panelTitle.className = "panel-title";
+  const headerActions = document.createElement("span");
+  headerActions.className = "panel-header-actions";
+  const resetBtn = document.createElement("button");
+  resetBtn.className = "panel-reset-btn";
+  resetBtn.textContent = "\u21BA";
+  resetBtn.title = "Reset — clear @Attractors, @Contrasts, range filters";
+  resetBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const dirty =
+      state.attractors.length > 0 ||
+      state.contrastControls.length > 0 ||
+      state.rangeFilters.length > 0;
+    if (!dirty) return;
+    state.attractors = [];
+    state.contrastControls = [];
+    state.rangeFilters = [];
+    recomputeSliceAndLayout().catch((err) => console.error("[reset]", err));
+  });
   const collapseBtn = document.createElement("button");
   collapseBtn.className = "panel-collapse-btn";
   collapseBtn.textContent = "\u25B6";
@@ -1403,8 +1422,10 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
     panel.classList.add("folded");
     setRightPanelFolded(true);
   });
+  headerActions.appendChild(resetBtn);
+  headerActions.appendChild(collapseBtn);
   panelHeader.appendChild(panelTitle);
-  panelHeader.appendChild(collapseBtn);
+  panelHeader.appendChild(headerActions);
   panel.appendChild(panelHeader);
 
   // Mode tabs

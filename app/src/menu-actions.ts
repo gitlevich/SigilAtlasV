@@ -11,6 +11,7 @@ import { recomputeSliceAndLayout, imageAtWorld } from "./ui/controls";
 import { saveCurrentAsCollage, openCollage } from "./collages";
 import { openLightbox, isLightboxOpen, closeLightbox } from "./ui/lightbox";
 import { startImport, startPolling } from "./import";
+import { isSpaceLikeLayout } from "./types";
 
 // ── Open / Save (Collage) ────────────────────────────────────────────────
 
@@ -73,6 +74,32 @@ export function actZoomIn(): void {
 
 export function actZoomOut(): void {
   applyZoom(1.18);
+}
+
+// Zoom all the way out — show the full @torus at current @POV x/y.
+export function actZoomOutAll(): void {
+  const canvas = document.getElementById("viewport") as HTMLCanvasElement | null;
+  if (!canvas) return;
+  const aspect = canvas.clientWidth / canvas.clientHeight;
+  const tw = state.torusWidth || 10000;
+  const th = state.torusHeight || 10000;
+  state.pov.z = Math.min(tw, th * aspect);
+}
+
+// Zoom all the way in at @POV — stop just above the @Lightbox-entry
+// threshold so the @Frame is maximally dense without the next gesture
+// falling into @Lightbox.
+export function actZoomInAll(): void {
+  if (!state.layout) return;
+  const canvas = document.getElementById("viewport") as HTMLCanvasElement | null;
+  if (!canvas) return;
+  const aspect = canvas.clientWidth / canvas.clientHeight;
+  const rowHeight = isSpaceLikeLayout(state.layout)
+    ? state.layout.cell_size
+    : state.layout.strip_height;
+  if (rowHeight <= 0) return;
+  const TARGET_ROWS = 3.5;
+  state.pov.z = Math.max(50, TARGET_ROWS * rowHeight * aspect);
 }
 
 export function actFrameAll(): void {
