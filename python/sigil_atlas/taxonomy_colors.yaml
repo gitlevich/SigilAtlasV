@@ -1,0 +1,256 @@
+# Colors sigil — root sequence follows Berlin-Kay universals of colour
+# emergence in natural languages: achromatic poles (white, black) first,
+# then red at stage II, green+yellow at stages III-IV, blue at stage V,
+# brown at stage VI, the remainder at stage VII. Leaves are the most
+# precise English shade names in common use.
+#
+# "all" is the multi-colour term — images that carry many colours at
+# once rather than a single dominant one.
+
+colors:
+  prompt: colour palette, chromatic content, dominant colour
+  children:
+
+    all:
+      prompt: multicoloured, many colours, rainbow palette, variegated, polychrome
+
+    # Stage I — achromatic poles.
+    white:
+      prompt: white snow, white walls, white clothing, white clouds, bright white
+      children:
+        snow:
+          prompt: pure white snow, fresh snowfall, white snow covered
+        ivory:
+          prompt: ivory colored fabric, warm ivory walls, off-white ivory
+        pearl:
+          prompt: pearl necklace, pearlescent white, shimmering pearl
+        chalk:
+          prompt: white chalk, matte chalk surface, chalky white
+        bone:
+          prompt: bone white, warm bone color, off-white bone
+        linen:
+          prompt: white linen fabric, natural linen, warm linen white
+    black:
+      prompt: black night, black clothing, black shadow, deep black, darkness
+      children:
+        jet:
+          prompt: jet black hair, pure jet black, glossy jet
+        onyx:
+          prompt: black onyx stone, deep onyx, polished onyx
+        obsidian:
+          prompt: obsidian glass, glossy black obsidian, volcanic obsidian
+        ink:
+          prompt: black ink, ink stain, dark ink black
+        soot:
+          prompt: matte black soot, charred soot, dark soot covered
+
+    # Stage II — red.
+    red:
+      prompt: red paint, red fabric, red flowers, red sunset, red neon
+      children:
+        scarlet:
+          prompt: scarlet dress, scarlet lipstick, scarlet bird, bright scarlet
+        crimson:
+          prompt: deep crimson velvet, crimson curtains, crimson roses
+        vermillion:
+          prompt: vermillion pigment, vermillion orange-red walls, vermillion lacquer
+        cherry:
+          prompt: cherry red car, cherry fruit, cherry red lips
+        ruby:
+          prompt: ruby gemstone, ruby red glass, ruby wine
+        burgundy:
+          prompt: burgundy wine, burgundy leather, dark burgundy fabric
+        maroon:
+          prompt: maroon sweater, maroon brick, deep maroon upholstery
+        coral:
+          prompt: coral reef, coral colored dress, coral pink walls
+        rose:
+          prompt: rose petals, rose colored fabric, rose pink sunset
+        brick:
+          prompt: red brick wall, brick building, terracotta brick
+        blood:
+          prompt: dark blood red, deep red wine, dark red paint
+        rust:
+          prompt: rusty metal, rust colored earth, rust orange-red patina
+
+    # Stages III-IV — green and yellow.
+    green:
+      prompt: green foliage, green grass, green paint, green clothing, green forest
+      children:
+        lime:
+          prompt: lime fruit, lime green fabric, bright lime paint, neon green
+        emerald:
+          prompt: emerald gemstone, deep emerald green fabric, rich emerald
+        olive:
+          prompt: olive fruit, olive green military, muted olive fabric, olive trees
+        forest:
+          prompt: dark forest canopy, deep forest green, pine forest
+        sage:
+          prompt: sage herb, grey-green sage walls, muted sage fabric
+        mint:
+          prompt: mint leaves, pale mint green walls, cool mint fabric
+        jade:
+          prompt: jade stone, jade green jewelry, polished jade
+        moss:
+          prompt: green moss on rocks, moss covered trees, dark moss
+        teal:
+          prompt: teal blue-green water, teal fabric, teal paint, teal tiles
+        pine:
+          prompt: pine needles, deep pine green, dark green conifer
+        kelly:
+          prompt: vivid kelly green fabric, bright Irish green, kelly green
+        seafoam:
+          prompt: seafoam green water, light seafoam walls, pale green foam
+    yellow:
+      prompt: yellow flowers, yellow sunlight, yellow walls, yellow taxi, yellow fabric
+      children:
+        lemon:
+          prompt: lemon fruit, lemon yellow paint, bright lemon walls
+        gold:
+          prompt: gold jewelry, gold leaf, golden metallic surface, gold frame
+        canary:
+          prompt: canary yellow bird, vivid canary yellow paint, bright yellow
+        mustard:
+          prompt: mustard sauce, mustard yellow sweater, dark yellow-brown mustard
+        saffron:
+          prompt: saffron spice, saffron yellow-orange robes, warm saffron
+        cream:
+          prompt: cream colored walls, cream fabric, off-white cream, ivory cream
+        butter:
+          prompt: butter yellow, pale yellow paint, soft warm yellow
+        chartreuse:
+          prompt: chartreuse green-yellow, lime chartreuse fabric, yellow-green leaves
+
+    # Stage V — blue.
+    blue:
+      prompt: blue sky, blue water, blue clothing, blue walls, blue neon
+      children:
+        sky:
+          prompt: clear blue sky, light blue sky, daytime blue sky
+        navy:
+          prompt: navy blue suit, navy uniform, dark navy fabric
+        cobalt:
+          prompt: cobalt blue pottery, vivid cobalt glass, bright cobalt
+        cerulean:
+          prompt: cerulean blue sky, bright cerulean water, cerulean paint
+        sapphire:
+          prompt: sapphire gemstone, deep sapphire blue, rich sapphire
+        turquoise:
+          prompt: turquoise water, turquoise jewelry, turquoise blue-green stone
+        royal:
+          prompt: royal blue fabric, vivid royal blue, bright royal blue banner
+        ice:
+          prompt: pale ice blue, frozen ice, light blue ice, glacial blue
+        steel:
+          prompt: steel blue metal, grey-blue steel, cold steel surface
+        indigo:
+          prompt: indigo dye, deep indigo fabric, dark blue-violet indigo
+        powder:
+          prompt: soft powder blue walls, pale powder blue, baby blue
+        denim:
+          prompt: blue denim jeans, denim jacket, faded denim fabric
+
+    # Stage VI — brown.
+    brown:
+      prompt: brown wood, brown leather, brown earth, brown fur, brown brick
+      children:
+        chocolate:
+          prompt: chocolate bar, dark chocolate brown, rich chocolate
+        sienna:
+          prompt: sienna earth pigment, warm sienna clay, burnt sienna
+        umber:
+          prompt: dark umber soil, raw umber pigment, deep brown umber
+        tan:
+          prompt: tan leather, light tan sand, tan skin, tan fabric
+        khaki:
+          prompt: khaki pants, khaki military, sandy khaki fabric
+        coffee:
+          prompt: dark coffee, coffee beans, espresso brown
+        chestnut:
+          prompt: chestnut horse, warm chestnut wood, reddish chestnut brown
+        caramel:
+          prompt: caramel sauce, golden caramel, warm caramel brown
+        walnut:
+          prompt: walnut wood grain, dark walnut furniture, walnut shell
+        sand:
+          prompt: beach sand, sandy beige, pale sand dunes
+
+    # Stage VII — remaining basic terms.
+    pink:
+      prompt: pink flowers, pink fabric, pink walls, pink sunset, pink neon
+      children:
+        hot_pink:
+          prompt: hot pink neon sign, vivid hot pink fabric, bright hot pink
+        blush:
+          prompt: soft blush pink cheeks, pale blush fabric, light blush
+        salmon:
+          prompt: salmon fish, salmon pink fabric, warm salmon color
+        fuchsia:
+          prompt: fuchsia flowers, bright fuchsia fabric, vivid fuchsia neon
+        bubblegum:
+          prompt: bubblegum pink candy, bright bubblegum, pink bubblegum
+        dusty_rose:
+          prompt: dusty rose fabric, muted pink rose, vintage rose pink
+        carnation:
+          prompt: pink carnation flower, medium pink carnation
+        flamingo:
+          prompt: pink flamingo bird, flamingo pink, warm flamingo
+    orange:
+      prompt: orange fruit, orange sunset, orange clothing, orange walls, orange fire
+      children:
+        tangerine:
+          prompt: tangerine fruit, bright tangerine fabric, vivid tangerine
+        amber:
+          prompt: amber glass, amber light, warm amber resin, amber streetlights
+        peach:
+          prompt: peach fruit, peach colored walls, soft peach fabric
+        apricot:
+          prompt: apricot fruit, light apricot fabric, warm apricot skin tone
+        burnt_orange:
+          prompt: burnt orange pottery, burnt orange leaves, deep autumn orange
+        copper:
+          prompt: copper kettle, copper wire, metallic copper surface, copper roof
+        pumpkin:
+          prompt: pumpkin fruit, pumpkin orange decoration, bright pumpkin
+        terracotta:
+          prompt: terracotta pot, terracotta tiles, terracotta earth walls
+    purple:
+      prompt: purple flowers, purple fabric, purple sky, purple neon, purple paint
+      children:
+        violet:
+          prompt: violet flowers, bright violet neon, vivid violet light
+        lavender:
+          prompt: lavender field, pale lavender fabric, light lavender walls
+        plum:
+          prompt: plum fruit, dark plum fabric, deep plum purple
+        mauve:
+          prompt: dusty mauve fabric, muted mauve walls, vintage mauve
+        lilac:
+          prompt: lilac flowers, light lilac fabric, pale lilac
+        amethyst:
+          prompt: amethyst crystal, purple amethyst gemstone, amethyst jewelry
+        grape:
+          prompt: purple grapes, deep grape purple, grape juice
+        magenta:
+          prompt: vivid magenta neon, magenta flowers, bright magenta pink
+        orchid:
+          prompt: orchid flower, orchid purple-pink, pale orchid
+        eggplant:
+          prompt: eggplant vegetable, dark eggplant purple, aubergine
+    grey:
+      prompt: grey concrete, grey sky, grey metal, grey stone, overcast grey
+      children:
+        silver:
+          prompt: silver metal, metallic silver surface, shiny silver
+        charcoal:
+          prompt: dark charcoal grey, charcoal drawing, nearly black charcoal
+        slate:
+          prompt: slate grey stone, slate roof tiles, medium grey slate
+        ash:
+          prompt: light ash grey, wood ash, pale grey ash
+        smoke:
+          prompt: smoke grey, soft grey smoke, hazy smoke
+        graphite:
+          prompt: graphite pencil, dark graphite grey, graphite surface
+        pewter:
+          prompt: pewter metal, dull pewter grey, metallic pewter

@@ -30,6 +30,7 @@ TAXONOMY_FILES = [
     TAXONOMY_DIR / "taxonomy_cinematic.yaml",
     TAXONOMY_DIR / "taxonomy_photographic.yaml",
     TAXONOMY_DIR / "taxonomy_composition.yaml",
+    TAXONOMY_DIR / "taxonomy_colors.yaml",
 ]
 
 _TAXONOMY: dict[str, OntologyNode] | None = None
