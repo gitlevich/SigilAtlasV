@@ -12,15 +12,19 @@ Two interface-faces for inhabiting a single @sigil, toggled by need, neither cla
 
 The two faces toggle per inhabited @sigil, not globally. @Arrangement stays the top-level @Navigation mode over the @surface; Inside and Outside are how a single inhabited @sigil inside @Lightbox shows itself — one as workspace, the other as structure.
 
+The @sigil inhabited by default is @self. @SigilAtlas opens onto the Inside canvas of @self — the desk the speaker is already sitting at, with @Children they have named, @Neighbor whose doors they held open by prior @Naming, @Gods whose taxonomies they attend, and their own @affordances and @invariants framing the canvas. Everything else is reached by walking through a door, descending through a @God, or entering @Lightbox on another @sigil.
+
 ## How it reads in @SigilAtlas
 
-The @sigil inhabited in @Lightbox is whatever the @POV currently wears: an @image, a @Collage, a @Neighborhood, an @Attractor, a @Strip.
+The @sigil inhabited in @Lightbox is whatever the @POV currently wears: @self, an @image, a @Collage, a @Neighborhood, an @Attractor, a @Strip, a @journal entry.
 
-For an @image: its @Children are its compositional fragments — crops, segments, derived looks — each a round colored icon whose hue bleeds into the caption prose wherever its name appears. Its @Neighbor are co-attending @images reachable through a door — typed #walk, not bare lattice adjacency. Its @God are the @Attractors that pull it, rendered as V-funnels above; the depth of the V is the attractor's pull, and descending through one enters the attractor's own @sigil. Along the bottom, the @image's @invariants line up — brightness, aspect, exif time, the measured non-moving facts that @Arrangement cannot mutate. Along the top, its @affordances — #enter-lightbox, #assign-to-strip, #include-in-collage, #walk — what inhabiting the @image grants. Its @Boundary is the frame or mask; its @scope is what the current @RelevanceFilter activates on it.
+For an @image: its @Children are the named entities the speaker has recognized and named in it via @SigilML — persons now, places and events later — drawn from role-taxonomies authored or imported. Each @child carries a deterministic hue from its @Name, and the hue propagates bilingually: onto the recognized face in the frame wherever it appears, and onto the name wherever it is written in a connected @journal entry or caption. Arcs form across both provenances — two @children co-appearing in one image frame, or co-mentioned in one journal sentence — and draw the same line on the canvas, the label carrying its source. @Face recognition, CLIP, and named-entity recognition are assistive providers; manual naming is first-class. Its @Neighbor are @sigils reachable through doors the speaker held open by prior @Naming; each door is labeled by the @Role under which @self holds the neighbor. Its @God are the @Attractors that pull it, rendered as V-funnels above. Along the bottom, its @invariants — brightness, aspect, exif time, the measured non-moving facts that @Arrangement cannot mutate. Along the top, its @affordances — #enter-lightbox, #assign-to-strip, #include-in-collage, #walk. Its @Boundary is the frame or mask; its @scope is what the current @RelevanceFilter activates on it.
 
 For a @Collage: its @Children are its member @images, each carrying a deterministic hue propagating into the collage's prose. Its @Neighbor are sibling @Collages sharing @Attractors. Its @God are the @Attractors pulling the collage as a whole — the V-funnels the collage is falling into.
 
 For an @Attractor inhabited as a @sigil: its @Children are the @images that resolve under it at full strength. Its @Neighbor are sibling @Attractors in the same taxonomy layer. Its @God are the parent terms it is pulled by. Outside, an @Attractor is itself a funnel — the V-shape above it on the Inside canvas is its own body seen from the side.
+
+For a @journal entry: its @Children are the @sigils named in it by @Role; its @God are the dates, places, and people-taxonomies it attends; its @Neighbor are other entries sharing those gods; its prose is itself. See @Journal — low-resolution for now, the grammar is stable even as the modality is still to be fully articulated.
 
 ## Compile status
 

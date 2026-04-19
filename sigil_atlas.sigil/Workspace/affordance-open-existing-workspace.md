@@ -1,0 +1,1 @@
+open a previously created workspace that contains our previous work. requires that it already has our data and that directory exists

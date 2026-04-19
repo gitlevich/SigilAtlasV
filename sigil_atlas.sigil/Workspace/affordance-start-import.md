@@ -1,0 +1,1 @@
+start import from the specified @source chosen using `File->Import...` dialog, where I can select the @source.

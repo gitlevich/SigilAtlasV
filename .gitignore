@@ -6,7 +6,6 @@ __pycache__/
 *.egg-info/
 python/sigil_atlas.egg-info/
 .idea/
-workspace/
 z_archive_ai_ignore/
 .claude/
 python/build/

@@ -1,0 +1,1 @@
+pick a location on file system (via FilePicker) to place the new workspace in. Has an option to create a new directory.

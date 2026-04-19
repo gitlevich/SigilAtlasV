@@ -1,0 +1,1 @@
+see the import progress in the status bar, per @stage, with all running stages reporting: total images in this import, how many imported, images/sec, progress bar

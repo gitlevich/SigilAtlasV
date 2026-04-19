@@ -1,0 +1,1 @@
+affordance to use #open-existing-workspace for one of the 5 most recently opened workspaces, as `File->Open Recent...` menu item
