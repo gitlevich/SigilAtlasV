@@ -376,6 +376,37 @@ html, body {
   color: #d8d2ea;
 }
 
+/* Expression pill — the single structured pill shown when the attractor
+   sub-tree is a typed SigilML expression. Reads as a one-line mini-source
+   of what the filter is doing, so the user can verify precedence. */
+.pill-expression {
+  background: #22342a;
+  border-color: #3f6b50;
+  max-width: 100%;
+}
+.pill-expression .pill-label {
+  font-family: var(--mono, ui-monospace, "SF Mono", "Menlo", monospace);
+  font-size: 11px;
+  color: #d6ead9;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Error readout under the Attract input — visible only when a typed
+   expression fails to parse; clears as soon as the user edits. */
+.attract-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.attract-input-error {
+  font-size: 11px;
+  color: #e89a9a;
+  padding: 2px 4px 0;
+}
+
 /* Viewport crosshair — a faint mark at the canvas centre showing which
    image is "centred" (the one Set Target / Open in Lightbox act on). */
 #viewport-crosshair {

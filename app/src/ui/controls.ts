@@ -15,6 +15,7 @@ import { collageThumbnailUrl } from "../api";
 import type { AnyLayout, Dimension, ContrastControl, PointOfView, VocabularyTree, VocabularyNode } from "../types";
 import { isSpaceLikeLayout } from "../types";
 import { buildFilter } from "../relevance";
+import { formatSigilML, isExpression, parseSigilML, SigilMLParseError } from "../sigilml";
 import { loadCollageFromFolder } from "../collages";
 import type { TorusViewport } from "../renderer/torus-viewport";
 import { createDiscriminateWidget } from "./discriminate-widget";
@@ -65,8 +66,11 @@ let renderLibraryPills: (() => void) | null = null;
 /** Add a Thing as an active attractor. Releases any TargetImage first —
  *  naming a new search is signalling intent to attend to something new,
  *  and the layout would otherwise still rank by similarity to a stale
- *  focal point. De-dupes the Thing by name. */
+ *  focal point. De-dupes the Thing by name. Also clears any active
+ *  SigilML expression: activating a discrete pill is a different mode
+ *  and cannot coexist with the AST source-of-truth. */
 function addThingAttractor(name: string): boolean {
+  state.attractorExpression = null;
   const hadTarget = state.attractors.some((a) => a.kind === "target_image");
   const hasThing = state.attractors.some((a) => a.kind === "thing" && a.ref === name);
   if (hasThing && !hadTarget) return false;
@@ -143,6 +147,7 @@ export async function recomputeSliceAndLayout(opts?: { anchorImageId?: string })
   try {
     const filter = buildFilter({
       attractors: state.attractors,
+      attractorExpression: state.attractorExpression,
       contrastControls: state.contrastControls,
       rangeFilters: state.rangeFilters,
     });
@@ -527,27 +532,56 @@ function buildLayersSection(body: HTMLElement): void {
 
 // ── Attract input ──
 //
-// Plain free-text entry. Per spec (Thing/language.md): "the @taxonomy is
-// scaffolding, not a gate" — anything typed is a valid @thing. The taxonomy
-// browser below handles discovery; this input stays out of the way.
+// Free-text entry for both bare @thing names and SigilML boolean expressions.
+// Per spec (Thing/language.md): "the @taxonomy is scaffolding, not a gate" —
+// anything typed is a valid @thing. A bare word becomes a pill. Text
+// containing `and`/`or`/`not`/`(`/`)` is parsed as a SigilML expression
+// (SigilML/language.md) and replaces the pill set with a structured AST;
+// the parenthesized readback lets the user verify grouping.
 
-function createAttractInput(commit: (name: string) => void): HTMLElement {
+function createAttractInput(
+  commit: (input: string) => { error: string | null },
+): { wrapper: HTMLElement; reset: () => void } {
+  const wrapper = document.createElement("div");
+  wrapper.className = "attract-input-wrapper";
+
   const input = document.createElement("input");
   input.type = "text";
   input.className = "pill-input";
-  input.placeholder = "type a thing, press enter...";
+  input.placeholder = "thing, or expression: red and not (blue or green)";
+  wrapper.appendChild(input);
+
+  const error = document.createElement("div");
+  error.className = "attract-input-error";
+  error.style.display = "none";
+  wrapper.appendChild(error);
 
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       const chosen = input.value.trim();
       if (!chosen) return;
-      input.value = "";
-      commit(chosen);
+      const result = commit(chosen);
+      if (result.error) {
+        error.textContent = result.error;
+        error.style.display = "";
+      } else {
+        input.value = "";
+        error.style.display = "none";
+      }
+    } else if (error.style.display !== "none") {
+      // Any edit hides the stale error message.
+      error.style.display = "none";
     }
   });
 
-  return input;
+  return {
+    wrapper,
+    reset: () => {
+      input.value = "";
+      error.style.display = "none";
+    },
+  };
 }
 
 
@@ -915,6 +949,31 @@ function buildAttractSection(body: HTMLElement): void {
 
   const renderPills = () => {
     holder.querySelectorAll(".pill").forEach((el) => el.remove());
+
+    // Expression-mode: one structured pill showing the parenthesized form.
+    // Clicking × clears the expression and returns to pill-mode.
+    if (state.attractorExpression) {
+      const pill = document.createElement("span");
+      pill.className = "pill pill-expression";
+      const label = document.createElement("span");
+      label.className = "pill-label";
+      label.textContent = formatSigilML(state.attractorExpression);
+      pill.appendChild(label);
+      pill.title = "SigilML expression (click × to clear)";
+
+      const remove = document.createElement("span");
+      remove.className = "pill-remove";
+      remove.textContent = "\u00d7";
+      remove.addEventListener("click", () => {
+        state.attractorExpression = null;
+        renderPills();
+        recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
+      });
+      pill.appendChild(remove);
+      holder.insertBefore(pill, holder.lastElementChild);
+      return;
+    }
+
     for (let i = 0; i < state.attractors.length; i++) {
       const att = state.attractors[i];
       const pill = document.createElement("span");
@@ -954,14 +1013,31 @@ function buildAttractSection(body: HTMLElement): void {
     }
   };
 
-  const attractInput = createAttractInput((name: string) => {
-    captureInLibrary(name);
-    if (!addThingAttractor(name)) return;
+  const attractInput = createAttractInput((raw: string) => {
+    // SigilML expression: parse, store AST, clear pill list, drop Target.
+    if (isExpression(raw)) {
+      try {
+        const expr = parseSigilML(raw);
+        state.attractorExpression = expr;
+        state.attractors = [];
+        renderPills();
+        recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
+        return { error: null };
+      } catch (e) {
+        const msg = e instanceof SigilMLParseError ? e.message : String(e);
+        return { error: msg };
+      }
+    }
+    // Bare name: existing pill path. Expression mode drops away.
+    state.attractorExpression = null;
+    captureInLibrary(raw);
+    if (!addThingAttractor(raw)) return { error: null };
     renderPills();
     recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
+    return { error: null };
   });
 
-  holder.appendChild(attractInput);
+  holder.appendChild(attractInput.wrapper);
   body.appendChild(holder);
   renderAttractPills = renderPills;
   renderPills();
@@ -1404,10 +1480,12 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
     e.stopPropagation();
     const dirty =
       state.attractors.length > 0 ||
+      state.attractorExpression !== null ||
       state.contrastControls.length > 0 ||
       state.rangeFilters.length > 0;
     if (!dirty) return;
     state.attractors = [];
+    state.attractorExpression = null;
     state.contrastControls = [];
     state.rangeFilters = [];
     recomputeSliceAndLayout().catch((err) => console.error("[reset]", err));

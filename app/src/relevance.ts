@@ -86,24 +86,29 @@ export function and(children: Expression[]): AndNode {
 /**
  * Compose the RelevanceFilter from the UI's current state.
  *
- * AttractorControl pills → Thing or TargetImage atoms.
- * ContrastControl widgets → Contrast atoms.
- * Range sliders (color, tone) → Range atoms.
+ * Two possible sources for the attractor sub-tree, mutually exclusive:
+ *   - `attractorExpression` (a SigilML boolean expression parsed from text), or
+ *   - flat `attractors` pills, which combine as a single peer-group under AND.
  *
- * Default composition across pills/widgets is AND.
+ * ContrastControl widgets and range sliders are always ANDed on top.
  * Returns null when nothing constrains the slice — the whole corpus survives.
  */
 export function buildFilter(args: {
   attractors: Attractor[];
+  attractorExpression: Expression | null;
   contrastControls: ContrastControl[];
   rangeFilters: RangeFilter[];
 }): Expression | null {
   const children: Expression[] = [];
 
-  for (const a of args.attractors) {
-    children.push(
-      a.kind === "thing" ? thing(a.ref) : targetImage(a.ref),
-    );
+  if (args.attractorExpression) {
+    children.push(args.attractorExpression);
+  } else {
+    for (const a of args.attractors) {
+      children.push(
+        a.kind === "thing" ? thing(a.ref) : targetImage(a.ref),
+      );
+    }
   }
   for (const cc of args.contrastControls) {
     children.push(contrast(cc));
@@ -113,5 +118,6 @@ export function buildFilter(args: {
   }
 
   if (children.length === 0) return null;
+  if (children.length === 1) return children[0];
   return and(children);
 }
