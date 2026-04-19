@@ -163,6 +163,27 @@ def _resolve_attractor_vectors(
                 prompt = f"a photograph of {att.ref}"
                 logger.info("Attractor '%s' not in taxonomy; using free-text prompt", att.ref)
             vec = adapter.resolve_text_vector(prompt, provider, image_ids)
+            resolved.append(att)
+            vecs.append(np.asarray(vec, dtype=np.float32))
+
+            # Rich taxonomy: the dropped node has children. Articulate one
+            # level down as peer attractors so the field terraces by
+            # sub-category. Each child contributes its own root-to-child
+            # narrative to the @SpaceLike superposition per the
+            # @Arrangement duality. Crude sigils (leaves, no children) fall
+            # through unchanged as a single attractor.
+            if node is not None and node.children:
+                for child in node.children:
+                    child_vec = adapter.resolve_text_vector(
+                        child.prompt, provider, image_ids,
+                    )
+                    resolved.append(Attractor(kind="thing", ref=child.name))
+                    vecs.append(np.asarray(child_vec, dtype=np.float32))
+                logger.info(
+                    "Rich taxonomy '%s' articulated with %d children",
+                    att.ref, len(node.children),
+                )
+            continue
         elif att.kind == "target_image":
             matrix = provider.fetch_matrix([att.ref], model)
             vec = matrix[0]

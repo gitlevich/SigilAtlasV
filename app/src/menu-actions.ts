@@ -211,8 +211,21 @@ export async function actRecomputePixelFeatures(): Promise<void> {
 }
 
 export async function actRegeneratePreviews(): Promise<void> {
-  await api.regeneratePreviews();
-  startPolling();
+  try {
+    await api.regeneratePreviews();
+    state.lastError = null;
+    notify();
+    startPolling();
+  } catch (e) {
+    // Precheck failure — commonly the source drive is disconnected.
+    // Surface the sidecar's message in the status bar instead of
+    // silently failing into the console.
+    const raw = e instanceof Error ? e.message : String(e);
+    const msg = raw.replace(/^\/tools\/regenerate-previews:\s*/i, "").trim();
+    state.lastError = msg || "Could not regenerate previews.";
+    notify();
+    console.error("[regenerate-previews]", e);
+  }
 }
 
 export async function actNukeCorpus(): Promise<void> {

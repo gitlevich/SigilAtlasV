@@ -573,6 +573,41 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     }
   });
 
+  // SpaceLike arrow-key navigation — step the @POV one cell at a time on
+  // the @torus surface. Up/down move on Y (down = increasing y, visually
+  // "further along" the strip axis); left/right move on X. The torus
+  // wraps, so stepping past an edge returns from the opposite side.
+  // Shift+Arrow steps a full screen's worth; holding a key auto-repeats
+  // at the OS rate. Skipped while the @Lightbox is open (it owns arrows
+  // for lattice walking) or while typing into an input.
+  window.addEventListener("keydown", (e) => {
+    if (isLightboxOpen()) return;
+    if (state.mode !== "spacelike") return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t) {
+      const tag = t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || t.isContentEditable) return;
+    }
+    let dx = 0, dy = 0;
+    switch (e.key) {
+      case "ArrowUp": dy = -1; break;
+      case "ArrowDown": dy = 1; break;
+      case "ArrowLeft": dx = -1; break;
+      case "ArrowRight": dx = 1; break;
+      default: return;
+    }
+    e.preventDefault();
+    const step = state.cellSize || 100;
+    const big = e.shiftKey ? Math.max(1, Math.floor(state.pov.z / step)) : 1;
+    state.pov.x += dx * step * big;
+    state.pov.y += dy * step * big;
+    const tw = state.torusWidth || 1;
+    const th = state.torusHeight || 1;
+    state.pov.x = ((state.pov.x % tw) + tw) % tw;
+    state.pov.y = ((state.pov.y % th) + th) % th;
+  });
+
   // Escape releases an active TargetImage. The pill is visible in
   // AttractorControl, but the keyboard remains a handy quick release.
   window.addEventListener("keydown", (e) => {

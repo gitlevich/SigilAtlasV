@@ -12,7 +12,6 @@ import type {
   Dimension,
   VocabularyTree,
   Sibling,
-  VocabTerm,
   ImportProgress,
 } from "./types";
 
@@ -149,10 +148,6 @@ export async function getVocabularyTree(): Promise<VocabularyTree> {
 export async function getSiblings(term: string): Promise<Sibling[]> {
   const data = await get<{ siblings: Sibling[] }>(`/siblings/${encodeURIComponent(term)}`);
   return data.siblings;
-}
-
-export async function getVocabularyFlat(): Promise<VocabTerm[]> {
-  return get("/vocabulary/flat");
 }
 
 export async function computeSlice(req: SliceRequest): Promise<SliceResponse> {

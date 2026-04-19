@@ -153,12 +153,6 @@ export interface Sibling {
   prompt: string;
 }
 
-export interface VocabTerm {
-  name: string;
-  path: string;
-  prompt: string;
-}
-
 export interface StageProgress {
   name: string;
   completed: number;

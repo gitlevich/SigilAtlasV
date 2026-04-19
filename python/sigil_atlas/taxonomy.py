@@ -78,30 +78,6 @@ def vocabulary_tree() -> dict[str, list[dict]]:
     return result
 
 
-def vocabulary_flat() -> list[dict]:
-    """Return all terms with full paths for autocomplete.
-
-    Returns [{"name": "red", "path": "color/red", "prompt": "dominant red color"}, ...].
-    """
-    taxonomy = get_taxonomy()
-    result = []
-    for sigil_name, root in taxonomy.items():
-        _collect_paths(root, sigil_name, [], result)
-    return result
-
-
-def _collect_paths(node: OntologyNode, sigil: str, ancestors: list[str], out: list[dict]) -> None:
-    current_path = ancestors + [node.name]
-    if node.name != sigil or ancestors:  # skip root-level sigil name as standalone
-        out.append({
-            "name": node.name,
-            "path": "/".join(current_path),
-            "prompt": node.prompt,
-        })
-    for child in node.children:
-        _collect_paths(child, sigil, current_path, out)
-
-
 def _node_to_dict(node: OntologyNode) -> dict:
     d = {"name": node.name, "prompt": node.prompt}
     if node.children:

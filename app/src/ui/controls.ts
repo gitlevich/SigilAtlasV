@@ -8,7 +8,7 @@
 import { state, notify, subscribe, persistLibraryFolded } from "../state";
 import * as api from "../api";
 import { collageThumbnailUrl } from "../api";
-import type { AnyLayout, Dimension, ContrastControl, PointOfView, VocabTerm } from "../types";
+import type { AnyLayout, Dimension, ContrastControl, PointOfView, VocabularyTree, VocabularyNode } from "../types";
 import { isSpaceLikeLayout } from "../types";
 import { buildFilter } from "../relevance";
 import { loadCollage, renameCollageById, deleteCollageById } from "../collages";
@@ -17,11 +17,40 @@ import { createDiscriminateWidget } from "./discriminate-widget";
 import { createColorWheel, hueRangeToFilter, type HueRange } from "./color-wheel";
 import { startImport } from "../import";
 
-// Vocabulary cached for the lifetime of the panel — fetched once per init.
-// Falls through to `[]` until /vocabulary/flat resolves; autocomplete simply
-// shows nothing until then. Per spec (Thing/language.md): "the @taxonomy is
-// scaffolding, not a gate" — we never reject input that isn't in the list.
-let vocabulary: VocabTerm[] = [];
+// Vocabulary cached as a tree — the SpaceLike form of the sigil. Fetched
+// once per init. Both autocomplete and the taxonomy browser walk this tree;
+// the flat list is not used here (per spec: the tree is the simultaneous
+// shape, flat is a TimeLike enumeration of trajectories through it).
+// Per spec (Thing/language.md): "the @taxonomy is scaffolding, not a gate" —
+// we never reject input that isn't in the tree.
+let vocabulary: VocabularyTree = {};
+
+// Subscribers that repaint when vocabulary arrives from the sidecar.
+const vocabReadyListeners: Array<() => void> = [];
+function notifyVocabReady(): void {
+  for (const fn of vocabReadyListeners) fn();
+}
+
+// Walk the tree, emitting {node, ancestry} for every node. Ancestry is the
+// chain of ancestor names from the root sigil down to (but not including)
+// the node itself. Used by autocomplete and by the taxonomy browser.
+interface WalkedNode {
+  node: VocabularyNode;
+  ancestry: string[];
+  sigil: string;
+}
+function walkVocabulary(tree: VocabularyTree, visit: (w: WalkedNode) => void): void {
+  function recurse(node: VocabularyNode, sigil: string, ancestry: string[]): void {
+    visit({ node, ancestry, sigil });
+    if (node.children) {
+      const next = ancestry.concat(node.name);
+      for (const c of node.children) recurse(c, sigil, next);
+    }
+  }
+  for (const [sigil, roots] of Object.entries(tree)) {
+    for (const root of roots) recurse(root, sigil, []);
+  }
+}
 
 // Re-render hooks — set by build*Section so cross-section actions (e.g.
 // activating a library pill into Attract) can refresh the affected views
@@ -490,7 +519,8 @@ function createAttractInput(commit: (name: string) => void): HTMLElement {
   dropdown.className = "autocomplete-dropdown";
   dropdown.style.display = "none";
 
-  let suggestions: VocabTerm[] = [];
+  interface Suggestion { name: string; path: string; prompt: string; }
+  let suggestions: Suggestion[] = [];
   let activeIdx = -1;
 
   const closeDropdown = () => {
@@ -530,19 +560,22 @@ function createAttractInput(commit: (name: string) => void): HTMLElement {
 
   const updateSuggestions = () => {
     const q = input.value.trim().toLowerCase();
-    if (!q || vocabulary.length === 0) {
+    if (!q || Object.keys(vocabulary).length === 0) {
       closeDropdown();
       return;
     }
-    // Substring match on name; rank exact-prefix matches above mid-string.
-    const prefix: VocabTerm[] = [];
-    const mid: VocabTerm[] = [];
-    for (const t of vocabulary) {
-      const n = t.name.toLowerCase();
-      if (n === q) prefix.unshift(t);
-      else if (n.startsWith(q)) prefix.push(t);
-      else if (n.includes(q)) mid.push(t);
-    }
+    // Walk the tree, collect matches with their ancestry as contextual path.
+    // Rank exact-prefix matches above mid-string.
+    const prefix: Suggestion[] = [];
+    const mid: Suggestion[] = [];
+    walkVocabulary(vocabulary, ({ node, ancestry, sigil }) => {
+      const n = node.name.toLowerCase();
+      const path = [sigil, ...ancestry, node.name].join("/");
+      const s: Suggestion = { name: node.name, path, prompt: node.prompt };
+      if (n === q) prefix.unshift(s);
+      else if (n.startsWith(q)) prefix.push(s);
+      else if (n.includes(q)) mid.push(s);
+    });
     suggestions = prefix.concat(mid).slice(0, 12);
     activeIdx = suggestions.length > 0 ? 0 : -1;
     renderDropdown();
@@ -811,6 +844,117 @@ function buildThingsLibrarySection(section: HTMLElement, body: HTMLElement): voi
 
 
 // ── Attractors (things that bend the SpaceLike gravity field) ──
+
+// ── Taxonomy tree browser ──
+//
+// Renders the vocabulary tree with collapsible branches. Clicking a node
+// name adds it as a @Thing @Attractor — crude or rich (leaf or interior
+// node both work; richness determines how the layout responds).
+
+function buildTaxonomySection(body: HTMLElement): void {
+  const container = document.createElement("div");
+  container.className = "taxonomy-tree";
+  body.appendChild(container);
+
+  // Re-render on vocabulary load and on attractor changes (to mark which
+  // nodes are currently active with a subtle highlight).
+  const render = () => renderTaxonomyTree(container);
+  render();
+  vocabReadyListeners.push(render);
+  subscribe(render);
+}
+
+function renderTaxonomyTree(container: HTMLElement): void {
+  container.innerHTML = "";
+  const entries = Object.entries(vocabulary);
+  if (entries.length === 0) {
+    const loading = document.createElement("div");
+    loading.className = "taxonomy-empty";
+    loading.textContent = "loading\u2026";
+    container.appendChild(loading);
+    return;
+  }
+  const active = new Set(
+    state.attractors.filter((a) => a.kind === "thing").map((a) => a.ref),
+  );
+  for (const [sigil, roots] of entries) {
+    // The sigil root is itself a clickable attractor — drop it to organize
+    // the world from the point of view of the entire taxonomy (articulates
+    // every top-level child as a peer anchor). Children render nested
+    // below so you can also drop any sub-node directly.
+    const group = document.createElement("div");
+    group.className = "taxonomy-group";
+    const header = document.createElement("div");
+    header.className = "taxonomy-group-header";
+    if (active.has(sigil)) header.classList.add("active");
+    header.textContent = sigil;
+    header.title = `Drop the entire ${sigil} taxonomy as an attractor`;
+    header.addEventListener("click", () => {
+      captureInLibrary(sigil);
+      if (!addThingAttractor(sigil)) return;
+      renderAttractPills?.();
+      renderLibraryPills?.();
+      recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
+    });
+    group.appendChild(header);
+    for (const root of roots) {
+      group.appendChild(renderTaxonomyNode(root, 0, active));
+    }
+    container.appendChild(group);
+  }
+}
+
+function renderTaxonomyNode(
+  node: VocabularyNode,
+  depth: number,
+  active: Set<string>,
+): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "taxonomy-node";
+  row.style.paddingLeft = `${depth * 10}px`;
+
+  const header = document.createElement("div");
+  header.className = "taxonomy-row";
+
+  const hasChildren = !!(node.children && node.children.length > 0);
+  const caret = document.createElement("span");
+  caret.className = "taxonomy-caret";
+  caret.textContent = hasChildren ? "\u25b8" : "\u00a0";
+  header.appendChild(caret);
+
+  const name = document.createElement("span");
+  name.className = "taxonomy-name";
+  if (active.has(node.name)) name.classList.add("active");
+  name.textContent = node.name;
+  name.title = node.prompt;
+  name.addEventListener("click", () => {
+    captureInLibrary(node.name);
+    if (!addThingAttractor(node.name)) return;
+    renderAttractPills?.();
+    renderLibraryPills?.();
+    recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
+  });
+  header.appendChild(name);
+  row.appendChild(header);
+
+  if (hasChildren) {
+    const childContainer = document.createElement("div");
+    childContainer.className = "taxonomy-children collapsed";
+    for (const c of node.children!) {
+      childContainer.appendChild(renderTaxonomyNode(c, depth + 1, active));
+    }
+    row.appendChild(childContainer);
+    const toggle = () => {
+      const isCollapsed = childContainer.classList.toggle("collapsed");
+      caret.textContent = isCollapsed ? "\u25b8" : "\u25be";
+    };
+    caret.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggle();
+    });
+  }
+  return row;
+}
 
 function buildAttractSection(body: HTMLElement): void {
   const holder = document.createElement("div");
@@ -1180,11 +1324,15 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   const counts = modelsRes.counts;
   const total = modelsRes.total;
 
-  // Load vocabulary in the background — autocomplete uses it when ready,
-  // and free-text typing works either way per !taxonomy-is-scaffolding.
-  if (vocabulary.length === 0) {
-    api.getVocabularyFlat()
-      .then((terms) => { vocabulary = terms; })
+  // Load vocabulary in the background — autocomplete and the taxonomy
+  // browser both walk this tree when it arrives. Free-text typing works
+  // either way per !taxonomy-is-scaffolding.
+  if (Object.keys(vocabulary).length === 0) {
+    api.getVocabularyTree()
+      .then((tree) => {
+        vocabulary = tree;
+        notifyVocabReady();
+      })
       .catch((e) => console.error("[vocabulary]", e));
   }
 
@@ -1328,6 +1476,15 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
     persistLibraryFolded();
   });
   panel.appendChild(library.section);
+
+  // Taxonomy browser — the sigil's tree, clickable. Picking a node turns
+  // it into a @Thing @Attractor (same codepath as typing it in Attract).
+  // Collapsed by default — most sessions don't need it, but when you want
+  // to drop a rich taxonomy like Animalia as an attractor, this is the
+  // affordance: browse the tree, click the node, watch the field re-form.
+  const taxonomy = createSection("Taxonomy", true);
+  buildTaxonomySection(taxonomy.body);
+  panel.appendChild(taxonomy.section);
 
   // Attract section
   const attract = createSection("Attract");

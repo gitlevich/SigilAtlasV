@@ -164,9 +164,15 @@ class Context:
 def _relevance_to_keep_fraction(relevance: float) -> float:
     """Map r in [0, 1] to fraction of corpus to keep for a semantic atom.
 
-    Log-linear from 50% (loose) to 1% (strict). Corpus-size invariant by design.
+    Log-linear from 50% (loose) to 1% (strict) on a biased `r`: the slider
+    midpoint (r=0.5) corresponds to r'=0.65 on the underlying log-linear,
+    biasing the felt behaviour toward strict while preserving both endpoints.
+    Corpus-size invariant by design.
+
+    Power 0.62 solves 0.5**p = 0.65 (close enough); 0.0 and 1.0 are fixed.
     """
     r = max(0.0, min(1.0, float(relevance)))
+    r = r ** 0.62
     return math.exp(math.log(0.5) + r * (math.log(0.01) - math.log(0.5)))
 
 

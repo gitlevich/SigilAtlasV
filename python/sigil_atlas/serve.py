@@ -27,7 +27,7 @@ from sigil_atlas.overview import (
     overview_paths,
 )
 from sigil_atlas.spacelike import Attractor, ContrastAxis, compute_spacelike, compute_wireframe_edges
-from sigil_atlas.taxonomy import vocabulary, vocabulary_tree, vocabulary_flat
+from sigil_atlas.taxonomy import vocabulary, vocabulary_tree
 from sigil_atlas.things import siblings, compute_things_layout
 from sigil_atlas.workspace import Workspace
 
@@ -170,8 +170,6 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._send_json(vocabulary())
         elif self.path == "/vocabulary/tree":
             self._send_json(vocabulary_tree())
-        elif self.path == "/vocabulary/flat":
-            self._send_json(vocabulary_flat())
         elif self.path.startswith("/siblings/"):
             term = self.path[len("/siblings/"):]
             self._send_json({"siblings": siblings(term)})
@@ -386,20 +384,56 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._send_json({"status": "started"})
 
     def _handle_regenerate_previews(self):
-        """Sweep all completed images and regenerate any preview whose larger
-        dimension is below PREVIEW_MAX_SIZE. Idempotent — images already at
-        the target are no-ops. Upgrades legacy workspaces to the current tier.
+        """Sweep all completed images and regenerate any thumbnail or
+        preview that is missing or below target size. Idempotent — images
+        already at the target are no-ops. Upgrades legacy workspaces and
+        fills gaps from partial ingests.
+
+        Precheck: sample a handful of source_paths. If most are missing,
+        the source disk is likely disconnected and re-running would
+        destroy no data but also accomplish nothing except logging
+        warnings for every image. Abort with a visible error instead.
+
+        On successful completion, invalidate the baked overview and
+        mid-atlas caches so they re-bake from the now-present source
+        thumbnails on the next app launch.
         """
         if _state.ingest.is_running:
             self._send_json({"error": "import already running"}, 409)
             return
 
+        import random
         import threading
         from sigil_atlas.cancel import CancellationToken
         from sigil_atlas.progress import BufferedProgressReporter
         from sigil_atlas.ingest.thumbnail import _generate_one
+        from sigil_atlas.overview import (
+            mid_atlas_index_path,
+            mid_atlas_page_path,
+            overview_paths,
+        )
 
         items = _state.db.fetch_completed_images_with_paths()
+        if not items:
+            self._send_json({"status": "started", "count": 0})
+            return
+
+        # Sample-probe the source disk. A handful of accessible files is
+        # enough to confirm the volume is mounted; many missing means the
+        # user's external drive is unplugged.
+        SAMPLE = min(20, len(items))
+        REQUIRED_FRACTION = 0.5
+        sample = random.sample(items, SAMPLE)
+        present = sum(1 for _, p in sample if Path(p).exists())
+        if present / SAMPLE < REQUIRED_FRACTION:
+            self._send_json({
+                "error": (
+                    f"Source files not accessible: only {present}/{SAMPLE} of a "
+                    f"random sample were found on disk. The drive the images "
+                    f"live on may be disconnected. Connect it and try again."
+                ),
+            }, 503)
+            return
 
         _state.ingest.token = CancellationToken()
         _state.ingest.reporter = BufferedProgressReporter()
@@ -417,6 +451,27 @@ class RequestHandler(BaseHTTPRequestHandler):
                         break
                     _generate_one(db, image_id, Path(source_path), thumbnails_dir, previews_dir)
                     progress.advance(1)
+
+                # Invalidate baked atlas caches so the next launch re-bakes
+                # them from the now-filled thumbnails_dir. Missing files are
+                # swallowed — this is best-effort cleanup.
+                if not _state.ingest.token.is_cancelled:
+                    png_path, idx_path = overview_paths(_state.workspace)
+                    for p in (png_path, idx_path):
+                        try: p.unlink()
+                        except FileNotFoundError: pass
+                        except Exception: logger.warning("Could not remove %s", p, exc_info=True)
+                    mid_idx = mid_atlas_index_path(_state.workspace)
+                    try: mid_idx.unlink()
+                    except FileNotFoundError: pass
+                    except Exception: logger.warning("Could not remove %s", mid_idx, exc_info=True)
+                    # Mid-atlas pages: we don't know the exact count without
+                    # the index, so glob for mid-atlas-*.png.
+                    for p in _state.workspace.cache_dir.glob("mid-atlas-*.png"):
+                        try: p.unlink()
+                        except Exception: logger.warning("Could not remove %s", p, exc_info=True)
+                    logger.info("Regenerate previews: invalidated baked atlas caches")
+
                 _state.ingest.reporter.emit_event("pipeline_completed")
             except Exception:
                 logger.error("Preview regeneration failed", exc_info=True)

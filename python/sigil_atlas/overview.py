@@ -118,6 +118,10 @@ def generate_mid_atlas(
 
     mapping: dict[str, list[int]] = {}
 
+    # As in the overview baker, ids without source thumbnails are skipped
+    # from the mapping so the client fallback chain handles them rather
+    # than rendering a reserved-but-unpainted black tile.
+    missing = 0
     for page in range(pages_needed):
         atlas = Image.new("RGB", (atlas_w, atlas_h), (0, 0, 0))
         start = page * tiles_per_page
@@ -127,10 +131,10 @@ def generate_mid_atlas(
             iid = image_ids[global_idx]
             col = local_idx % cols_per_page
             row = local_idx // cols_per_page
-            mapping[iid] = [page, col, row]
 
             thumb_path = workspace.thumbnails_dir / f"{iid}.jpg"
             if not thumb_path.exists():
+                missing += 1
                 continue
             try:
                 img = Image.open(thumb_path).convert("RGB")
@@ -139,6 +143,7 @@ def generate_mid_atlas(
                 img = img.crop(((w - s) // 2, (h - s) // 2, (w + s) // 2, (h + s) // 2))
                 img = img.resize((tile_size, tile_size), Image.BILINEAR)
                 atlas.paste(img, (col * tile_size, row * tile_size))
+                mapping[iid] = [page, col, row]
             except Exception as exc:
                 logger.warning("Mid-atlas: failed to tile %s: %s", iid, exc)
 
@@ -156,6 +161,8 @@ def generate_mid_atlas(
         "mapping": mapping,
     }))
 
+    if missing > 0:
+        logger.info("Mid-atlas: %d / %d tiles missing source thumbnail (skipped from mapping)", missing, n)
     logger.info("Mid-atlas complete in %.1fs", time.monotonic() - t0)
     return MidAtlasIndex(
         tile_size=tile_size,
@@ -222,13 +229,17 @@ def generate_overview(workspace: Workspace, db: CorpusDB) -> OverviewIndex:
     atlas = Image.new("RGB", (atlas_w, atlas_h), (0, 0, 0))
     mapping: dict[str, list[int]] = {}
 
+    # Skipped ids have no mapping entry — the client falls through to the
+    # next tier (mid-atlas / streamed atlas / preview) instead of rendering
+    # a black tile at a position that was reserved but never painted.
+    missing = 0
     for idx, iid in enumerate(image_ids):
         col = idx % cols
         row = idx // cols
-        mapping[iid] = [col, row]
 
         thumb_path = workspace.thumbnails_dir / f"{iid}.jpg"
         if not thumb_path.exists():
+            missing += 1
             continue
 
         try:
@@ -239,11 +250,15 @@ def generate_overview(workspace: Workspace, db: CorpusDB) -> OverviewIndex:
             img = img.crop(((w - s) // 2, (h - s) // 2, (w + s) // 2, (h + s) // 2))
             img = img.resize((tile_size, tile_size), Image.BILINEAR)
             atlas.paste(img, (col * tile_size, row * tile_size))
+            mapping[iid] = [col, row]
         except Exception as exc:
             logger.warning("Overview: failed to tile %s: %s", iid, exc)
 
         if (idx + 1) % 10000 == 0:
             logger.info("Overview: %d / %d tiles written", idx + 1, n)
+
+    if missing > 0:
+        logger.info("Overview: %d / %d tiles missing source thumbnail (skipped from mapping)", missing, n)
 
     atlas.save(png_path, "PNG", optimize=False)
     idx_path.write_text(json.dumps({

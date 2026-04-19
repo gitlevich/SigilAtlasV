@@ -615,6 +615,87 @@ html, body {
   font-size: 10px;
 }
 
+/* ── Taxonomy tree browser ── */
+
+.taxonomy-tree {
+  font-size: 11px;
+  color: #c8c8d0;
+  user-select: none;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.taxonomy-empty {
+  color: #666;
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.taxonomy-group {
+  margin-bottom: 6px;
+}
+
+.taxonomy-group-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.taxonomy-group-header:hover {
+  color: #ccc;
+  background: #2a2a44;
+}
+
+.taxonomy-group-header.active {
+  color: #d8d2ea;
+  background: #2a2244;
+}
+
+.taxonomy-node {
+  /* paddingLeft is set inline to keep the nesting calculation in one place */
+}
+
+.taxonomy-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 0;
+  line-height: 1.3;
+}
+
+.taxonomy-caret {
+  display: inline-block;
+  width: 10px;
+  color: #666;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.taxonomy-name {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+
+.taxonomy-name:hover {
+  background: #2a2a44;
+}
+
+.taxonomy-name.active {
+  color: #d8d2ea;
+  background: #2a2244;
+}
+
+.taxonomy-children.collapsed {
+  display: none;
+}
+
 /* ── Contrast holder ── */
 
 .contrast-holder {
