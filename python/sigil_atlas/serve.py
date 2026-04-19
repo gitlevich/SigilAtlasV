@@ -335,6 +335,13 @@ class RequestHandler(BaseHTTPRequestHandler):
         elif self.path.startswith("/preview/"):
             image_id = self.path[len("/preview/"):]
             preview_path = _state.workspace.previews_dir / f"{image_id}.jpg"
+            # Apple Photos imports generate only a 512px thumbnail (no
+            # preview), since network access is disabled to avoid iCloud
+            # downloads. When the 2048px preview is absent, fall back to
+            # the 512 thumb — beats the client's atlas-tier fallback
+            # (96px per-image) by ~5×.
+            if not preview_path.exists():
+                preview_path = _state.workspace.thumbnails_dir / f"{image_id}.jpg"
             self._send_file(preview_path)
         elif self.path.startswith("/image/info/"):
             image_id = self.path[len("/image/info/"):]

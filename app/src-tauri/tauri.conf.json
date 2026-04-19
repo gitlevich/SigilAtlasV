@@ -6,9 +6,9 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1522",
-    "beforeDevCommand": "../build-photos.sh debug && pnpm dev",
-    "beforeBuildCommand": "../build-photos.sh release && pnpm build",
-    "beforeBundleCommand": "../build-photos.sh release"
+    "beforeDevCommand": "./build-photos.sh debug && pnpm dev",
+    "beforeBuildCommand": "./build-photos.sh release && pnpm build",
+    "beforeBundleCommand": "./build-photos.sh release"
   },
   "app": {
     "windows": [
