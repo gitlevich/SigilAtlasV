@@ -5,6 +5,8 @@ import pytest
 
 from sigil_atlas.db import CorpusDB, ImageRecord
 from sigil_atlas.relevance_filter import And, Or, Not, Range, Thing, evaluate, parse, Context
+from sigil_atlas import relevance_filter
+from sigil_atlas.ontology import OntologyNode
 from sigil_atlas.slice import compute_slice
 
 
@@ -143,6 +145,50 @@ class TestComputeSlice:
         )
         assert set(filtered.image_ids).issubset(set(full.image_ids))
         assert len(filtered.image_ids) < len(full.image_ids)
+
+
+class TestNonLeafThing:
+    """Non-leaf taxonomy names evaluate as the union of their leaves. CLIP
+    can't ground abstract parents like 'photographic'; concrete children can.
+    """
+
+    def test_leaves_under_collects_only_leaves(self, monkeypatch):
+        root = OntologyNode(name="parent", prompt="p", children=[
+            OntologyNode(name="mid", prompt="pm", children=[
+                OntologyNode(name="a", prompt="pa"),
+                OntologyNode(name="b", prompt="pb"),
+            ]),
+            OntologyNode(name="c", prompt="pc"),
+        ])
+        lookup = {n.name: n for n in root.walk()}
+        monkeypatch.setattr("sigil_atlas.things._find_node", lookup.get)
+
+        assert sorted(relevance_filter._leaves_under("parent")) == ["a", "b", "c"]
+        assert relevance_filter._leaves_under("a") == []  # leaf
+        assert relevance_filter._leaves_under("nope") == []  # unknown
+
+    def test_non_leaf_thing_unions_leaf_hits(self, seeded_db, monkeypatch):
+        provider = FakeEmbeddingProvider({})
+        ctx = _ctx(seeded_db, provider)
+
+        root = OntologyNode(name="parent", prompt="p", children=[
+            OntologyNode(name="a", prompt="pa"),
+            OntologyNode(name="b", prompt="pb"),
+        ])
+        lookup = {n.name: n for n in root.walk()}
+        monkeypatch.setattr("sigil_atlas.things._find_node", lookup.get)
+
+        leaf_hits = {"a": {"img_0", "img_1"}, "b": {"img_1", "img_2"}}
+        def fake_score(ctx_, atom):
+            scores = np.zeros(len(ctx_.corpus_ids), dtype=np.float32)
+            for i, iid in enumerate(ctx_.corpus_ids):
+                if iid in leaf_hits[atom.name]:
+                    scores[i] = 1.0
+            return scores
+        monkeypatch.setattr(relevance_filter, "_score_thing", fake_score)
+        monkeypatch.setattr(relevance_filter, "_semantic_gate", lambda s, c: s > 0.5)
+
+        assert evaluate(Thing("parent"), ctx) == {"img_0", "img_1", "img_2"}
 
 
 class TestParse:

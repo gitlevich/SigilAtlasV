@@ -212,7 +212,29 @@ def _semantic_gate(scores: np.ndarray, ctx: Context) -> np.ndarray:
     return scores >= threshold
 
 
+def _leaves_under(name: str) -> list[str]:
+    """Leaf taxonomy node names under `name`, or [] if `name` is a leaf or not
+    in any taxonomy. A non-leaf category (e.g. 'photographic') is the union of
+    its leaves — CLIP can't ground abstract parents, but it can ground concrete
+    children, and every image that matches any child belongs to the parent.
+    """
+    from sigil_atlas.things import _find_node
+    node = _find_node(name)
+    if node is None or node.is_leaf:
+        return []
+    return [d.name for d in node.walk() if d.is_leaf]
+
+
 def _eval_thing(ctx: Context, atom: Thing) -> set[str]:
+    leaves = _leaves_under(atom.name)
+    if leaves:
+        result: set[str] = set()
+        for leaf_name in leaves:
+            result |= _eval_thing(ctx, Thing(name=leaf_name))
+        logger.info("Thing '%s' (non-leaf, %d leaves): %d/%d pass relevance=%.2f",
+                    atom.name, len(leaves), len(result), len(ctx.corpus_ids), ctx.relevance)
+        return result
+
     scores = _score_thing(ctx, atom)
     mask = _semantic_gate(scores, ctx)
     result = {ctx.corpus_ids[i] for i in range(len(mask)) if mask[i]}
