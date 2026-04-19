@@ -524,123 +524,29 @@ function buildLayersSection(body: HTMLElement): void {
 }
 
 
-// ── Attract input with vocabulary autocomplete ──
+// ── Attract input ──
 //
-// Free-text in, vocabulary suggestions surfaced as you type. Per spec
-// (Thing/language.md): "the @taxonomy is scaffolding, not a gate" — anything
-// you type is a valid @thing; the dropdown is for discovery only. Press Enter
-// (with or without a highlighted suggestion) to commit; arrows navigate;
-// Escape closes the dropdown without losing the typed text.
+// Plain free-text entry. Per spec (Thing/language.md): "the @taxonomy is
+// scaffolding, not a gate" — anything typed is a valid @thing. The taxonomy
+// browser below handles discovery; this input stays out of the way.
 
 function createAttractInput(commit: (name: string) => void): HTMLElement {
-  const wrapper = document.createElement("div");
-  wrapper.className = "autocomplete-wrapper";
-
   const input = document.createElement("input");
   input.type = "text";
   input.className = "pill-input";
   input.placeholder = "type a thing, press enter...";
 
-  const dropdown = document.createElement("div");
-  dropdown.className = "autocomplete-dropdown";
-  dropdown.style.display = "none";
-
-  interface Suggestion { name: string; path: string; prompt: string; }
-  let suggestions: Suggestion[] = [];
-  let activeIdx = -1;
-
-  const closeDropdown = () => {
-    dropdown.style.display = "none";
-    dropdown.innerHTML = "";
-    suggestions = [];
-    activeIdx = -1;
-  };
-
-  const renderDropdown = () => {
-    dropdown.innerHTML = "";
-    if (suggestions.length === 0) {
-      closeDropdown();
-      return;
-    }
-    dropdown.style.display = "";
-    suggestions.forEach((term, i) => {
-      const item = document.createElement("div");
-      item.className = "autocomplete-item" + (i === activeIdx ? " active" : "");
-      const name = document.createElement("span");
-      name.textContent = term.name;
-      const path = document.createElement("span");
-      path.className = "ac-path";
-      path.textContent = `  ${term.path}`;
-      item.appendChild(name);
-      item.appendChild(path);
-      item.title = term.prompt;
-      item.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // keep input focused so blur doesn't fire first
-        input.value = "";
-        closeDropdown();
-        commit(term.name);
-      });
-      dropdown.appendChild(item);
-    });
-  };
-
-  const updateSuggestions = () => {
-    const q = input.value.trim().toLowerCase();
-    if (!q || Object.keys(vocabulary).length === 0) {
-      closeDropdown();
-      return;
-    }
-    // Walk the tree, collect matches with their ancestry as contextual path.
-    // Rank exact-prefix matches above mid-string.
-    const prefix: Suggestion[] = [];
-    const mid: Suggestion[] = [];
-    walkVocabulary(vocabulary, ({ node, ancestry, sigil }) => {
-      const n = node.name.toLowerCase();
-      const path = [sigil, ...ancestry, node.name].join("/");
-      const s: Suggestion = { name: node.name, path, prompt: node.prompt };
-      if (n === q) prefix.unshift(s);
-      else if (n.startsWith(q)) prefix.push(s);
-      else if (n.includes(q)) mid.push(s);
-    });
-    suggestions = prefix.concat(mid).slice(0, 12);
-    activeIdx = suggestions.length > 0 ? 0 : -1;
-    renderDropdown();
-  };
-
-  input.addEventListener("input", updateSuggestions);
-  input.addEventListener("focus", updateSuggestions);
-  input.addEventListener("blur", () => {
-    // Delay so that mousedown on a dropdown item fires first.
-    setTimeout(closeDropdown, 100);
-  });
-
   input.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowDown" && suggestions.length > 0) {
+    if (e.key === "Enter") {
       e.preventDefault();
-      activeIdx = (activeIdx + 1) % suggestions.length;
-      renderDropdown();
-    } else if (e.key === "ArrowUp" && suggestions.length > 0) {
-      e.preventDefault();
-      activeIdx = (activeIdx - 1 + suggestions.length) % suggestions.length;
-      renderDropdown();
-    } else if (e.key === "Escape") {
-      closeDropdown();
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const chosen =
-        activeIdx >= 0 && activeIdx < suggestions.length
-          ? suggestions[activeIdx].name
-          : input.value.trim();
+      const chosen = input.value.trim();
       if (!chosen) return;
       input.value = "";
-      closeDropdown();
       commit(chosen);
     }
   });
 
-  wrapper.appendChild(input);
-  wrapper.appendChild(dropdown);
-  return wrapper;
+  return input;
 }
 
 
@@ -1047,14 +953,14 @@ function buildAttractSection(body: HTMLElement): void {
     }
   };
 
-  const inputWrapper = createAttractInput((name: string) => {
+  const attractInput = createAttractInput((name: string) => {
     captureInLibrary(name);
     if (!addThingAttractor(name)) return;
     renderPills();
     recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
   });
 
-  holder.appendChild(inputWrapper);
+  holder.appendChild(attractInput);
   body.appendChild(holder);
   renderAttractPills = renderPills;
   renderPills();
