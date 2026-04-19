@@ -31,6 +31,49 @@ export async function actImportPhotos(): Promise<void> {
   }
 }
 
+export async function actImportApplePhotos(): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  const { message } = await import("@tauri-apps/plugin-dialog");
+
+  state.importProgress = { status: "running", stages: [], started_at: null };
+  notify();
+
+  try {
+    const auth = await invoke<{ status: string }>("photos_auth");
+    if (auth.status !== "authorized" && auth.status !== "limited") {
+      state.lastError = `Photos access: ${auth.status}`;
+      state.importProgress = { status: "error", stages: [], started_at: null };
+      notify();
+      await message(
+        "Sigil Atlas needs read access to Photos. Grant it in System Settings > Privacy & Security > Photos, then try again.",
+        { title: "Photos access denied" },
+      );
+      return;
+    }
+    // Start polling before awaiting the enumerate — Python begins emitting
+    // progress on the reporter the moment the first batch arrives. The poll
+    // loop stops itself once status flips to "completed" / "error".
+    startPolling();
+    const summary = await invoke<{
+      registered: number;
+      skipped: number;
+      thumbnails: number;
+      thumbnail_failures: number;
+    }>("photos_enumerate", {});
+    console.log("[photos-import]", summary);
+  } catch (e) {
+    console.error("[photos-import]", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    // Cancel surfaces as an error from the invoke, but the backend has
+    // already set status=paused. Leave that alone so the UI matches.
+    if (!/cancell?ed/i.test(msg)) {
+      state.lastError = msg;
+      state.importProgress = { status: "error", stages: [], started_at: null };
+      notify();
+    }
+  }
+}
+
 
 // ── Mode ─────────────────────────────────────────────────────────────────
 

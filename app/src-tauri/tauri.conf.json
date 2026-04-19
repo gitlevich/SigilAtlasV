@@ -7,7 +7,8 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1522",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeBuildCommand": "pnpm build",
+    "beforeBundleCommand": "../build-photos.sh release"
   },
   "app": {
     "windows": [
@@ -32,9 +33,11 @@
       "icons/128x128@2x.png",
       "icons/icon.icns"
     ],
+    "externalBin": ["binaries/sa-photos"],
     "macOS": {
       "signingIdentity": null,
-      "minimumSystemVersion": "10.15"
+      "minimumSystemVersion": "12.0",
+      "infoPlist": "Info.plist"
     },
     "fileAssociations": [
       {
