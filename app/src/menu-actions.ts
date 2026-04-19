@@ -198,6 +198,9 @@ export function actSetTargetToCenter(): void {
   if (!id) return;
   state.attractors = state.attractors.filter((a) => a.kind !== "target_image");
   state.attractors.push({ kind: "target_image", ref: id });
+  // "Similar to this image" is rings by intent — see the option-click
+  // handler in main.ts for the same enforcement.
+  state.arrangement = "rings";
   recomputeSliceAndLayout({ anchorImageId: id })
     .catch((e) => console.error("[set-target]", e));
 }

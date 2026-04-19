@@ -453,6 +453,11 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
       state.attractorExpression = null;
       state.attractors = state.attractors.filter((a) => a.kind !== "target_image");
       state.attractors.push({ kind: "target_image", ref: targetId });
+      // "Similar to this image" is radial by intent: target at centre,
+      // concentric rings outward by descending similarity. Force the
+      // arrangement to rings so a stale "field" or "axis" from an earlier
+      // session doesn't swallow the option-click.
+      state.arrangement = "rings";
       recomputeSliceAndLayout({ anchorImageId: targetId })
         .catch((err) => console.error("[attract]", err));
     }, DOUBLE_CLICK_MS);
