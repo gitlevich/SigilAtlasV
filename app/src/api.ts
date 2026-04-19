@@ -253,6 +253,20 @@ export async function removeThingFromLibrary(name: string): Promise<string[]> {
   return data.names;
 }
 
+// ── Workspace state (@Explore persistent state) ──────────────────────────
+// A single JSON blob keyed by "ui" in the workspace DB holds the POV, mode,
+// arrangement, layers, and other @Explore state per
+// sigil_atlas.sigil/Explore/invariant-persistent-state.md.
+
+export async function getWorkspaceState<T>(): Promise<T | null> {
+  const data = await get<{ state: T | null }>("/workspace/state");
+  return data.state;
+}
+
+export async function saveWorkspaceState<T>(state: T): Promise<void> {
+  await post<{ ok: boolean }>("/workspace/state", { state });
+}
+
 // ── Collages ──────────────────────────────────────────────────────────────
 
 export interface CollageSummary {

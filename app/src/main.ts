@@ -6,7 +6,19 @@
  */
 
 import { TorusViewport } from "./renderer/torus-viewport";
-import { state, notify, subscribe, initThingsLibrary, refreshCollages, refreshWorkspaceSigils } from "./state";
+import {
+  state,
+  notify,
+  subscribe,
+  initThingsLibrary,
+  refreshCollages,
+  refreshWorkspaceSigils,
+  loadPersistedState,
+  applyPersistedExceptPov,
+  schedulePersist,
+  markPersistedBaseline,
+  type WorkspacePersistedState,
+} from "./state";
 import * as api from "./api";
 import { initControls, setViewport, recomputeSliceAndLayout, refreshControls, imageAtWorld, cellCenterAtWorld } from "./ui/controls";
 import { initStatusBar } from "./ui/status-bar";
@@ -162,6 +174,13 @@ async function main(): Promise<void> {
   viewport.loadOverview().then(() => mark("overview atlas ready"));
   viewport.loadMidAtlas().then(() => mark("mid-atlas ready"));
 
+  // Load persisted @Explore state before slicing so the first slice/layout
+  // uses the restored mode/model/relevance/feathering/... exactly as the
+  // user left them. POV is applied after layout (needs torus dimensions).
+  const persisted: WorkspacePersistedState | null = await loadPersistedState();
+  if (persisted) applyPersistedExceptPov(persisted);
+  mark("persisted state");
+
   // Load dimensions and models (with coverage counts for disabling incomplete)
   const [dimensions, modelsRes] = await Promise.all([
     api.getDimensions(),
@@ -189,34 +208,66 @@ async function main(): Promise<void> {
   state.orderValues = sliceRes.order_values || {};
   mark("slice");
 
-  // Initial layout — spacelike by default (gravity field over square-crop cells)
-  const layout = await api.computeSpacelike({
-    filter: null,
-    relevance: state.relevance,
-    model: state.model,
-    feathering: state.feathering,
-    cell_size: state.cellSize,
-  });
+  // Initial layout — respect persisted mode. Both paths use current state
+  // (mode/arrangement/fieldExpansion/feathering) so a restored workspace
+  // paints exactly what the user left behind on the first frame.
+  let layout;
+  if (state.mode === "timelike") {
+    layout = await api.computeLayout({
+      image_ids: state.imageIds,
+      axes: state.selectedAxes.length > 0 ? state.selectedAxes : null,
+      feathering: state.feathering,
+      model: state.model,
+      strip_height: state.stripHeight,
+      preserve_order: false,
+    });
+  } else {
+    layout = await api.computeSpacelike({
+      filter: null,
+      relevance: state.relevance,
+      model: state.model,
+      feathering: state.feathering,
+      cell_size: state.cellSize,
+      field_expansion: state.fieldExpansion,
+      arrangement: state.arrangement,
+    });
+  }
   state.layout = layout;
   state.torusWidth = layout.torus_width;
   state.torusHeight = layout.torus_height;
   viewport.setLayout(layout);
   mark("layout");
 
-  // Initial framing: ~6 rows of cells in view. The full-torus splash is too
-  // far out to read individual cells and too expensive to re-layout when
-  // switching to TimeLike — 6 rows is legible and responsive.
+  // Framing: prefer the persisted @POV so the user returns exactly where
+  // they left off. Torus dimensions can differ across restarts if the
+  // corpus changed; we wrap into the current torus and clamp zoom.
   const aspect = canvas.clientWidth / canvas.clientHeight;
-  const rowsVisible = 6;
-  const desiredZoom = rowsVisible * layout.cell_size * aspect;
   const maxZoom = Math.min(layout.torus_width, layout.torus_height * aspect);
-  state.pov = {
-    x: layout.torus_width / 2,
-    y: layout.torus_height / 2,
-    z: Math.min(desiredZoom, maxZoom),
-    pitch: 0,
-    yaw: 0,
-  };
+  if (persisted) {
+    const tw = layout.torus_width || 1;
+    const th = layout.torus_height || 1;
+    state.pov = {
+      x: ((persisted.pov.x % tw) + tw) % tw,
+      y: ((persisted.pov.y % th) + th) % th,
+      z: Math.max(50, Math.min(maxZoom, persisted.pov.z)),
+      pitch: persisted.pov.pitch,
+      yaw: persisted.pov.yaw,
+    };
+  } else {
+    // Fresh workspace: ~6 rows of cells in view. The full-torus splash is
+    // too far out to read individual cells and too expensive to re-layout
+    // on mode switch — 6 rows is legible and responsive.
+    const cellSize = isSpaceLikeLayout(layout) ? layout.cell_size : layout.strip_height;
+    const rowsVisible = 6;
+    const desiredZoom = rowsVisible * cellSize * aspect;
+    state.pov = {
+      x: layout.torus_width / 2,
+      y: layout.torus_height / 2,
+      z: Math.min(desiredZoom, maxZoom),
+      pitch: 0,
+      yaw: 0,
+    };
+  }
 
   // Load the ThingsLibrary from the workspace before the panel renders so
   // library pills show up on first paint. Also drains any legacy localStorage
@@ -231,6 +282,17 @@ async function main(): Promise<void> {
   // Init controls
   await initControls(dimensions, modelsRes);
   notify();
+
+  // Mark the state we just restored + computed as the persisted baseline, so
+  // the first tick of the watcher doesn't POST identical state back.
+  markPersistedBaseline();
+
+  // Persist on any state notification (controls, filters, toggles, ...).
+  subscribe(() => schedulePersist());
+
+  // The camera loop mutates POV without calling notify(). Poll at a coarse
+  // cadence and let the JSON-diff in schedulePersist() drop no-op saves.
+  window.setInterval(() => schedulePersist(), 1000);
 
   // File-association handling. macOS asks us to open `.sigil` folders by
   // emitting RunEvent::Opened on the Rust side. We listen for the bridged

@@ -88,6 +88,15 @@ CREATE TABLE IF NOT EXISTS things_library (
     created_at REAL NOT NULL
 );
 
+-- workspace_state is a key/value store for the persisted @Explore state
+-- (POV, mode, arrangement, layers, relevance, feathering, ...). A single
+-- row with key='ui' holds a JSON blob; see Explore/invariant-persistent-state.
+CREATE TABLE IF NOT EXISTS workspace_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    modified_at REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS collages (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -572,6 +581,22 @@ class CorpusDB:
 
     def remove_thing_from_library(self, name: str) -> None:
         self._conn.execute("DELETE FROM things_library WHERE name = ?", (name,))
+        self._conn.commit()
+
+    # ── Workspace state (key/value) ──
+
+    def get_workspace_state(self, key: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT value FROM workspace_state WHERE key = ?", (key,),
+        ).fetchone()
+        return row[0] if row else None
+
+    def set_workspace_state(self, key: str, value_json: str) -> None:
+        self._conn.execute(
+            "INSERT INTO workspace_state (key, value, modified_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, modified_at = excluded.modified_at",
+            (key, value_json, time.time()),
+        )
         self._conn.commit()
 
     # ── Collages ──

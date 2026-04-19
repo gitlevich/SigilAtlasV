@@ -266,3 +266,96 @@ export function subscribe(fn: Listener): () => void {
 export function notify(): void {
   for (const fn of listeners) fn(state);
 }
+
+// ── Workspace persistent state ────────────────────────────────────────────
+// Per sigil_atlas.sigil/Explore/invariant-persistent-state.md: closing and
+// reopening the app returns to the same @POV, same @arrangement, same UI.
+// The shape is a deliberate subset of AppState — only things that survive
+// restart; not imageIds, layout, torus dims, progress, lightbox.
+
+export interface WorkspacePersistedState {
+  mode: AppState["mode"];
+  arrangement: AppState["arrangement"];
+  fieldExpansion: AppState["fieldExpansion"];
+  selectedAxes: string[];
+  feathering: number;
+  cellSize: number;
+  model: string;
+  timeDirection: string;
+  relevance: number;
+  layers: LayerToggles;
+  reliefScale: number;
+  pov: PointOfView;
+}
+
+export function snapshotPersistentState(): WorkspacePersistedState {
+  return {
+    mode: state.mode,
+    arrangement: state.arrangement,
+    fieldExpansion: state.fieldExpansion,
+    selectedAxes: [...state.selectedAxes],
+    feathering: state.feathering,
+    cellSize: state.cellSize,
+    model: state.model,
+    timeDirection: state.timeDirection,
+    relevance: state.relevance,
+    layers: { ...state.layers },
+    reliefScale: state.reliefScale,
+    pov: { ...state.pov },
+  };
+}
+
+/** Apply a persisted payload back into live state, in place. Called once at
+ *  init before the first slice/layout so mode/model/etc take effect for the
+ *  very first recompute. POV is applied separately after layout, because the
+ *  initial framing depends on computed torus dimensions. */
+export function applyPersistedExceptPov(p: WorkspacePersistedState): void {
+  state.mode = p.mode;
+  state.arrangement = p.arrangement;
+  state.fieldExpansion = p.fieldExpansion;
+  state.selectedAxes = [...p.selectedAxes];
+  state.feathering = p.feathering;
+  state.cellSize = p.cellSize;
+  state.model = p.model;
+  state.timeDirection = p.timeDirection;
+  state.relevance = p.relevance;
+  state.layers = { ...p.layers };
+  state.reliefScale = p.reliefScale;
+}
+
+export async function loadPersistedState(): Promise<WorkspacePersistedState | null> {
+  try {
+    return await api.getWorkspaceState<WorkspacePersistedState>();
+  } catch (e) {
+    console.error("[workspace-state] load failed:", e);
+    return null;
+  }
+}
+
+// Debounced persister. Multiple rapid mutations (drag, slider tweak) collapse
+// into a single POST. The watcher also ticks at a coarse interval to catch
+// POV changes from the camera loop which don't call notify().
+let persistTimer: number | null = null;
+let lastPersistedJson: string | null = null;
+const PERSIST_DEBOUNCE_MS = 400;
+
+export function schedulePersist(): void {
+  if (persistTimer !== null) return;
+  persistTimer = window.setTimeout(() => {
+    persistTimer = null;
+    const snap = snapshotPersistentState();
+    const json = JSON.stringify(snap);
+    if (json === lastPersistedJson) return;
+    lastPersistedJson = json;
+    api.saveWorkspaceState(snap).catch((e) => {
+      console.error("[workspace-state] save failed:", e);
+      lastPersistedJson = null; // retry on next tick
+    });
+  }, PERSIST_DEBOUNCE_MS);
+}
+
+/** Mark the current state as already-persisted so the first schedulePersist()
+ *  after init doesn't POST unchanged state back to the server. */
+export function markPersistedBaseline(): void {
+  lastPersistedJson = JSON.stringify(snapshotPersistentState());
+}
