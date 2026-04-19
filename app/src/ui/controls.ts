@@ -494,7 +494,7 @@ async function fetchAndSetNeighborhoods(): Promise<void> {
 }
 
 
-// ── Layers (Photos / Neighborhoods) ──
+// ── Layers (Photos / Neighborhoods / Relief) ──
 
 function buildLayersSection(body: HTMLElement): void {
   const row = document.createElement("div");
@@ -503,6 +503,7 @@ function buildLayersSection(body: HTMLElement): void {
   const defs: Array<{ key: keyof typeof state.layers; label: string; hint: string }> = [
     { key: "photos", label: "Photos", hint: "image tiles" },
     { key: "neighborhoods", label: "Neighborhoods", hint: "KMeans cluster boundaries" },
+    { key: "relief", label: "Relief", hint: "elevation from gravity — tilt the camera to see terrain" },
   ];
 
   for (const def of defs) {
@@ -974,6 +975,12 @@ function buildAttractSection(body: HTMLElement): void {
       return;
     }
 
+    // Shape glyph appears only on a single-attractor state. With 0, there
+    // is nothing to arrange; with 2+, the backend ignores the per-attractor
+    // choice and always uses the gravity field. Showing the control only
+    // when it takes effect keeps it honest.
+    const soleAttractor = state.attractors.length === 1;
+
     for (let i = 0; i < state.attractors.length; i++) {
       const att = state.attractors[i];
       const pill = document.createElement("span");
@@ -999,6 +1006,8 @@ function buildAttractSection(body: HTMLElement): void {
         pill.textContent = att.ref;
       }
 
+      if (soleAttractor) pill.appendChild(createShapeCycler(att.kind));
+
       const remove = document.createElement("span");
       remove.className = "pill-remove";
       remove.textContent = "\u00d7";
@@ -1012,6 +1021,49 @@ function buildAttractSection(body: HTMLElement): void {
       holder.insertBefore(pill, holder.lastElementChild);
     }
   };
+
+  // Attractor-shape cycler — a small glyph the user clicks to choose how
+  // this attractor pulls the field. Shapes valid for a Thing: rings, field.
+  // For a TargetImage: rings, field, axis (axis pairs the target with its
+  // embedding antipode). Glyph shows the current choice; click cycles
+  // through the shapes the attractor's kind supports.
+  type Shape = "rings" | "field" | "axis";
+
+  function createShapeCycler(kind: "thing" | "target_image"): HTMLSpanElement {
+    const shapes: readonly Shape[] = kind === "target_image"
+      ? ["rings", "field", "axis"]
+      : ["rings", "field"];
+    const current: Shape = shapes.includes(state.arrangement)
+      ? state.arrangement
+      : shapes[0];
+    if (current !== state.arrangement) state.arrangement = current;
+
+    const el = document.createElement("span");
+    el.className = "pill-shape";
+    el.textContent = shapeGlyph(current);
+    el.title = shapeTitle(current);
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const idx = shapes.indexOf(state.arrangement);
+      const next = shapes[(idx + 1) % shapes.length];
+      state.arrangement = next;
+      el.textContent = shapeGlyph(next);
+      el.title = shapeTitle(next);
+      recomputeSliceAndLayout().catch((err) => console.error("[shape-cycle]", err));
+    });
+    return el;
+  }
+
+  function shapeGlyph(s: "rings" | "field" | "axis"): string {
+    return s === "rings" ? "\u25CE" : s === "field" ? "\u25CF" : "\u2194";
+  }
+
+  function shapeTitle(s: "rings" | "field" | "axis"): string {
+    return s === "rings" ? "Rings — radial shells by similarity"
+      : s === "field" ? "Field — continuous gravity well"
+      : "Axis — poles between target and its antipode";
+  }
+
 
   const attractInput = createAttractInput((raw: string) => {
     // SigilML expression: parse, store AST, clear pill list, drop Target.
@@ -1627,32 +1679,11 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   fieldGroup.appendChild(fieldSelect);
   settings.body.appendChild(fieldGroup);
 
-  // Arrangement — how a single attractor lays out its neighbourhood.
-  // Rings produces sharp similarity tiers; Field is a continuous deformation
-  // of UMAP that preserves local mutual proximity.
-  const arrGroup = document.createElement("div");
-  arrGroup.className = "control-group";
-  const arrLabel = document.createElement("label");
-  arrLabel.textContent = "Arrangement";
-  arrGroup.appendChild(arrLabel);
-  const arrSelect = document.createElement("select");
-  for (const opt of [
-    { value: "rings", label: "Rings (radial shells)" },
-    { value: "field", label: "Field (continuous)" },
-    { value: "axis",  label: "Axis (similar \u2194 opposite)" },
-  ]) {
-    const o = document.createElement("option");
-    o.value = opt.value;
-    o.textContent = opt.label;
-    arrSelect.appendChild(o);
-  }
-  arrSelect.value = state.arrangement;
-  arrSelect.addEventListener("change", () => {
-    state.arrangement = arrSelect.value as "rings" | "field" | "axis";
-    recomputeSliceAndLayout().catch((e) => console.error("Layout failed:", e));
-  });
-  arrGroup.appendChild(arrSelect);
-  settings.body.appendChild(arrGroup);
+  // Arrangement: per-attractor control lives on the pill itself (Attract
+  // section) — a shape glyph next to the label, clickable to cycle through
+  // the shapes valid for that attractor's type. A global setting here would
+  // be silently ignored in the many cases where it doesn't apply; the pill
+  // shows the control only when and where it can take effect.
 
   // Time direction
   const timeDirGroup = document.createElement("div");

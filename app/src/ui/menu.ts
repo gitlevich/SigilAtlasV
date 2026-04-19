@@ -137,6 +137,12 @@ export async function initMenu(): Promise<void> {
           accelerator: "CmdOrCtrl+0",
           action: () => A.actFrameAll(),
         }),
+        await MenuItem.new({
+          id: "level-camera",
+          text: "Level Camera",
+          accelerator: "CmdOrCtrl+L",
+          action: () => A.actLevel(),
+        }),
         await PredefinedMenuItem.new({ item: "Separator" }),
         await MenuItem.new({
           id: "mode-spacelike",

@@ -219,7 +219,7 @@ export class TorusViewport {
 
   private thumbnailBaseUrl = "";
   private animFrameId = 0;
-  private layers: LayerToggles = { photos: true, neighborhoods: false };
+  private layers: LayerToggles = { photos: true, neighborhoods: false, relief: false };
   private reliefScale = 0;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -567,9 +567,15 @@ export class TorusViewport {
     // a tilted orthographic view reveals. At pitch=PI/2 the strip is infinite,
     // so we clamp by torus dimensions.
     const pitchFactor = 1 + Math.sin(Math.abs(pov.pitch)) * 4;
-    const reliefBleed = false ? this.reliefScale * 2 : 0;
-    const viewLeft = pov.x - visW * 0.5;
-    const viewRight = pov.x + visW * 0.5;
+    const reliefBleed = this.layers.relief ? this.reliefScale * 2 : 0;
+    // View rect including pitch foreshortening and relief lift on both
+    // axes — yaw rotates the extension, so X gets the same pitch scale
+    // as Y to remain correct at any yaw. The torus wraps, so fetch
+    // bounds extend far beyond the view and the wrap loop tiles cells
+    // across them; the black edges the user used to see were the fetch
+    // window clipping before the wrap copies could fill in.
+    const viewLeft = pov.x - visW * 0.5 * pitchFactor - reliefBleed;
+    const viewRight = pov.x + visW * 0.5 * pitchFactor + reliefBleed;
     const viewTop = pov.y - visH * 0.5 * pitchFactor - reliefBleed;
     const viewBottom = pov.y + visH * 0.5 * pitchFactor + reliefBleed;
     const marginX = visW * 0.5, marginY = visH * 0.5;
@@ -579,7 +585,7 @@ export class TorusViewport {
     const baseUrl = this.thumbnailBaseUrl;
     const now = performance.now();
     const seenIds = new Set<string>();
-    const reliefOn = false;
+    const reliefOn = this.layers.relief;
     const zScale = reliefOn ? this.reliefScale : 0;
 
     for (const pos of positions) {
@@ -600,11 +606,21 @@ export class TorusViewport {
       const wz = pos.elevation * zScale;
 
       let requested = false;
-      for (let dy = -torus_height; dy <= torus_height; dy += torus_height) {
-        const wy = baseWy + dy;
+      // Dynamic wrap range — iterate as many torus copies as the fetch
+      // window needs in each axis. The old fixed ±1 wrap left visible
+      // gaps when pitch + relief pushed the view past one torus
+      // wavelength. Computed per-cell so any cell's wrap copies are
+      // complete across the view; the per-copy `continue` still culls
+      // the out-of-fetch ones, so this doesn't cost extra draws.
+      const kyMin = Math.floor((fetchTop - baseWy - cell_size) / torus_height);
+      const kyMax = Math.ceil((fetchBottom - baseWy) / torus_height);
+      const kxMin = Math.floor((fetchLeft - baseWx - cell_size) / torus_width);
+      const kxMax = Math.ceil((fetchRight - baseWx) / torus_width);
+      for (let ky = kyMin; ky <= kyMax; ky++) {
+        const wy = baseWy + ky * torus_height;
         if (wy + cell_size < fetchTop || wy > fetchBottom) continue;
-        for (let dx = -torus_width; dx <= torus_width; dx += torus_width) {
-          const wx = baseWx + dx;
+        for (let kx = kxMin; kx <= kxMax; kx++) {
+          const wx = baseWx + kx * torus_width;
           if (wx + cell_size < fetchLeft || wx > fetchRight) continue;
 
           if (needsAtlas && !requested && !this.atlas.isLoaded(pos.id) && baseUrl) {
@@ -905,7 +921,7 @@ export class TorusViewport {
   private _drawContours(mvp: Float32Array, pov: PointOfView): void {
     const gl = this.gl;
     const layout = this.gridLayout!;
-    const reliefOn = false;
+    const reliefOn = this.layers.relief;
 
     if (!this.contourVerts || this.contourReliefScale !== this.reliefScale || this.contourReliefOn !== reliefOn) {
       this.contourVerts = this._buildContourVerts();
@@ -963,7 +979,7 @@ export class TorusViewport {
     const aspect = this.canvas.width / Math.max(1, this.canvas.height);
     const visW = pov.z, visH = pov.z / aspect;
     const pitchFactor = 1 + Math.sin(Math.abs(pov.pitch)) * 4;
-    const reliefBleed = false ? this.reliefScale * 2 : 0;
+    const reliefBleed = this.layers.relief ? this.reliefScale * 2 : 0;
     const viewLeft = pov.x - visW * 0.5;
     const viewRight = pov.x + visW * 0.5;
     const viewTop = pov.y - visH * 0.5 * pitchFactor - reliefBleed;

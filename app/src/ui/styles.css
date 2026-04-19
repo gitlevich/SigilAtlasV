@@ -354,6 +354,22 @@ html, body {
   line-height: 1;
 }
 
+/* Per-attractor shape cycler. Appears only with exactly one attractor
+   (backend ignores the choice otherwise). Click to cycle through the
+   shapes valid for that attractor's kind. */
+.pill-shape {
+  cursor: pointer;
+  color: #8090c0;
+  font-size: 12px;
+  line-height: 1;
+  margin-left: 2px;
+  user-select: none;
+}
+
+.pill-shape:hover {
+  color: #b0c0f0;
+}
+
 /* TargetImage pill — the @TargetImage attractor (set by option-clicking a
    photo). Carries a thumbnail of the actual image so the user can see
    *which* image is the focus, not just that something is set. */

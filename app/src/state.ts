@@ -234,7 +234,7 @@ export const state: AppState = {
   torusHeight: 0,
   stripHeight: 100,
   cellSize: 100,
-  layers: { photos: true, neighborhoods: false },
+  layers: { photos: true, neighborhoods: false, relief: false },
   reliefScale: 600,
   importProgress: null,
   lastError: null,

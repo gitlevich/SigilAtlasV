@@ -568,9 +568,20 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
       return;
     }
 
+    // Direct manipulation under arbitrary camera orientation. The drag
+    // direction is resolved in *screen* space (right, down) and mapped
+    // to the camera's horizontal frame so a drag feels pointer-locked
+    // regardless of yaw or pitch. Right-on-screen = camera-right in
+    // the world-horizontal plane; down-on-screen = camera-forward in
+    // the same plane, stretched by 1/cos(pitch) to undo foreshortening.
     const ppu = pixelsPerUnit();
-    const worldDx = -dx / ppu;
-    const worldDy = dy / ppu;
+    const pitchCompensate = 1 / Math.max(Math.cos(state.pov.pitch), 0.1);
+    const yaw = state.pov.yaw;
+    const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+    const rightX = cosY,  rightY = sinY;    // screen +X → world-horizontal
+    const fwdX   = -sinY, fwdY   = cosY;    // screen -Y (up) → world-horizontal
+    const worldDx = (-dx * rightX + dy * pitchCompensate * fwdX) / ppu;
+    const worldDy = (-dx * rightY + dy * pitchCompensate * fwdY) / ppu;
 
     // Direct manipulation: content follows pointer 1:1
     state.pov.x += worldDx;
@@ -628,10 +639,12 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
       // Pinch-to-zoom (trackpad sends wheel+ctrlKey for pinch)
       applyZoom(1 + e.deltaY * 0.005);
     } else {
-      // Two-finger swipe → direct pan, no momentum
+      // Two-finger swipe → direct pan, no momentum. Same pitch-compensate
+      // as the drag path so wheel Y-direction feels right at any tilt.
       const ppu = pixelsPerUnit();
+      const pitchCompensate = 1 / Math.max(Math.cos(state.pov.pitch), 0.1);
       state.pov.x -= e.deltaX / ppu;
-      state.pov.y += e.deltaY / ppu;
+      state.pov.y += (e.deltaY / ppu) * pitchCompensate;
       wrapPov();
     }
   }, { passive: false });

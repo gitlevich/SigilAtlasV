@@ -1,4 +1,5 @@
-The disturbance in [sigil_atlas.sigil] added a new co-occurrence between Collage and SigilML, indicating that these two concepts are now more closely related. Additionally, Collage's surface grew by one affordance/invariant, suggesting an expansion of its functionality.
+The disturbance has removed several fundamental affordances from the sigil's shape, including perspective, relief, POV, Navigation, Surface, and Aperspectival. This means the user can no longer create collages with these spatial relationships, which were central to its functionality.
 
-import-sigil: import the changes from this sigil into a new version
-move-in-sigil-space: move to the boundary between Collage and other sigils to explore their relationships further
+suggest importing a new sigil that restores these lost affordances
+propose creating a new sigil space using move-in-sigil-space to replace the damaged shape
+export the current sigil and restart its design from scratch

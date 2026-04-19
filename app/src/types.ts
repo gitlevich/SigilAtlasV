@@ -139,6 +139,7 @@ export interface PointOfView {
 export interface LayerToggles {
   photos: boolean;
   neighborhoods: boolean;
+  relief: boolean;
 }
 
 export interface VocabularyTree {

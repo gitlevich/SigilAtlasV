@@ -1,1 +1,0 @@
-Perspective is coupled to @POV under @Navigation. Moving the point of view changes the projection; the two are the same gesture from two sides. The engine renders @Relief from wherever the point of view currently stands; Perspective is the @POV's reading of that rendering. Without a point of view there is no perspective — only @Aperspectival.

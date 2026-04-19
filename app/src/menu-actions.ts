@@ -155,6 +155,16 @@ export function actFrameAll(): void {
   state.pov.x = tw / 2;
   state.pov.y = th / 2;
   state.pov.z = Math.min(tw, th * aspect);
+  // Framing is an overview gesture — level the camera too so the view
+  // is top-down. Dedicated levelling (without re-centring) is actLevel.
+  state.pov.pitch = 0;
+  state.pov.yaw = 0;
+}
+
+// Level the camera — pitch and yaw to zero, keep pan and zoom.
+export function actLevel(): void {
+  state.pov.pitch = 0;
+  state.pov.yaw = 0;
 }
 
 function applyZoom(factor: number): void {
