@@ -14,12 +14,21 @@ import type {
   ContrastControl,
   ImportProgress,
 } from "./types";
+import type { Expression } from "./relevance";
 import * as api from "./api";
 
 export interface AppState {
   // RelevanceFilter inputs — UI-shaped; buildFilter projects them into the AST.
   // The filter is a membrane: these pieces are intent, the slice is the result.
   attractors: Attractor[];
+
+  // When the user types a SigilML boolean expression (and/or/not over @things)
+  // into the Attract input, the full AST replaces the flat pills as the source
+  // of truth for the attractor sub-tree. Null means "use the flat pills".
+  // Mutually exclusive with `attractors` by convention: whichever was set last
+  // wins, and the other is cleared.
+  attractorExpression: Expression | null;
+
   contrastControls: ContrastControl[];
   rangeFilters: RangeFilter[];
 
@@ -206,6 +215,7 @@ function initialPanelState(): PanelState {
 
 export const state: AppState = {
   attractors: [],
+  attractorExpression: null,
   contrastControls: [],
   rangeFilters: [],
   thingsLibrary: [],

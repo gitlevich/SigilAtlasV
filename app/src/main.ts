@@ -450,6 +450,7 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
       const targetId = pendingTargetId;
       pendingTargetId = null;
       if (!targetId) return;
+      state.attractorExpression = null;
       state.attractors = state.attractors.filter((a) => a.kind !== "target_image");
       state.attractors.push({ kind: "target_image", ref: targetId });
       recomputeSliceAndLayout({ anchorImageId: targetId })

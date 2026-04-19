@@ -12,6 +12,7 @@
 import { state, notify, refreshWorkspaceSigils } from "./state";
 import * as api from "./api";
 import { buildFilter } from "./relevance";
+import type { Expression } from "./relevance";
 import type { Attractor, ContrastControl, RangeFilter, PointOfView } from "./types";
 import { recomputeSliceAndLayout, rebuildControlsFromState } from "./ui/controls";
 
@@ -55,6 +56,7 @@ export async function saveCurrentAsCollage(): Promise<string | null> {
 
   const expression = buildFilter({
     attractors: state.attractors,
+    attractorExpression: state.attractorExpression,
     contrastControls: state.contrastControls,
     rangeFilters: state.rangeFilters,
   });
@@ -117,8 +119,9 @@ export async function loadCollageFromFolder(folderPath: string): Promise<void> {
     return;
   }
 
-  const { attractors, contrastControls, rangeFilters } = projectExpressionToState(manifest.expression);
+  const { attractors, attractorExpression, contrastControls, rangeFilters } = projectExpressionToState(manifest.expression);
   state.attractors = attractors;
+  state.attractorExpression = attractorExpression;
   state.contrastControls = contrastControls;
   state.rangeFilters = rangeFilters;
   state.relevance = manifest.relevance;
@@ -161,26 +164,40 @@ export async function loadCollageFromFolder(folderPath: string): Promise<void> {
   notify();
 }
 
-/** Best-effort: turn a saved AST back into the UI-shaped attractors/contrasts/ranges. */
+/** Turn a saved AST back into the UI-shaped fields.
+ *
+ * Simple collages project to flat attractor pills. But the attractor sub-tree
+ * may contain Or/Not/nested And — in that case we store it as
+ * `attractorExpression` so the structural intent survives the round-trip.
+ *
+ * Strategy: walk the top-level AND children (or treat the whole tree as one
+ * node if it isn't an AND). Contrast and Range atoms always peel off into
+ * their own UI widgets. The remainder is either pill-representable (every
+ * leaf is Thing or TargetImage, no composites) → flat pills, or it isn't →
+ * stored verbatim as attractorExpression.
+ */
 function projectExpressionToState(expr: unknown): {
   attractors: Attractor[];
+  attractorExpression: Expression | null;
   contrastControls: ContrastControl[];
   rangeFilters: RangeFilter[];
 } {
   const attractors: Attractor[] = [];
   const contrastControls: ContrastControl[] = [];
   const rangeFilters: RangeFilter[] = [];
+  const attractorNodes: Expression[] = [];
 
-  const visit = (node: unknown) => {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
+  const topChildren: unknown[] = (() => {
+    if (!expr || typeof expr !== "object") return [];
+    const n = expr as Record<string, unknown>;
+    if (n.type === "and" && Array.isArray(n.children)) return n.children;
+    return [expr];
+  })();
+
+  for (const child of topChildren) {
+    if (!child || typeof child !== "object") continue;
+    const n = child as Record<string, unknown>;
     switch (n.type) {
-      case "thing":
-        attractors.push({ kind: "thing", ref: String(n.name) });
-        return;
-      case "target_image":
-        attractors.push({ kind: "target_image", ref: String(n.image_id) });
-        return;
       case "contrast":
         contrastControls.push({
           pole_a: String(n.pole_a),
@@ -188,25 +205,44 @@ function projectExpressionToState(expr: unknown): {
           band_min: Number(n.band_min),
           band_max: Number(n.band_max),
         });
-        return;
+        continue;
       case "range":
         rangeFilters.push({
           dimension: String(n.dimension),
           min: Number(n.min),
           max: Number(n.max),
         });
-        return;
-      case "and":
-      case "or":
-        for (const c of (n.children as unknown[]) ?? []) visit(c);
-        return;
-      case "not":
-        visit(n.child);
-        return;
+        continue;
+      default:
+        attractorNodes.push(child as Expression);
     }
+  }
+
+  const isPillAtom = (node: unknown): boolean => {
+    if (!node || typeof node !== "object") return false;
+    const t = (node as Record<string, unknown>).type;
+    return t === "thing" || t === "target_image";
   };
-  visit(expr);
-  return { attractors, contrastControls, rangeFilters };
+  const flatPillable = attractorNodes.every(isPillAtom);
+
+  if (flatPillable) {
+    for (const n of attractorNodes) {
+      if (n.type === "thing") {
+        attractors.push({ kind: "thing", ref: n.name });
+      } else if (n.type === "target_image") {
+        attractors.push({ kind: "target_image", ref: n.image_id });
+      }
+    }
+    return { attractors, attractorExpression: null, contrastControls, rangeFilters };
+  }
+
+  const attractorExpression: Expression | null =
+    attractorNodes.length === 0
+      ? null
+      : attractorNodes.length === 1
+        ? attractorNodes[0]
+        : ({ type: "and", children: attractorNodes } as Expression);
+  return { attractors, attractorExpression, contrastControls, rangeFilters };
 }
 
 // Legacy in-panel collages (SQLite) wrappers — kept so the existing panel can
@@ -244,8 +280,9 @@ export async function loadCollage(id: string): Promise<void> {
   }
   const expression = JSON.parse(detail.expression_json);
   const pov: PointOfView = JSON.parse(detail.pov_json);
-  const { attractors, contrastControls, rangeFilters } = projectExpressionToState(expression);
+  const { attractors, attractorExpression, contrastControls, rangeFilters } = projectExpressionToState(expression);
   state.attractors = attractors;
+  state.attractorExpression = attractorExpression;
   state.contrastControls = contrastControls;
   state.rangeFilters = rangeFilters;
   state.relevance = detail.relevance;
