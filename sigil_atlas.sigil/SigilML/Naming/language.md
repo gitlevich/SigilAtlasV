@@ -4,14 +4,14 @@ status: idea
 
 # Naming
 
-A graph-edit speech-act in @SigilML. `Name(sigil, as: role)` pronounced by a @POV from inside its @self installs a @child-edge in @self under the given @Role and a reciprocal edge in the named @sigil drawn from the role-taxonomy's pairings table. The return value is the named @sigil, so naming composes with expression operators — `Attract(Name(mama, as: мама))` names my mama under role `мама` and immediately attracts her.
+A graph-edit speech-act. `Name(sigil, as: role)` pronounced by a @POV from inside its @self installs a @Children edge in @self under the given @Role and a reciprocal edge in the named @sigil drawn from the role-taxonomy's pairings. Return value is the named @sigil, so `Attract(Name(mama, as: мама))` names and attracts in one expression.
 
-The operator `Name` differs from the pattern @Sigil/Name. The operator pronounces; the pattern is what gets pronounced. Operator-`Name` installs pattern-@Name at a position (a @Role) in a @self.
+The operator `Name` differs from the pattern @Name. The operator pronounces; the pattern is what gets pronounced.
 
-Naming creates. If the first argument is a @sigil that does not yet exist, `Name` brings it into being — a mood I have just noticed, a place in my own lexicon, a person I am meeting — with the given @Name-pattern (optional, generated if omitted) at the named @Role. If the @sigil already exists, `Name` installs the @Role-edge without re-creating.
+If the first argument names a @sigil that does not yet exist, `Name` brings it into being. If it already exists, `Name` installs the @Role edge without re-creating.
 
-Providers assist, do not speak. @Face recognition, CLIP, and named-entity recognition offer candidate names from external taxonomies; the speaker accepts, rejects, corrects, or ignores. Manual naming is first-class. A @SigilML expression resolving to a @sigil is a third source.
+Providers assist, do not speak. CLIP and named-entity recognition offer candidates; the speaker accepts, rejects, corrects. Face recognition is a future provider. Manual naming is first-class.
 
-The edge installed is reciprocal but asymmetric in label. My @self gains a door to mama under `мама`; her @self holds me under `сын`. One edge, two lexical projections. If the role-taxonomy declares no reciprocal, the other side holds a generic @Neighbor-edge until that side names it.
+The edge is reciprocal, labels asymmetric. My @self gains a door to mama under `мама`; her @self holds me under `сын`. One edge, two projections. If the role-taxonomy declares no reciprocal, the other side holds a generic @Neighbor edge until named.
 
-Retraction is another speech-act, not a deletion. `Retract(role-edge)` ends the edge from the speaker's side and marks the reciprocal as unilaterally severed on the other side. The trace is preserved; past namings are part of the @sigil's history, not undone.
+Retraction is another speech-act, not a deletion. `Retract` ends the edge from the speaker's side and marks the reciprocal severed. The trace is preserved.

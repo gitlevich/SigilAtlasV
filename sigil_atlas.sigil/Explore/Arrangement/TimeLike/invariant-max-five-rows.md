@@ -1,0 +1,1 @@
+Zoom-out is bounded: no more than five rows visible at any zoom level. The bound is a row count, not a percentage. Past the bound, the zoom affordance refuses further zoom-out and offers an exit to @SpaceLike.
