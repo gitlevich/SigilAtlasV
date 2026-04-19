@@ -25,9 +25,53 @@ import numpy as np
 
 from sigil_atlas.db import CorpusDB
 from sigil_atlas.embedding_provider import EmbeddingProvider
-from sigil_atlas.model_registry import get_adapter
+from sigil_atlas.model_registry import ModelAdapter, get_adapter
+from sigil_atlas.ontology import OntologyNode
 
 logger = logging.getLogger(__name__)
+
+
+# Prompt-ensemble templates for taxonomy terms. A leaf's CLIP vector is the
+# L2-normalised mean of its ensemble; this damps per-template idiosyncrasy so
+# small/rare leaves don't land in random corners of the embedding.
+_ENSEMBLE_TEMPLATES: tuple[str, ...] = (
+    "a photograph of {p}",
+    "a photo of {p}",
+    "{p}",
+    "an image showing {p}",
+)
+
+
+def _ensemble_text_vector(
+    adapter: ModelAdapter,
+    prompt: str,
+    provider: EmbeddingProvider,
+    image_ids: list[str],
+) -> np.ndarray:
+    """Resolve a prompt to CLIP via a small template ensemble, mean-normalised.
+
+    Each template is cached individually by the model adapter, so repeated
+    ensembles over the same prompt cost only four dict lookups after warm-up.
+    """
+    vecs: list[np.ndarray] = []
+    for tpl in _ENSEMBLE_TEMPLATES:
+        v = adapter.resolve_text_vector(tpl.format(p=prompt), provider, image_ids)
+        vecs.append(np.asarray(v, dtype=np.float32))
+    mean = np.mean(np.stack(vecs), axis=0)
+    n = float(np.linalg.norm(mean))
+    if n > 1e-8:
+        mean = mean / n
+    return mean.astype(np.float32)
+
+
+def _leaves_of(node: OntologyNode) -> list[OntologyNode]:
+    """All leaf descendants. If `node` is itself a leaf, returns [node]."""
+    if not node.children:
+        return [node]
+    out: list[OntologyNode] = []
+    for child in node.children:
+        out.extend(_leaves_of(child))
+    return out
 
 
 @dataclass(frozen=True)
@@ -138,67 +182,92 @@ def _resolve_attractor_vectors(
     provider: EmbeddingProvider,
     model: str,
     image_ids: list[str],
-) -> tuple[list[Attractor], np.ndarray]:
-    """Resolve each attractor to a unit-norm vector in the model's embedding space.
+) -> tuple[list[Attractor], np.ndarray, np.ndarray]:
+    """Resolve user-thrown attractors into (users, user_vecs, peer_vecs).
 
-    Returns (resolved_attractors, matrix) where the two lists/rows are aligned.
-    Invalid attractors (unknown terms, missing images) are dropped silently.
+    Per @SpaceLike: "the superposition of articulated root-to-leaf paths."
+    A taxonomy term is articulated to its leaves — not one level, all the
+    way down — so the projected sigil on the @surface is the sum of its
+    sub-basins. A crude/leaf sigil degenerates to itself.
+
+    For each user attractor:
+      - `thing` leaf (or free text): one peer = ensemble text vector of its prompt.
+      - `thing` non-leaf: one peer per descendant leaf, each ensemble-encoded.
+        The user's own vec is the L2-normalised centroid of its leaves — used
+        for UI peak display and for single-pole arrangement modes (rings, axis).
+      - `target_image`: one peer = the image's unit-normalised embedding.
+
+    Rows of `user_vecs` align with `users` (the pills the UI shows). Rows of
+    `peer_vecs` are the expanded leaf set across all users — the gravity field
+    operates on these. Invalid attractors are dropped silently.
     """
     if not attractors:
-        return [], np.empty((0, 0), dtype=np.float32)
+        empty = np.empty((0, 0), dtype=np.float32)
+        return [], empty, empty
 
     adapter = get_adapter(model)
-    resolved: list[Attractor] = []
-    vecs: list[np.ndarray] = []
+    users: list[Attractor] = []
+    user_vecs: list[np.ndarray] = []
+    peer_vecs: list[np.ndarray] = []
 
     for att in attractors:
         if att.kind == "thing":
             from sigil_atlas.things import _find_node
             node = _find_node(att.ref)
-            if node is not None:
-                prompt = node.prompt
-            else:
-                # Free-form text fallback — treat the ref as a prompt directly.
-                # Useful during exploration before the taxonomy catches up.
-                prompt = f"a photograph of {att.ref}"
-                logger.info("Attractor '%s' not in taxonomy; using free-text prompt", att.ref)
-            vec = adapter.resolve_text_vector(prompt, provider, image_ids)
-            resolved.append(att)
-            vecs.append(np.asarray(vec, dtype=np.float32))
 
-            # Rich taxonomy: the dropped node has children. Articulate one
-            # level down as peer attractors so the field terraces by
-            # sub-category. Each child contributes its own root-to-child
-            # narrative to the @SpaceLike superposition per the
-            # @Arrangement duality. Crude sigils (leaves, no children) fall
-            # through unchanged as a single attractor.
-            if node is not None and node.children:
-                for child in node.children:
-                    child_vec = adapter.resolve_text_vector(
-                        child.prompt, provider, image_ids,
-                    )
-                    resolved.append(Attractor(kind="thing", ref=child.name))
-                    vecs.append(np.asarray(child_vec, dtype=np.float32))
+            if node is None:
+                leaf_prompts = [att.ref]
+                logger.info("Attractor '%s' not in taxonomy; free-text ensemble", att.ref)
+            else:
+                leaves = _leaves_of(node)
+                leaf_prompts = [leaf.prompt for leaf in leaves]
+
+            leaf_vecs = [
+                _ensemble_text_vector(adapter, p, provider, image_ids)
+                for p in leaf_prompts
+            ]
+            if not leaf_vecs:
+                continue
+            leaf_matrix = np.stack(leaf_vecs).astype(np.float32)
+
+            centroid = leaf_matrix.mean(axis=0)
+            cn = float(np.linalg.norm(centroid))
+            if cn > 1e-8:
+                centroid = centroid / cn
+
+            users.append(att)
+            user_vecs.append(centroid.astype(np.float32))
+            for v in leaf_matrix:
+                peer_vecs.append(v)
+
+            if node is not None and not node.is_leaf:
                 logger.info(
-                    "Rich taxonomy '%s' articulated with %d children",
-                    att.ref, len(node.children),
+                    "Taxonomy '%s' articulated to %d leaf peers",
+                    att.ref, len(leaf_vecs),
                 )
-            continue
+
         elif att.kind == "target_image":
             matrix = provider.fetch_matrix([att.ref], model)
-            vec = matrix[0]
+            vec = matrix[0].astype(np.float32)
             n = float(np.linalg.norm(vec))
             if n > 1e-8:
                 vec = vec / n
+            users.append(att)
+            user_vecs.append(vec)
+            peer_vecs.append(vec)
+
         else:
             logger.warning("Unknown attractor kind: %s", att.kind)
-            continue
-        resolved.append(att)
-        vecs.append(np.asarray(vec, dtype=np.float32))
 
-    if not vecs:
-        return [], np.empty((0, 0), dtype=np.float32)
-    return resolved, np.stack(vecs)
+    if not user_vecs:
+        empty = np.empty((0, 0), dtype=np.float32)
+        return [], empty, empty
+
+    return (
+        users,
+        np.stack(user_vecs).astype(np.float32),
+        np.stack(peer_vecs).astype(np.float32),
+    )
 
 
 def _attractor_anchor_positions(attractor_vecs: np.ndarray) -> np.ndarray:
@@ -293,11 +362,12 @@ def _gravity_targets(
     else:
         confidence = np.full(n, 0.5, dtype=np.float32)
     # Cap below 1.0 so the most-similar cohort doesn't collapse to a single
-    # anchor point. Lower values preserve more UMAP-residual at the peak,
-    # which softens the kd-tree partition seams visible at content-cluster
-    # boundaries (sky/crowd/cityscape bands in 2-attractor Axis mode). 0.6
-    # gives a noticeably smoother field while keeping the polar tension legible.
-    PEAK_MAX_BIAS = 0.60
+    # anchor point. With leaf-level articulation, each peer is already a
+    # small basin, so we can lean harder on the gravity field (less UMAP
+    # residual) without producing a single hard lump. 0.80 sharpens the
+    # sub-terraces while preserving enough UMAP-topology to keep boundaries
+    # between adjacent leaves continuous.
+    PEAK_MAX_BIAS = 0.80
     confidence = (confidence * PEAK_MAX_BIAS).reshape(-1, 1)
 
     targets = confidence * gravity_pos + (1.0 - confidence) * umap_fallback
@@ -633,10 +703,13 @@ def compute_spacelike(
         logger.info("Grid (echo): %d x %d = %d cells (%d padding duplicates), aspect target=%.2f actual=%.2f",
                     rows, cols, rows * cols, rows * cols - n, aspect, cols / max(1, rows))
 
-    resolved_attractors: list[Attractor] = []
-    attractor_vecs: np.ndarray = np.empty((0, 0), dtype=np.float32)
+    user_attractors: list[Attractor] = []
+    user_vecs: np.ndarray = np.empty((0, 0), dtype=np.float32)
+    peer_vecs: np.ndarray = np.empty((0, 0), dtype=np.float32)
     if attractors:
-        resolved_attractors, attractor_vecs = _resolve_attractor_vectors(attractors, provider, model, image_ids)
+        user_attractors, user_vecs, peer_vecs = _resolve_attractor_vectors(
+            attractors, provider, model, image_ids,
+        )
 
     # Single-attractor arrangement choice (per `arrangement` parameter):
     #   "rings" — radial layout: target at centre, concentric Chebyshev rings
@@ -651,7 +724,7 @@ def compute_spacelike(
     # Multi-attractor always uses the field path — rings only makes sense for
     # one focal point.
     target_indices = [
-        i for i, a in enumerate(resolved_attractors) if a.kind == "target_image"
+        i for i, a in enumerate(user_attractors) if a.kind == "target_image"
     ]
 
     # Axis arrangement (TargetImage only): the target sits at one pole; the
@@ -659,17 +732,15 @@ def compute_spacelike(
     # -target_vec — i.e. the actual most-cosine-opposite picture in the slice.
     # Both poles are real images with real cells. Each image in between is
     # pulled toward whichever pole it's more similar to; the field settles
-    # into a smooth gradient along that axis. PCA in
-    # _attractor_anchor_positions places the two diametric vectors on
-    # opposite sides of the torus.
+    # into a smooth gradient along that axis. Axis is deliberately a 2-pole
+    # tension, so peers collapse to the two user poles — no leaf expansion.
     if (
         arrangement == "axis"
         and len(target_indices) == 1
-        and len(resolved_attractors) == 1
+        and len(user_attractors) == 1
     ):
-        target = resolved_attractors[0]
-        target_vec = attractor_vecs[0]
-        # Find the image whose embedding is closest to -target_vec.
+        target = user_attractors[0]
+        target_vec = user_vecs[0]
         matrix = provider.fetch_matrix(image_ids, model)
         norms = np.linalg.norm(matrix, axis=1, keepdims=True)
         matrix_n = matrix / np.maximum(norms, 1e-8)
@@ -679,41 +750,40 @@ def compute_spacelike(
         anti_vec = matrix_n[anti_idx].astype(np.float32)
         logger.info("Axis: target=%s, antipode=%s (cos=%.3f)",
                     target.ref[:20], anti_id[:20], float(anti_sims[anti_idx]))
-        resolved_attractors = [
+        user_attractors = [
             target,
             Attractor(kind="target_image", ref=anti_id),
         ]
-        attractor_vecs = np.stack([target_vec, anti_vec])
+        user_vecs = np.stack([target_vec, anti_vec])
+        peer_vecs = user_vecs
         # Fall through to the gravity-field path with the two real attractors.
     else:
         use_rings = arrangement == "rings" and (
-            bool(target_indices) or len(resolved_attractors) == 1
+            bool(target_indices) or len(user_attractors) == 1
         )
         if use_rings and target_indices:
             idx = target_indices[0]
             return _radial_attractor_layout(
                 provider, image_ids, model, cell_size, rows, cols,
-                resolved_attractors[idx], attractor_vecs[idx],
+                user_attractors[idx], user_vecs[idx],
                 contrast_directions,
             )
-        if use_rings and len(resolved_attractors) == 1:
+        if use_rings and len(user_attractors) == 1:
             return _radial_attractor_layout(
                 provider, image_ids, model, cell_size, rows, cols,
-                resolved_attractors[0], attractor_vecs[0],
+                user_attractors[0], user_vecs[0],
                 contrast_directions,
             )
 
-    # Gravity-field (biased-UMAP) layout. For single attractor + Field this
-    # is a single-pole deformation. For Axis it's a two-pole tension.
-    # For multi-attractor it's the only path.
+    # Gravity-field (biased-UMAP) layout. Peers (leaves) drive the field;
+    # each user attractor's own vec is the centroid of its peers and is used
+    # only for the UI peak marker.
     umap_fallback = _ensure_umap(provider, db, image_ids, model)
-    peak_indices: np.ndarray | None = None
-    anchors: np.ndarray | None = None
-    if resolved_attractors and attractor_vecs.shape[0] > 0:
-        anchors = _attractor_anchor_positions(attractor_vecs)
-        targets, peak_indices = _gravity_targets(
+    if user_attractors and peer_vecs.shape[0] > 0:
+        anchors = _attractor_anchor_positions(peer_vecs)
+        targets, _peer_peaks = _gravity_targets(
             provider, image_ids, model,
-            attractor_vecs, anchors, umap_fallback, feathering,
+            peer_vecs, anchors, umap_fallback, feathering,
             contrast_directions=contrast_directions,
         )
     else:
@@ -730,9 +800,20 @@ def compute_spacelike(
     ]
 
     attractor_positions: list[AttractorPosition] = []
-    if resolved_attractors and peak_indices is not None and peak_indices.size > 0:
+    if user_attractors and user_vecs.shape[0] > 0:
+        matrix = provider.fetch_matrix(image_ids, model)
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        matrix_n = matrix / np.maximum(norms, 1e-8)
+        if contrast_directions.shape[0] > 0:
+            image_proj = _project(matrix_n, contrast_directions)
+            user_proj = _project(user_vecs, contrast_directions)
+            diffs = image_proj[:, None, :] - user_proj[None, :, :]
+            user_sims = -np.linalg.norm(diffs, axis=2)
+        else:
+            user_sims = matrix_n @ user_vecs.T
+        user_peaks = np.argmax(user_sims, axis=0)
         idx_to_cell: dict[int, tuple[int, int]] = {img_idx: (col, row) for img_idx, col, row in assignments}
-        for att, peak_idx in zip(resolved_attractors, peak_indices.tolist()):
+        for att, peak_idx in zip(user_attractors, user_peaks.tolist()):
             cell = idx_to_cell.get(int(peak_idx))
             if cell is None:
                 continue
