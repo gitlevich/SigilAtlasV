@@ -38,16 +38,171 @@ class IngestState:
     """Tracks the current ingest pipeline, if any."""
 
     def __init__(self) -> None:
-        from sigil_atlas.progress import BufferedProgressReporter
+        from sigil_atlas.progress import BufferedProgressReporter, StageProgress
         self.thread: threading.Thread | None = None
         self.token = None
         self.reporter = BufferedProgressReporter()
         self.current_source: str | None = None
         self._lock = threading.Lock()
+        # Photos-import session: Tauri-driven, no pipeline thread. Stages are
+        # pinned on this instance so batch handlers can advance them without
+        # re-creating the reporter mid-import.
+        self._photos_register: StageProgress | None = None
+        self._photos_thumbnails: StageProgress | None = None
+
+    def start_photos_session(self) -> str:
+        from sigil_atlas.cancel import CancellationToken
+        from sigil_atlas.progress import BufferedProgressReporter
+        with self._lock:
+            if self.is_running:
+                return "already_running"
+            self.reporter = BufferedProgressReporter()
+            self.reporter.emit_event("pipeline_started", source="apple-photos")
+            self._photos_register = self.reporter.create_stage("register", 0)
+            self._photos_thumbnails = self.reporter.create_stage("thumbnails", 0)
+            self.current_source = "apple-photos"
+            self.token = CancellationToken()
+            return "started"
+
+    @property
+    def photos_cancelled(self) -> bool:
+        return (
+            self._photos_register is not None
+            and self.token is not None
+            and self.token.is_cancelled
+        )
+
+    def set_photos_total(self, total: int) -> None:
+        """Pin both photo-stage totals once sa-photos reports the library count."""
+        if self._photos_register is not None:
+            self._photos_register.set_total(total)
+        if self._photos_thumbnails is not None:
+            self._photos_thumbnails.set_total(total)
+            # Pinging the reporter so the UI sees a total before any records.
+            self._photos_register.advance(0) if self._photos_register else None
+
+    def advance_photos_register(self, count: int) -> None:
+        if self._photos_register is not None:
+            self._photos_register.advance(count)
+            # Grow the total only if the count pre-pass was skipped. When a
+            # total was already pinned via set_photos_total, leave it alone.
+            if self._photos_register.total < self._photos_register.completed:
+                self._photos_register.set_total(self._photos_register.completed)
+
+    def advance_photos_thumbnails(self, count: int) -> None:
+        if self._photos_thumbnails is not None:
+            self._photos_thumbnails.advance(count)
+            if self._photos_thumbnails.total < self._photos_thumbnails.completed:
+                self._photos_thumbnails.set_total(self._photos_thumbnails.completed)
+
+    def complete_photos_session(self, summary: dict) -> bool:
+        """Close the photos session. Returns True when downstream stages
+        (pixel features, embeddings, clustering, wrapping, neighborhoods)
+        should chain next — False on cancel or error.
+        """
+        with self._lock:
+            # Pin the thumbnail stage total to what was actually registered;
+            # failures stay as the gap between total and completed.
+            if self._photos_register is not None and self._photos_thumbnails is not None:
+                self._photos_thumbnails.set_total(self._photos_register.completed)
+            cancelled = self.token is not None and self.token.is_cancelled
+            errored = bool(summary.get("error"))
+            if cancelled:
+                self.reporter.set_status("paused")
+            elif errored:
+                self.reporter.emit_event("pipeline_error", **summary)
+            # Intentional: we do NOT emit pipeline_completed here on success.
+            # The follow-on chain will emit it when all downstream stages
+            # finish, so the UI stays in "running" the whole way through.
+            self._photos_register = None
+            self._photos_thumbnails = None
+            return not (cancelled or errored)
+
+    def start_post_photos_chain(self, workspace: "Workspace") -> None:
+        """After a successful photos import, run the stages that would have
+        followed register/metadata/thumbnails in a normal folder ingest:
+        pixel features, embeddings, clustering, and the top-down strategy
+        (wrapping + neighborhoods). Shares the reporter so the status bar
+        keeps ticking without a break between phases.
+        """
+        from sigil_atlas.cancel import CancellationToken
+        from sigil_atlas.ingest.cluster import KMEANS_K_LEVELS, run_clustering_stage
+        from sigil_atlas.ingest.embed import (
+            CLIPEmbedder, CLIPLargeEmbedder, DINOv2Embedder, run_embedding_stage,
+        )
+        from sigil_atlas.ingest.pipeline import TopDownStrategy
+        from sigil_atlas.ingest.pixel_features import run_pixel_features_stage
+
+        # Fresh cancellation token for the chain; the photos token is done.
+        self.token = CancellationToken()
+        token = self.token
+        reporter = self.reporter
+
+        def run() -> None:
+            db = workspace.open_db()
+            try:
+                pixel_stage = reporter.create_stage("pixel_features", 0)
+                run_pixel_features_stage(db, workspace.thumbnails_dir, pixel_stage, token)
+                if token.is_cancelled:
+                    return
+
+                for embedder_cls in [CLIPEmbedder, CLIPLargeEmbedder, DINOv2Embedder]:
+                    if token.is_cancelled:
+                        return
+                    embedder = embedder_cls()
+                    missing = len(db.fetch_unembedded_image_ids(embedder.MODEL_ID))
+                    if missing == 0:
+                        continue
+                    progress = reporter.create_stage(embedder.MODEL_ID, missing)
+                    run_embedding_stage(
+                        db, workspace.thumbnails_dir, embedder, progress, token,
+                    )
+
+                completed = db.mark_completed()
+                if completed:
+                    logger.info("Marked %d images as complete", completed)
+
+                if token.is_cancelled:
+                    return
+
+                from sigil_atlas.embedding_provider import SqliteEmbeddingProvider
+                provider = SqliteEmbeddingProvider(db)
+                for model_id in [
+                    CLIPEmbedder.MODEL_ID, CLIPLargeEmbedder.MODEL_ID, DINOv2Embedder.MODEL_ID,
+                ]:
+                    if token.is_cancelled:
+                        return
+                    cluster_stage = reporter.create_stage(
+                        f"cluster_{model_id}", len(KMEANS_K_LEVELS),
+                    )
+                    run_clustering_stage(
+                        db, provider, model_id, KMEANS_K_LEVELS, cluster_stage, token,
+                    )
+
+                if token.is_cancelled:
+                    return
+
+                TopDownStrategy().run(db, reporter, token)
+
+                reporter.emit_event("pipeline_completed")
+            except Exception:
+                logger.error("Post-photos chain failed", exc_info=True)
+                reporter.emit_event("pipeline_error")
+            finally:
+                if _state is not None:
+                    _state.provider.invalidate_cache()
+                db.close()
+
+        self.thread = threading.Thread(
+            target=run, daemon=True, name="post-photos-chain",
+        )
+        self.thread.start()
 
     @property
     def is_running(self) -> bool:
-        return self.thread is not None and self.thread.is_alive()
+        if self.thread is not None and self.thread.is_alive():
+            return True
+        return self._photos_register is not None
 
     def start(self, workspace: "Workspace", source_path: str) -> str:
         from sigil_atlas.cancel import CancellationToken
@@ -264,6 +419,16 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_corpus_nuke()
             elif self.path == "/ingest/start":
                 self._handle_ingest_start()
+            elif self.path == "/sources/photos/session/start":
+                self._handle_photos_session_start()
+            elif self.path == "/sources/photos/session/complete":
+                self._handle_photos_session_complete()
+            elif self.path == "/sources/photos/session/total":
+                self._handle_photos_session_total()
+            elif self.path == "/sources/photos/ingest":
+                self._handle_photos_ingest()
+            elif self.path == "/sources/photos/thumbnails-generated":
+                self._handle_photos_thumbnails_generated()
             elif self.path == "/ingest/pause":
                 self._handle_ingest_pause()
             elif self.path == "/ingest/resume":
@@ -302,6 +467,82 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "import already running"}, 409)
             return
         self._send_json({"status": result})
+
+    def _handle_photos_session_start(self):
+        """Open an Apple Photos import session and reset progress reporter."""
+        result = _state.ingest.start_photos_session()
+        if result == "already_running":
+            self._send_json({"error": "import already running"}, 409)
+            return
+        self._send_json({"status": result})
+
+    def _handle_photos_session_complete(self):
+        """Mark the Apple Photos import done. Body carries the summary counts.
+
+        On success, chain directly into pixel features + embeddings + clustering
+        + wrapping so the user lands on a usable corpus without another gesture.
+        """
+        data = self._read_json()
+        should_chain = _state.ingest.complete_photos_session(data or {})
+        if should_chain:
+            _state.ingest.start_post_photos_chain(_state.workspace)
+        self._send_json({"status": "completed", "chained": should_chain})
+
+    def _handle_photos_session_total(self):
+        """Set the photos-session stage totals from the count pre-pass.
+
+        Body: { "total": N }
+        """
+        data = self._read_json()
+        total = int(data.get("total", 0))
+        _state.ingest.set_photos_total(total)
+        self._send_json({"status": "ok", "total": total})
+
+    def _handle_photos_ingest(self):
+        """Receive a batch of photo records streamed from the Tauri app.
+
+        Body: { "records": [ { id, capture_date, w, h, lat, lon, is_live,
+                               is_screenshot, favorite }, ... ] }
+        Response: { "assigned": [[image_id, local_id], ...], "skipped": N,
+                    "thumbnails_dir": "<abs path>", "cancelled": bool }
+
+        When the session has been cancelled via /ingest/pause, returns
+        cancelled=true and the empty assigned list so the caller exits the
+        enumerate loop without further thumbnail work.
+        """
+        if _state.ingest.photos_cancelled:
+            self._send_json({
+                "assigned": [], "skipped": 0,
+                "thumbnails_dir": str(_state.workspace.thumbnails_dir),
+                "cancelled": True,
+            })
+            return
+        from sigil_atlas.ingest.photos_source import PhotosRecord, PhotosSource
+        data = self._read_json()
+        raw = data.get("records") or []
+        records = [PhotosRecord.from_json(r) for r in raw]
+        source = PhotosSource()
+        assigned, skipped = source.register_batch(_state.db, records)
+        _state.ingest.advance_photos_register(len(records))
+        self._send_json({
+            "assigned": [[img, loc] for img, loc in assigned],
+            "skipped": skipped,
+            "thumbnails_dir": str(_state.workspace.thumbnails_dir),
+            "cancelled": False,
+        })
+
+    def _handle_photos_thumbnails_generated(self):
+        """Mark thumbnails as present for a list of image ids.
+
+        Body: { "image_ids": [...] }
+        Advances the `photos_thumbnails` progress stage.
+        """
+        data = self._read_json()
+        image_ids: list[str] = data.get("image_ids") or []
+        for image_id in image_ids:
+            _state.db.update_thumbnail(image_id, f"{image_id}.jpg")
+        _state.ingest.advance_photos_thumbnails(len(image_ids))
+        self._send_json({"marked": len(image_ids)})
 
     def _handle_ingest_pause(self):
         result = _state.ingest.pause()

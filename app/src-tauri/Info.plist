@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Sigil Atlas reads your Photos library to organize images by visual taxonomy.</string>
+</dict>
+</plist>

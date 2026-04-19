@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod photos;
 mod sidecar;
 
 use std::sync::{Arc, Mutex as StdMutex};
@@ -38,6 +39,9 @@ fn main() {
             commands::drain_pending_opens,
             commands::list_sigils,
             commands::delete_sigil,
+            photos::photos_auth,
+            photos::photos_enumerate,
+            photos::photos_thumb,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {

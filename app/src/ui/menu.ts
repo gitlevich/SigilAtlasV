@@ -56,10 +56,15 @@ export async function initMenu(): Promise<void> {
         }),
         await PredefinedMenuItem.new({ item: "Separator" }),
         await MenuItem.new({
-          id: "import",
-          text: "Import Photos\u2026",
+          id: "import-folder",
+          text: "Import from Folder\u2026",
           accelerator: "CmdOrCtrl+Shift+I",
           action: () => A.actImportPhotos().catch((e) => console.error("[import]", e)),
+        }),
+        await MenuItem.new({
+          id: "import-apple-photos",
+          text: "Import from Apple Photos",
+          action: () => A.actImportApplePhotos().catch((e) => console.error("[photos-import]", e)),
         }),
         await PredefinedMenuItem.new({ item: "Separator" }),
         await PredefinedMenuItem.new({ item: "CloseWindow" }),
