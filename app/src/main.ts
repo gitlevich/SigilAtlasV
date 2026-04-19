@@ -6,11 +6,12 @@
  */
 
 import { TorusViewport } from "./renderer/torus-viewport";
-import { state, notify, subscribe, initThingsLibrary, refreshCollages } from "./state";
+import { state, notify, subscribe, initThingsLibrary, refreshCollages, refreshWorkspaceSigils } from "./state";
 import * as api from "./api";
 import { initControls, setViewport, recomputeSliceAndLayout, refreshControls, imageAtWorld, cellCenterAtWorld } from "./ui/controls";
 import { initStatusBar } from "./ui/status-bar";
 import { initMenu } from "./ui/menu";
+import { actToggleBothPanels } from "./menu-actions";
 import {
   openLightbox,
   closeLightbox,
@@ -54,14 +55,24 @@ async function startSidecarViaTauri(): Promise<number> {
 
   showStatus("Starting sidecar...");
 
-  // Resolve paths relative to the app binary location
-  // The workspace and python venv are in the project root
-  const port = await invoke<number>("start_sidecar", {
-    workspace: "/Users/vlad/SigilAtlas/workspace",
-    python: "/Users/vlad/SigilAtlas/python/.venv/bin/python",
-  });
+  // Workspace path: user-chosen via File > Choose Workspace…, else the
+  // project-root default. The chosen path persists in localStorage; a change
+  // reloads the window so the sidecar respawns against the new @Workspace.
+  const DEFAULT_WORKSPACE = "/Users/vlad/SigilAtlas/workspace";
+  const stored = localStorage.getItem("sigil-atlas.workspace");
+  const python = "/Users/vlad/SigilAtlas/python/.venv/bin/python";
 
-  return port;
+  if (stored) {
+    try {
+      return await invoke<number>("start_sidecar", { workspace: stored, python });
+    } catch (e) {
+      console.warn("[workspace] stored path failed to start sidecar:", stored, e);
+      localStorage.removeItem("sigil-atlas.workspace");
+      showStatus("Stored workspace was invalid — falling back to default", "#c88");
+    }
+  }
+
+  return await invoke<number>("start_sidecar", { workspace: DEFAULT_WORKSPACE, python });
 }
 
 async function main(): Promise<void> {
@@ -213,6 +224,8 @@ async function main(): Promise<void> {
   await initThingsLibrary();
   // Load saved collages — non-blocking; UI re-renders when they arrive.
   refreshCollages().catch((e) => console.error("[collages init]", e));
+  // Scan the workspace for `.sigil` subdirectories for the left panel list.
+  refreshWorkspaceSigils().catch((e) => console.error("[sigils init]", e));
   mark("things library");
 
   // Init controls
@@ -606,6 +619,14 @@ function setupCameraControls(canvas: HTMLCanvasElement): () => void {
     const th = state.torusHeight || 1;
     state.pov.x = ((state.pov.x % tw) + tw) % tw;
     state.pov.y = ((state.pov.y % th) + th) % th;
+  });
+
+  // Ctrl+Tab toggles both side panels as a unit.
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab" || !e.ctrlKey) return;
+    if (e.metaKey || e.altKey) return;
+    e.preventDefault();
+    actToggleBothPanels();
   });
 
   // Escape releases an active TargetImage. The pill is visible in

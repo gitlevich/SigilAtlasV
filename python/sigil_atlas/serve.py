@@ -877,6 +877,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 cell_size=float(data.get("cell_size", 100.0)),
                 image_ids=image_ids,
                 screenshot_base64=data.get("screenshot_base64"),
+                field_expansion=str(data.get("field_expansion", "echo")),
+                arrangement=str(data.get("arrangement", "rings")),
+                time_direction=str(data.get("time_direction", "capture_date")),
+                strip_height=float(data.get("strip_height", 100.0)),
+                torus_width=float(data.get("torus_width", 0.0)),
+                torus_height=float(data.get("torus_height", 0.0)),
             )
         except Exception as e:
             logger.exception("Collage export failed")

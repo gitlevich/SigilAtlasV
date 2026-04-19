@@ -77,6 +77,18 @@ html, body {
   display: flex;
 }
 
+.panel-unfold-tab.left {
+  right: auto;
+  left: 0;
+  border: 1px solid #2a2a3a;
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+}
+
+.panel.left.folded ~ .panel-unfold-tab.left {
+  display: flex;
+}
+
 .panel.left {
   border-right: 1px solid #2a2a3a;
 }
@@ -504,6 +516,17 @@ html, body {
 }
 .collage-delete {
   flex-shrink: 0;
+  color: #2e2e38;
+  transition: color 0.15s;
+}
+
+.collage-row:hover .collage-delete {
+  color: #888;
+}
+
+.collage-delete.armed,
+.collage-row:hover .collage-delete.armed {
+  color: #e44;
 }
 
 /* Things Library — accumulated names, click to activate, × to delete. */
@@ -533,6 +556,24 @@ html, body {
   color: #555;
   font-style: italic;
   padding: 2px 0;
+}
+
+.workspace-pick-btn {
+  margin-top: 6px;
+  padding: 5px 10px;
+  background: #1e1e2a;
+  border: 1px solid #2a2a3a;
+  border-radius: 4px;
+  color: #888;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.workspace-pick-btn:hover {
+  color: #c8c8d0;
+  border-color: #3a3a4a;
+  background: #22222e;
 }
 .library-search-row {
   margin-bottom: 6px;

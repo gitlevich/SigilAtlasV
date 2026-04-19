@@ -5,13 +5,16 @@
  * Mode, Attract, Contrasts, Color, Tone, Settings.
  */
 
-import { state, notify, subscribe, persistLibraryFolded } from "../state";
+import {
+  state, notify, subscribe, persistLibraryFolded,
+  currentSigilsFolder, setSigilsFolder, refreshWorkspaceSigils,
+} from "../state";
 import * as api from "../api";
 import { collageThumbnailUrl } from "../api";
 import type { AnyLayout, Dimension, ContrastControl, PointOfView, VocabularyTree, VocabularyNode } from "../types";
 import { isSpaceLikeLayout } from "../types";
 import { buildFilter } from "../relevance";
-import { loadCollage, renameCollageById, deleteCollageById } from "../collages";
+import { loadCollageFromFolder } from "../collages";
 import type { TorusViewport } from "../renderer/torus-viewport";
 import { createDiscriminateWidget } from "./discriminate-widget";
 import { createColorWheel, hueRangeToFilter, type HueRange } from "./color-wheel";
@@ -99,6 +102,11 @@ export function setViewport(vp: TorusViewport): void {
   viewport = vp;
 }
 
+// Cached on the last initControls call so callers (e.g. sigil load) can
+// rebuild the panels from the current state without a server round-trip.
+let cachedDimensions: Dimension[] = [];
+let cachedModelsRes: api.ModelsResponse | null = null;
+
 /** Re-fetch dimensions and models from the server and rebuild the control panels. */
 export async function refreshControls(): Promise<void> {
   const [dimensions, modelsRes] = await Promise.all([
@@ -114,6 +122,16 @@ export async function refreshControls(): Promise<void> {
     state.model = modelsRes.models[0];
   }
   await initControls(dimensions, modelsRes);
+  notify();
+}
+
+/** Rebuild every control widget from current state, using the dimensions and
+ *  models already fetched on startup. Cheap (no API calls) and idempotent;
+ *  the sigil-load path calls this so opened sigils flow through the same
+ *  control surface the user types into. */
+export async function rebuildControlsFromState(): Promise<void> {
+  if (!cachedModelsRes) return;
+  await initControls(cachedDimensions, cachedModelsRes);
   notify();
 }
 
@@ -639,31 +657,60 @@ function buildCollagesSection(body: HTMLElement): void {
   list.className = "collages-list";
   body.appendChild(list);
 
+  async function pickSigilsFolder(): Promise<void> {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({ directory: true, title: "Choose sigils folder" });
+      if (typeof selected !== "string") return;
+      setSigilsFolder(selected);
+      await refreshWorkspaceSigils();
+    } catch (e) {
+      console.error("[sigils folder pick]", e);
+    }
+  }
+
   const render = () => {
     list.innerHTML = "";
-    if (state.collages.length === 0) {
+    const folder = currentSigilsFolder();
+
+    if (!folder) {
       const empty = document.createElement("div");
       empty.className = "library-empty";
-      empty.textContent = "press \u2318S to save the current view";
+      empty.textContent = "no sigils folder chosen";
+      list.appendChild(empty);
+      const btn = document.createElement("button");
+      btn.className = "workspace-pick-btn";
+      btn.textContent = "Choose Sigils Folder\u2026";
+      btn.addEventListener("click", () => pickSigilsFolder());
+      list.appendChild(btn);
+      return;
+    }
+
+    if (state.workspaceSigils.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "library-empty";
+      empty.textContent = "no sigils in this folder \u2014 press \u2318S to save one";
       list.appendChild(empty);
       return;
     }
 
-    for (const c of state.collages) {
+    for (const s of state.workspaceSigils) {
       const row = document.createElement("div");
       row.className = "collage-row";
-      row.title = `Saved ${new Date(c.modified_at * 1000).toLocaleString()}`;
+      if (s.modified_at) {
+        row.title = `Saved ${new Date(s.modified_at * 1000).toLocaleString()}`;
+      }
 
       const thumb = document.createElement("div");
       thumb.className = "collage-thumb";
-      if (c.has_thumbnail) {
+      if (s.preview_data_url) {
         const img = document.createElement("img");
-        img.src = collageThumbnailUrl(c.id);
-        img.alt = c.name;
+        img.src = s.preview_data_url;
+        img.alt = s.name;
         thumb.appendChild(img);
       }
       thumb.addEventListener("click", () => {
-        loadCollage(c.id).catch((e) => console.error("[collage load]", e));
+        loadCollageFromFolder(s.folder_path).catch((e) => console.error("[sigil load]", e));
       });
       row.appendChild(thumb);
 
@@ -671,14 +718,9 @@ function buildCollagesSection(body: HTMLElement): void {
       meta.className = "collage-meta";
       const nameEl = document.createElement("div");
       nameEl.className = "collage-name";
-      nameEl.textContent = c.name;
-      nameEl.title = "double-click to rename";
-      nameEl.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        beginRename(nameEl, c.id, c.name);
-      });
+      nameEl.textContent = s.name;
       nameEl.addEventListener("click", () => {
-        loadCollage(c.id).catch((e) => console.error("[collage load]", e));
+        loadCollageFromFolder(s.folder_path).catch((e) => console.error("[sigil load]", e));
       });
       meta.appendChild(nameEl);
       row.appendChild(meta);
@@ -686,40 +728,36 @@ function buildCollagesSection(body: HTMLElement): void {
       const remove = document.createElement("span");
       remove.className = "pill-remove collage-delete";
       remove.textContent = "\u00d7";
-      remove.title = "delete (cannot be undone)";
-      remove.addEventListener("click", (e) => {
+      remove.title = "click to arm, click again to delete";
+      remove.addEventListener("click", async (e) => {
         e.stopPropagation();
-        if (!confirm(`Delete collage "${c.name}"?`)) return;
-        deleteCollageById(c.id).catch((err) => console.error("[collage delete]", err));
+        if (!remove.classList.contains("armed")) {
+          remove.classList.add("armed");
+          remove.title = "click again to delete \u2014 leave the sigil to cancel";
+          return;
+        }
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("delete_sigil", { folderPath: s.folder_path });
+          const { refreshWorkspaceSigils } = await import("../state");
+          await refreshWorkspaceSigils();
+        } catch (err) {
+          console.error("[sigil delete]", err);
+          alert(`Delete failed: ${err}`);
+        }
       });
       row.appendChild(remove);
+
+      // Leaving the row disarms the delete so a stray subsequent hover
+      // can't step into the armed state by accident.
+      row.addEventListener("mouseleave", () => {
+        remove.classList.remove("armed");
+        remove.title = "click to arm, click again to delete";
+      });
 
       list.appendChild(row);
     }
   };
-
-  function beginRename(el: HTMLElement, id: string, current: string): void {
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "collage-name-edit";
-    input.value = current;
-    el.replaceWith(input);
-    input.focus();
-    input.select();
-    const commit = () => {
-      const v = input.value.trim();
-      if (v && v !== current) {
-        renameCollageById(id, v).catch((e) => console.error("[collage rename]", e));
-      } else {
-        render();
-      }
-    };
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); commit(); }
-      else if (e.key === "Escape") { render(); }
-    });
-    input.addEventListener("blur", commit);
-  }
 
   renderCollages = render;
   render();
@@ -1320,6 +1358,9 @@ function buildImportSection(body: HTMLElement): void {
 // ── Main init ──
 
 export async function initControls(dimensions: Dimension[], modelsRes: api.ModelsResponse): Promise<void> {
+  cachedDimensions = dimensions;
+  cachedModelsRes = modelsRes;
+
   const models = modelsRes.models;
   const counts = modelsRes.counts;
   const total = modelsRes.total;
@@ -1336,30 +1377,45 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
       .catch((e) => console.error("[vocabulary]", e));
   }
 
-  // --- Left panel: start folded, keep dimension sliders for advanced use ---
+  // --- Left panel: Sigils (saved views) above the advanced dim sliders ---
   const slicePanel = document.getElementById("slice-panel")!;
-  slicePanel.innerHTML = "<h3>Slice</h3>";
-  slicePanel.classList.add("folded");
+  slicePanel.innerHTML = "";
+  slicePanel.classList.remove("folded");
 
-  for (const dim of dimensions) {
-    if (dim.type !== "range" || dim.min === undefined || dim.max === undefined) continue;
-    const container = document.createElement("div");
-    container.className = "control-group";
-    const label = document.createElement("label");
-    label.textContent = dim.name;
-    container.appendChild(label);
-    const widget = createDiscriminateWidget({
-      rangeMin: dim.min,
-      rangeMax: dim.max,
-      initial: { min: dim.min, max: dim.max },
-      onChange: (band) => {
-        setRangeFilter(dim.name, band.min, band.max);
-        debouncedRecompute();
-      },
-    });
-    container.appendChild(widget);
-    slicePanel.appendChild(container);
-  }
+  const leftHeader = document.createElement("div");
+  leftHeader.className = "panel-header";
+  const leftCollapse = document.createElement("button");
+  leftCollapse.className = "panel-collapse-btn";
+  leftCollapse.textContent = "\u25C0";
+  leftCollapse.title = "hide";
+  leftCollapse.addEventListener("click", (e) => {
+    e.stopPropagation();
+    slicePanel.classList.add("folded");
+  });
+  leftHeader.appendChild(document.createElement("span"));
+  leftHeader.appendChild(leftCollapse);
+  slicePanel.appendChild(leftHeader);
+
+  const leftUnfoldTab = document.createElement("div");
+  leftUnfoldTab.className = "panel-unfold-tab left";
+  leftUnfoldTab.textContent = "\u25B6";
+  leftUnfoldTab.addEventListener("click", (e) => {
+    e.stopPropagation();
+    slicePanel.classList.remove("folded");
+  });
+  slicePanel.parentElement!.insertBefore(leftUnfoldTab, slicePanel.nextSibling);
+
+  const collages = createSection("Sigils");
+  buildCollagesSection(collages.body);
+  slicePanel.appendChild(collages.section);
+  let lastSigils = state.workspaceSigils;
+  subscribe((s) => {
+    if (s.workspaceSigils !== lastSigils) {
+      lastSigils = s.workspaceSigils;
+      renderCollages?.();
+    }
+  });
+
 
   // --- Right panel: Lightroom-style sections ---
   const panel = document.getElementById("neighborhood-panel")!;
@@ -1450,22 +1506,6 @@ export async function initControls(dimensions: Dimension[], modelsRes: api.Model
   const layers = createSection("Layers");
   buildLayersSection(layers.body);
   panel.appendChild(layers.section);
-
-  // Sigils — saved views (⌘S). Sits high in the panel because it's the
-  // across-session anchor: a place to pick up where you left off.
-  const collages = createSection("Sigils");
-  buildCollagesSection(collages.body);
-  panel.appendChild(collages.section);
-  // Re-render the collages list whenever state changes (covers async load
-  // on init plus save/rename/delete); compare references to avoid pointless
-  // DOM churn from unrelated state changes.
-  let lastCollages = state.collages;
-  subscribe((s) => {
-    if (s.collages !== lastCollages) {
-      lastCollages = s.collages;
-      renderCollages?.();
-    }
-  });
 
   // ThingsLibrary — sits ABOVE Attract per spec; persists across sessions.
   // Initial fold state restored from localStorage; toggling persists.

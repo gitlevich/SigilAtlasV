@@ -9,11 +9,11 @@
  * dictionary, else timestamp). Open also uses the native folder picker.
  */
 
-import { state, notify } from "./state";
+import { state, notify, refreshWorkspaceSigils } from "./state";
 import * as api from "./api";
 import { buildFilter } from "./relevance";
 import type { Attractor, ContrastControl, RangeFilter, PointOfView } from "./types";
-import { recomputeSliceAndLayout } from "./ui/controls";
+import { recomputeSliceAndLayout, rebuildControlsFromState } from "./ui/controls";
 
 /** Capture the WebGL canvas at native resolution as a PNG, base64-encoded
  *  (no `data:` prefix). On Retina displays the canvas is already at
@@ -70,6 +70,12 @@ export async function saveCurrentAsCollage(): Promise<string | null> {
       relevance: state.relevance,
       feathering: state.feathering,
       cell_size: state.cellSize,
+      field_expansion: state.fieldExpansion,
+      arrangement: state.arrangement,
+      time_direction: state.timeDirection,
+      strip_height: state.stripHeight,
+      torus_width: state.torusWidth,
+      torus_height: state.torusHeight,
       attractors: state.attractors,
       image_ids: state.imageIds,
       screenshot_base64,
@@ -77,6 +83,7 @@ export async function saveCurrentAsCollage(): Promise<string | null> {
     state.lastError = null;
     notify();
     console.info("[collage] saved to", res.folder_path);
+    refreshWorkspaceSigils().catch((err) => console.error("[sigils refresh]", err));
     return res.folder_path;
   } catch (e) {
     console.error("[collage save]", e);
@@ -119,9 +126,38 @@ export async function loadCollageFromFolder(folderPath: string): Promise<void> {
   state.cellSize = manifest.cell_size;
   state.model = manifest.model;
   state.mode = (manifest.mode === "timelike" ? "timelike" : "spacelike");
+  if (manifest.field_expansion) state.fieldExpansion = manifest.field_expansion;
+  if (manifest.arrangement) state.arrangement = manifest.arrangement;
+  if (manifest.time_direction) state.timeDirection = manifest.time_direction;
+  if (typeof manifest.strip_height === "number") state.stripHeight = manifest.strip_height;
 
+  // Hand the loaded state to the control surface the user interacts with —
+  // the sigil is a recorded control state, same shape as one the user would
+  // have typed. Rebuild widgets from state, then let recompute drive the
+  // slice and framing the same way any control change would.
+  await rebuildControlsFromState();
   await recomputeSliceAndLayout();
-  state.pov = { ...manifest.pov };
+
+  // Restore the saved @pointOfView — zoom and orientation always, position
+  // scaled to the new torus when dimensions differ (the slice may return a
+  // different image count, so the torus resizes). Without this, the camera
+  // often lands between atlas tiers and the view looks distorted.
+  const savedTw = manifest.torus_width ?? 0;
+  const savedTh = manifest.torus_height ?? 0;
+  const newTw = state.torusWidth;
+  const newTh = state.torusHeight;
+  const sx = savedTw > 0 && newTw > 0 ? newTw / savedTw : 1;
+  const sy = savedTh > 0 && newTh > 0 ? newTh / savedTh : 1;
+  const saved = manifest.pov;
+  state.pov = {
+    x: saved.x * sx,
+    y: saved.y * sy,
+    // Zoom z lives on the horizontal axis; scale by sx so the same number of
+    // columns stays visible if the new torus is proportional.
+    z: saved.z * sx,
+    pitch: saved.pitch,
+    yaw: saved.yaw,
+  };
   notify();
 }
 
@@ -217,6 +253,7 @@ export async function loadCollage(id: string): Promise<void> {
   state.cellSize = detail.cell_size;
   state.model = detail.model;
   state.mode = (detail.mode === "timelike" ? "timelike" : "spacelike");
+  await rebuildControlsFromState();
   await recomputeSliceAndLayout();
   state.pov = pov;
   notify();

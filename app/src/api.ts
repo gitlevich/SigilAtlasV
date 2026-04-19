@@ -325,6 +325,12 @@ export interface ExportCollageRequest {
   relevance: number;
   feathering: number;
   cell_size: number;
+  field_expansion: "echo" | "tight";
+  arrangement: "rings" | "field" | "axis";
+  time_direction: string;
+  strip_height: number;
+  torus_width: number;
+  torus_height: number;
   attractors: import("./types").Attractor[]; // for naming hint (Thing pills)
   image_ids: string[]; // for CLIP-centroid naming when no pills
   screenshot_base64?: string; // full-resolution canvas PNG
@@ -350,6 +356,12 @@ export interface CollageManifest {
   relevance: number;
   feathering: number;
   cell_size: number;
+  field_expansion?: "echo" | "tight";
+  arrangement?: "rings" | "field" | "axis";
+  time_direction?: string;
+  strip_height?: number;
+  torus_width?: number;
+  torus_height?: number;
   image_ids: string[];
 }
 
