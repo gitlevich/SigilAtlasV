@@ -204,6 +204,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._send_json(_state.ingest.progress())
         elif self.path == "/things/library":
             self._send_json({"names": _state.db.list_things_library()})
+        elif self.path == "/workspace/state":
+            raw = _state.db.get_workspace_state("ui")
+            self._send_json({"state": json.loads(raw) if raw else None})
         elif self.path == "/collages":
             self._send_json({"collages": _state.db.list_collages()})
         elif self.path.startswith("/collages/") and self.path.endswith("/thumbnail"):
@@ -245,6 +248,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._handle_things_library_add()
             elif self.path == "/things/library/remove":
                 self._handle_things_library_remove()
+            elif self.path == "/workspace/state":
+                self._handle_workspace_state_save()
             elif self.path == "/collages/save":
                 self._handle_collage_save()
             elif self.path == "/collages/rename":
@@ -755,6 +760,15 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
         _state.db.remove_thing_from_library(name)
         self._send_json({"names": _state.db.list_things_library()})
+
+    def _handle_workspace_state_save(self):
+        data = self._read_json()
+        payload = data.get("state")
+        if payload is None:
+            self._send_json({"error": "missing 'state'"}, 400)
+            return
+        _state.db.set_workspace_state("ui", json.dumps(payload))
+        self._send_json({"ok": True})
 
     # ── Collages ───────────────────────────────────────────────────────────
 
